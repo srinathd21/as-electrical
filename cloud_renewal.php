@@ -36,7 +36,11 @@ if (!isset($_SESSION['temp_business_id'])) {
         $cloud_expired = true;
     }
     
-   
+    if (!$cloud_expired) {
+        // Subscription is active, redirect to dashboard
+        header("Location: dashboard.php");
+        exit();
+    }
     
     // Store in temp session for consistency
     $_SESSION['temp_user_id'] = $_SESSION['user_id'];

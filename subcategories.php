@@ -12,11 +12,10 @@ if (!isset($_SESSION['current_business_id'])) {
 }
 $current_business_id = (int) $_SESSION['current_business_id'];
 $user_role = $_SESSION['role'] ?? '';
-$is_admin = in_array($user_role, ['admin', 'shop_manager', 'stock_manager']);
+$is_admin = in_array($user_role, ['admin', 'shop_manager', 'stock_manager','stock_manager']);
 $success = $error = '';
 $categories = [];
 $subcategories = [];
-
 // Fetch all categories for dropdown
 $cat_stmt = $pdo->prepare("
     SELECT id, category_name, category_code
@@ -26,7 +25,6 @@ $cat_stmt = $pdo->prepare("
 ");
 $cat_stmt->execute([$current_business_id]);
 $categories = $cat_stmt->fetchAll(PDO::FETCH_ASSOC);
-
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_subcategory'])) {
@@ -35,7 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subcategory_code = trim($_POST['subcategory_code'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $status = $_POST['status'] ?? 'active';
-
         // Validate
         if (empty($subcategory_name)) {
             $error = "Subcategory name is required.";
@@ -95,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subcategory_code = trim($_POST['subcategory_code'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $status = $_POST['status'] ?? 'active';
-
         if (empty($subcategory_name)) {
             $error = "Subcategory name is required.";
         } else {
@@ -136,22 +132,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-
-    // Handle toggle status for single subcategory
-    if (isset($_POST['toggle_status'])) {
-        $subcategory_id = (int)$_POST['subcategory_id'];
-        $new_status = $_POST['new_status'];
-        
-        try {
-            $stmt = $pdo->prepare("UPDATE subcategories SET status = ? WHERE id = ? AND business_id = ?");
-            $stmt->execute([$new_status, $subcategory_id, $current_business_id]);
-            $success = "Subcategory status updated to " . ucfirst($new_status) . "!";
-        } catch (PDOException $e) {
-            $error = "Error updating status: " . $e->getMessage();
+}
+// Handle delete
+if (isset($_GET['delete'])) {
+    $subcategory_id = (int)$_GET['delete'];
+   
+    try {
+        // Check if subcategory has products
+        $check_stmt = $pdo->prepare("
+            SELECT COUNT(*) as product_count FROM products
+            WHERE subcategory_id = ? AND business_id = ?
+        ");
+        $check_stmt->execute([$subcategory_id, $current_business_id]);
+        $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+       
+        if ($result['product_count'] > 0) {
+            $error = "Cannot delete subcategory: It has " . $result['product_count'] . " product(s). Update products first.";
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM subcategories WHERE id = ? AND business_id = ?");
+            $stmt->execute([$subcategory_id, $current_business_id]);
+            $success = "Subcategory deleted successfully!";
         }
+    } catch (PDOException $e) {
+        $error = "Error deleting subcategory: " . $e->getMessage();
     }
 }
-
 // Handle bulk actions
 if (isset($_POST['bulk_action'])) {
     $action = $_POST['bulk_action'];
@@ -176,18 +181,35 @@ if (isset($_POST['bulk_action'])) {
                 $stmt->execute($params);
                 $success = count($selected_ids) . " subcategory(s) deactivated.";
                 break;
+               
+            case 'delete':
+                // Check if any subcategory has products
+                $check_stmt = $pdo->prepare("
+                    SELECT COUNT(*) as product_count FROM products
+                    WHERE subcategory_id IN ($placeholders) AND business_id = ?
+                ");
+                $check_params = array_merge($selected_ids, [$current_business_id]);
+                $check_stmt->execute($check_params);
+                $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
+               
+                if ($result['product_count'] > 0) {
+                    $error = "Cannot delete: Some subcategories have products assigned.";
+                } else {
+                    $stmt = $pdo->prepare("DELETE FROM subcategories WHERE id IN ($placeholders) AND business_id = ?");
+                    $params = array_merge($selected_ids, [$current_business_id]);
+                    $stmt->execute($params);
+                    $success = count($selected_ids) . " subcategory(s) deleted.";
+                }
+                break;
         }
     }
 }
-
 // Fetch all subcategories with category info and product counts
 $filter_category = $_GET['category'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
-
 $where_conditions = ["s.business_id = ?"];
 $params = [$current_business_id];
-
 if ($filter_category) {
     $where_conditions[] = "s.category_id = ?";
     $params[] = $filter_category;
@@ -203,9 +225,7 @@ if ($search) {
     $params[] = $like;
     $params[] = $like;
 }
-
 $where_sql = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
-
 $subcat_sql = "
     SELECT
         s.*,
@@ -219,11 +239,9 @@ $subcat_sql = "
     $where_sql
     ORDER BY c.category_name, s.subcategory_name
 ";
-
 $stmt = $pdo->prepare($subcat_sql);
 $stmt->execute($params);
 $subcategories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 // Get statistics
 $stats_sql = "
     SELECT
@@ -276,7 +294,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
-
                 <!-- Statistics Cards -->
                 <div class="row mb-4">
                     <div class="col-xl-3 col-md-6">
@@ -348,7 +365,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
-
                 <!-- Filter Card -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
@@ -404,7 +420,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                         </form>
                     </div>
                 </div>
-
                 <!-- Subcategories Table -->
                 <div class="card shadow-sm">
                     <div class="card-body">
@@ -420,7 +435,6 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                         <?php endif; ?>
-
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title mb-0">
                                 <i class="bx bx-list-ul me-1"></i> Subcategory List
@@ -430,13 +444,13 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                     <option value="">Bulk Actions</option>
                                     <option value="activate">Activate Selected</option>
                                     <option value="deactivate">Deactivate Selected</option>
+                                    <option value="delete">Delete Selected</option>
                                 </select>
-                                <button type="button" class="btn btn-sm btn-outline-primary" id="bulkActionBtn">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
                                     <i class="bx bx-play-circle me-1"></i> Apply
                                 </button>
                             </form>
                         </div>
-
                         <div class="table-responsive">
                             <table id="subcategoriesTable" class="table table-hover align-middle w-100">
                                 <thead class="table-light">
@@ -458,18 +472,7 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                 </thead>
                                 <tbody>
                                     <?php if (empty($subcategories)): ?>
-                                    <tr>
-                                        <td colspan="9" class="text-center py-4">
-                                            <div class="empty-state">
-                                                <i class="bx bx-layer fs-1 text-muted mb-3"></i>
-                                                <h5>No subcategories found</h5>
-                                                <p class="text-muted">Get started by adding your first subcategory</p>
-                                                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addSubcategoryModal">
-                                                    <i class="bx bx-plus me-1"></i> Add Subcategory
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                   
                                     <?php else: ?>
                                     <?php foreach ($subcategories as $subcat):
                                         $status_class = $subcat['status'] == 'active' ? 'success' : 'danger';
@@ -542,27 +545,19 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                                                         title="Edit">
                                                     <i class="bx bx-edit"></i>
                                                 </button>
-                                                <?php if ($subcat['status'] == 'active'): ?>
-                                                <button type="button"
-                                                        class="btn btn-outline-danger toggle-status-btn"
-                                                        data-id="<?= $subcat['id'] ?>"
-                                                        data-name="<?= htmlspecialchars($subcat['subcategory_name']) ?>"
-                                                        data-current-status="active"
-                                                        data-new-status="inactive"
-                                                        data-bs-toggle="tooltip"
-                                                        title="Deactivate">
-                                                    <i class="bx bx-power-off"></i>
-                                                </button>
+                                                <?php if ($subcat['product_count'] == 0): ?>
+                                                <a href="?delete=<?= $subcat['id'] ?>"
+                                                   class="btn btn-outline-danger delete-subcategory"
+                                                   data-bs-toggle="tooltip"
+                                                   title="Delete">
+                                                    <i class="bx bx-trash"></i>
+                                                </a>
                                                 <?php else: ?>
                                                 <button type="button"
-                                                        class="btn btn-outline-success toggle-status-btn"
-                                                        data-id="<?= $subcat['id'] ?>"
-                                                        data-name="<?= htmlspecialchars($subcat['subcategory_name']) ?>"
-                                                        data-current-status="inactive"
-                                                        data-new-status="active"
+                                                        class="btn btn-outline-danger disabled"
                                                         data-bs-toggle="tooltip"
-                                                        title="Activate">
-                                                    <i class="bx bx-power-off"></i>
+                                                        title="Cannot delete: Has <?= $subcat['product_count'] ?> product(s)">
+                                                    <i class="bx bx-trash"></i>
                                                 </button>
                                                 <?php endif; ?>
                                             </div>
@@ -580,10 +575,8 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         <?php include('includes/footer.php'); ?>
     </div>
 </div>
-
 <?php include('includes/rightbar.php'); ?>
 <?php include('includes/scripts.php'); ?>
-
 <!-- Add/Edit Modal -->
 <div class="modal fade" id="addSubcategoryModal" tabindex="-1">
     <div class="modal-dialog">
@@ -644,47 +637,16 @@ $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
-
-<!-- Toggle Status Confirmation Modal -->
-<div class="modal fade" id="toggleStatusModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center pt-0">
-                <div class="mb-4">
-                    <i class="bx bx-power-off text-warning" style="font-size: 4rem;"></i>
-                </div>
-                <h5 class="mb-3" id="toggleModalTitle">Change Status</h5>
-                <p class="text-muted mb-4" id="toggleModalMessage"></p>
-                <div class="d-flex justify-content-center gap-2">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-                        <i class="bx bx-x me-1"></i> Cancel
-                    </button>
-                    <form method="POST" id="toggleStatusForm" style="display: inline;">
-                        <input type="hidden" name="subcategory_id" id="toggleSubcategoryId" value="">
-                        <input type="hidden" name="new_status" id="toggleNewStatus" value="">
-                        <button type="submit" name="toggle_status" class="btn btn-warning" id="confirmToggleBtn">
-                            <i class="bx bx-check me-1"></i> Confirm
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 $(document).ready(function() {
     // Initialize DataTables
     var table = $('#subcategoriesTable').DataTable({
         responsive: true,
         pageLength: 25,
-        searching: false,
-        order: [[1, 'asc']],
+        searching: false, // Disable built-in search to avoid conflict with custom filter form
+        order: [[1, 'asc']], // Default sort by Subcategory name
         columnDefs: [
-            { orderable: false, targets: [0, 8] }
+            { orderable: false, targets: [0, 8] } // Disable sorting on checkbox and actions columns
         ],
         language: {
             lengthMenu: "Show _MENU_ entries",
@@ -729,63 +691,113 @@ $(document).ready(function() {
     // Tooltips
     $('[data-bs-toggle="tooltip"]').tooltip();
 
-    // Toggle status button handler
-    $('.toggle-status-btn').click(function() {
-        const id = $(this).data('id');
-        const name = $(this).data('name');
-        const currentStatus = $(this).data('current-status');
-        const newStatus = $(this).data('new-status');
-        
-        $('#toggleSubcategoryId').val(id);
-        $('#toggleNewStatus').val(newStatus);
-        
-        const action = newStatus === 'active' ? 'activate' : 'deactivate';
-        $('#toggleModalTitle').text(`${action.charAt(0).toUpperCase() + action.slice(1)} Subcategory`);
-        $('#toggleModalMessage').text(`Are you sure you want to ${action} "${name}"?`);
-        
-        if (newStatus === 'active') {
-            $('#confirmToggleBtn').removeClass('btn-warning').addClass('btn-success');
-        } else {
-            $('#confirmToggleBtn').removeClass('btn-success').addClass('btn-warning');
+    // SweetAlert2 Toast configuration
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
         }
-        
-        const modal = new bootstrap.Modal(document.getElementById('toggleStatusModal'));
-        modal.show();
     });
 
-    // Bulk action button handler
-    $('#bulkActionBtn').click(function() {
+    // Bulk action form submission
+    $('#bulkActionForm').submit(function(e) {
         const selectedCount = $('.select-checkbox:checked').length;
         const action = $('select[name="bulk_action"]').val();
-        
+       
         if (!action) {
-            showToast('warning', 'Please select a bulk action');
+            e.preventDefault();
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please select a bulk action'
+            });
             return;
         }
-        
+       
         if (selectedCount === 0) {
-            showToast('warning', 'Please select at least one subcategory');
+            e.preventDefault();
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please select at least one subcategory'
+            });
             return;
         }
-        
-        // Create a hidden form and submit
-        const form = $('#bulkActionForm');
-        form.attr('method', 'POST');
-        
-        // Clear any existing selected_ids inputs
-        form.find('input[name="selected_ids[]"]').remove();
-        
-        // Add selected IDs as hidden inputs
-        $('.select-checkbox:checked').each(function() {
-            form.append($('<input>').attr({
-                type: 'hidden',
-                name: 'selected_ids[]',
-                value: $(this).val()
-            }));
-        });
-        
-        form.submit();
+       
+        if (action === 'delete') {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Are you sure?',
+                text: `You are about to delete ${selectedCount} subcategory(s)`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete them!',
+                cancelButtonText: 'Cancel',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: true,
+                timer: 3000,
+                timerProgressBar: true,
+                customClass: {
+                    container: 'swal-toast-small'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Submit the form
+                    $('#bulkActionForm')[0].submit();
+                }
+            });
+        }
     });
+
+    // Delete button handler
+    $('.delete-subcategory').on('click', function(e) {
+        e.preventDefault();
+        let deleteUrl = $(this).attr('href');
+        
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You are about to delete this subcategory",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: true,
+            timer: 3000,
+            timerProgressBar: true,
+            customClass: {
+                container: 'swal-toast-small'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = deleteUrl;
+            }
+        });
+    });
+
+    // Show success/error messages as SweetAlert toasts
+    <?php if ($success): ?>
+    Toast.fire({
+        icon: 'success',
+        title: '<?= addslashes($success) ?>'
+    });
+    <?php endif; ?>
+
+    <?php if ($error): ?>
+    Toast.fire({
+        icon: 'error',
+        title: '<?= addslashes($error) ?>'
+    });
+    <?php endif; ?>
 
     // Edit button handler
     $('.edit-btn').click(function() {
@@ -795,24 +807,27 @@ $(document).ready(function() {
         const description = $(this).data('description');
         const status = $(this).data('status');
         const categoryId = $(this).data('category-id');
-        
+        // Update modal for editing
         $('#modalTitle').html('<i class="bx bx-edit"></i> Edit Subcategory');
         $('#editSubcategoryId').val(subcategoryId);
         $('#subcategoryName').val(subcategoryName);
         $('#subcategoryCode').val(subcategoryCode);
         $('#description').val(description);
         $('#categoryId').val(categoryId);
-        
+       
+        // Set status radio
         if (status === 'active') {
             $('#statusActive').prop('checked', true);
         } else {
             $('#statusInactive').prop('checked', true);
         }
-        
+       
+        // Update submit button
         $('#submitBtn').html('<i class="bx bx-save me-2"></i> Update Subcategory');
         $('#submitBtn').attr('name', 'update_subcategory');
-        
-        const modal = new bootstrap.Modal(document.getElementById('addSubcategoryModal'));
+       
+        // Show modal
+        const modal = new bootstrap.Modal('#addSubcategoryModal');
         modal.show();
     });
 
@@ -836,41 +851,30 @@ $(document).ready(function() {
     });
 
     // Form validation
-    $('#subcategoryForm').submit(function() {
+    $('#subcategoryForm').submit(function(e) {
         const categoryId = $('#categoryId').val();
         const subcategoryName = $('#subcategoryName').val().trim();
        
         if (!categoryId) {
-            showToast('error', 'Please select a category');
+            e.preventDefault();
+            Toast.fire({
+                icon: 'error',
+                title: 'Please select a category'
+            });
             return false;
         }
        
         if (!subcategoryName) {
-            showToast('error', 'Subcategory name is required');
+            e.preventDefault();
+            Toast.fire({
+                icon: 'error',
+                title: 'Subcategory name is required'
+            });
             return false;
         }
        
         return true;
     });
-
-    // Toast notification function
-    function showToast(type, message) {
-        $('.toast').remove();
-        const toast = $(`
-            <div class="toast align-items-center text-bg-${type} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `);
-        if ($('.toast-container').length === 0) {
-            $('body').append('<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999"></div>');
-        }
-        $('.toast-container').append(toast);
-        const bsToast = new bootstrap.Toast(toast[0], { autohide: true, delay: 3000 });
-        bsToast.show();
-    }
 
     // Auto-hide alerts
     setTimeout(() => {
@@ -892,20 +896,44 @@ $(document).ready(function() {
     });
 });
 </script>
-
 <style>
 .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
 .card-hover:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; }
 .table th { font-weight: 600; }
 .btn-group .btn { border-radius: 4px !important; }
-.empty-state { padding: 3rem; text-align: center; }
-.empty-state i { font-size: 4rem; opacity: 0.5; }
+.empty-state { padding: 3rem; }
 .avatar-title { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
 .table-hover tbody tr:hover { background-color: #f8f9fa; }
 .form-check-input:checked { background-color: #5b73e8; border-color: #5b73e8; }
-#toggleStatusModal .modal-body { padding: 2rem; }
-.btn-outline-danger, .btn-outline-success { transition: all 0.2s ease; }
-.btn-outline-danger:hover, .btn-outline-success:hover { transform: translateY(-1px); }
+
+/* SweetAlert2 small toast customization */
+.swal-toast-small {
+    font-size: 0.875rem !important;
+}
+.swal-toast-small .swal2-popup {
+    font-size: 0.875rem !important;
+    padding: 0.5rem !important;
+    width: auto !important;
+    min-width: 250px !important;
+}
+.swal-toast-small .swal2-title {
+    font-size: 1rem !important;
+    margin: 0 !important;
+    padding: 0 0 0.25rem 0 !important;
+}
+.swal-toast-small .swal2-html-container {
+    font-size: 0.875rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.swal-toast-small .swal2-actions {
+    margin: 0.25rem 0 0 0 !important;
+}
+.swal-toast-small .swal2-confirm,
+.swal-toast-small .swal2-cancel {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+}
 </style>
 </body>
 </html>

@@ -27,10 +27,26 @@ $search = trim($_GET['search'] ?? '');
 $status = trim($_GET['status'] ?? '');
 $date_from = trim($_GET['date_from'] ?? '');
 $date_to = trim($_GET['date_to'] ?? '');
+$manufacturer_id = isset($_GET['manufacturer']) ? (int)$_GET['manufacturer'] : 0;
+
+// Get manufacturer name if manufacturer_id is provided
+$manufacturer_name = '';
+if ($manufacturer_id > 0) {
+    $man_stmt = $pdo->prepare("SELECT name FROM manufacturers WHERE id = ? AND business_id = ?");
+    $man_stmt->execute([$manufacturer_id, $business_id]);
+    $manufacturer = $man_stmt->fetch();
+    $manufacturer_name = $manufacturer ? $manufacturer['name'] : '';
+}
 
 // === Build WHERE clause with filters ===
 $where = ["p.business_id = ?"];
 $params = [$business_id];
+
+// Manufacturer filter
+if ($manufacturer_id > 0) {
+    $where[] = "p.manufacturer_id = ?";
+    $params[] = $manufacturer_id;
+}
 
 // Search filter
 if (!empty($search)) {
@@ -87,6 +103,7 @@ $purchases_sql = "
         p.paid_amount,
         p.payment_status,
         p.reference,
+        p.manufacturer_id,
         m.name AS manufacturer_name,
         u.full_name AS created_by_name,
         (SELECT COUNT(*) FROM purchase_items pi WHERE pi.purchase_id = p.id) AS item_count
@@ -157,6 +174,24 @@ include 'includes/head.php';
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
 }
+.manufacturer-filter-badge {
+    background-color: #e7f5ff;
+    color: #0c63e4;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1rem;
+}
+.manufacturer-filter-badge a {
+    color: #0c63e4;
+    text-decoration: none;
+    font-weight: 500;
+}
+.manufacturer-filter-badge a:hover {
+    text-decoration: underline;
+}
 @media (max-width: 768px) {
     .btn-group-action {
         flex-direction: column;
@@ -226,6 +261,17 @@ include 'includes/head.php';
                     <strong>Payment Recorded!</strong> Successfully added payment for Purchase Order
                     <strong><?= $paid_po ?: 'the PO' ?></strong>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
+
+                <!-- Manufacturer Filter Badge (if filtering by manufacturer) -->
+                <?php if ($manufacturer_id > 0 && $manufacturer_name): ?>
+                <div class="manufacturer-filter-badge">
+                    <i class="bx bx-building"></i>
+                    <span>Showing purchases for: <strong><?= htmlspecialchars($manufacturer_name) ?></strong></span>
+                    <a href="purchases.php" class="ms-2">
+                        <i class="bx bx-x-circle"></i> Clear filter
+                    </a>
                 </div>
                 <?php endif; ?>
 
@@ -330,6 +376,9 @@ include 'includes/head.php';
                             <i class="bx bx-filter-alt me-1"></i> Filter Purchase Orders
                         </h5>
                         <form method="GET" id="filterForm">
+                            <?php if ($manufacturer_id > 0): ?>
+                            <input type="hidden" name="manufacturer" value="<?= $manufacturer_id ?>">
+                            <?php endif; ?>
                             <div class="row g-3">
                                 <div class="col-lg-4 col-md-6">
                                     <label class="form-label">Search</label>
@@ -367,8 +416,8 @@ include 'includes/head.php';
                                         <button type="submit" class="btn btn-primary flex-grow-1">
                                             <i class="bx bx-filter me-1"></i> Apply
                                         </button>
-                                        <?php if ($search || $status || $date_from || $date_to): ?>
-                                        <a href="purchases.php" class="btn btn-outline-secondary">
+                                        <?php if ($search || $status || $date_from || $date_to || $manufacturer_id): ?>
+                                        <a href="purchases.php<?= $manufacturer_id > 0 ? '?manufacturer=' . $manufacturer_id : '' ?>" class="btn btn-outline-secondary">
                                             <i class="bx bx-reset me-1"></i> Clear
                                         </a>
                                         <?php endif; ?>
@@ -397,7 +446,7 @@ include 'includes/head.php';
                                 </thead>
                                 <tbody>
                                     <?php if (empty($purchases)): ?>
-                                   
+                                    
                                     <?php else: ?>
                                     <?php foreach ($purchases as $p): 
                                         $status_classes = [
@@ -438,9 +487,17 @@ include 'includes/head.php';
                                         </td>
                                         <td class="text-center">
                                             <div class="mb-2">
-                                                <span class="badge bg-info bg-opacity-10 text-info px-3 py-1">
-                                                    <i class="bx bx-building me-1"></i><?= htmlspecialchars($p['manufacturer_name'] ?? '—') ?>
+                                                <?php if ($p['manufacturer_id']): ?>
+                                                <a href="purchases.php?manufacturer=<?= $p['manufacturer_id'] ?>" class="text-decoration-none">
+                                                    <span class="badge bg-info bg-opacity-10 text-info px-3 py-1">
+                                                        <i class="bx bx-building me-1"></i><?= htmlspecialchars($p['manufacturer_name'] ?? '—') ?>
+                                                    </span>
+                                                </a>
+                                                <?php else: ?>
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-1">
+                                                    <i class="bx bx-building me-1"></i>—
                                                 </span>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                         <td class="text-center">

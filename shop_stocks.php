@@ -88,7 +88,7 @@ if ($category !== '') {
 // Fetch categories for filter
 $categories = $pdo->query("SELECT id, category_name FROM categories WHERE business_id = $business_id ORDER BY category_name")->fetchAll();
 
-// Stock summary by shop
+// For single shop view - REPLACE THIS SECTION (around line 60-70)
 if ($selected_shop_id !== 'all') {
     $stock_summary_sql = "
         SELECT 
@@ -96,33 +96,28 @@ if ($selected_shop_id !== 'all') {
             SUM(CASE WHEN COALESCE(ps.quantity, 0) = 0 THEN 1 ELSE 0 END) as out_of_stock,
             SUM(CASE WHEN COALESCE(ps.quantity, 0) > 0 AND COALESCE(ps.quantity, 0) < p.min_stock_level THEN 1 ELSE 0 END) as low_stock,
             SUM(CASE WHEN COALESCE(ps.quantity, 0) >= p.min_stock_level THEN 1 ELSE 0 END) as in_stock,
-            COALESCE(SUM(ps.quantity * p.retail_price), 0) as stock_value
+            COALESCE(SUM(ps.quantity * p.stock_price), 0) as stock_value  /* Changed from retail_price to stock_price */
         FROM products p
         LEFT JOIN product_stocks ps ON p.id = ps.product_id AND ps.shop_id = ?
         $where
     ";
-    $summary_params = array_merge([(int)$selected_shop_id], $params);
 } else {
+    // For all shops view - REPLACE THIS SECTION
     $stock_summary_sql = "
         SELECT 
             COUNT(DISTINCT p.id) as total,
             SUM(CASE WHEN ps_total.total_qty = 0 THEN 1 ELSE 0 END) as out_of_stock,
             SUM(CASE WHEN ps_total.total_qty > 0 AND ps_total.total_qty < p.min_stock_level THEN 1 ELSE 0 END) as low_stock,
             SUM(CASE WHEN ps_total.total_qty >= p.min_stock_level THEN 1 ELSE 0 END) as in_stock,
-            COALESCE(SUM(ps_total.total_value), 0) as stock_value
+            COALESCE(SUM(ps_total.total_qty * p.stock_price), 0) as stock_value  /* Changed to use stock_price */
         FROM products p
         LEFT JOIN (
-            SELECT product_id, 
-                   SUM(quantity) as total_qty,
-                   SUM(quantity * (
-                       SELECT retail_price FROM products WHERE id = product_id
-                   )) as total_value
+            SELECT product_id, SUM(quantity) as total_qty
             FROM product_stocks 
             GROUP BY product_id
         ) ps_total ON p.id = ps_total.product_id
         $where
     ";
-    $summary_params = $params;
 }
 
 $summary_stmt = $pdo->prepare($stock_summary_sql);

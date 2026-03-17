@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_referral'])) {
     $referral_code = trim($_POST['referral_code']);
     $notes = trim($_POST['notes'] ?? '');
     $is_active = isset($_POST['is_active']) ? 1 : 0;
+    $initial_outstanding_type = $_POST['initial_outstanding_type'] ?? null;
+    $initial_outstanding_amount = (float)$_POST['initial_outstanding_amount'] ?? 0.00;
 
     // Validation
     $errors = [];
@@ -62,6 +64,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_referral'])) {
     
     if (empty($referral_code)) {
         $errors[] = "Referral code is required";
+    }
+
+    // Validate outstanding amount
+    if ($initial_outstanding_amount < 0) {
+        $errors[] = "Initial outstanding amount cannot be negative";
+    }
+    
+    if ($initial_outstanding_amount > 0 && empty($initial_outstanding_type)) {
+        $errors[] = "Please select outstanding type when amount is greater than 0";
+    }
+    
+    if (empty($initial_outstanding_type) && $initial_outstanding_amount > 0) {
+        $errors[] = "Please select outstanding type when amount is greater than 0";
+    }
+    
+    if (!empty($initial_outstanding_type) && $initial_outstanding_amount == 0) {
+        $errors[] = "Outstanding amount must be greater than 0 when type is selected";
     }
 
     // Handle file upload
@@ -115,12 +134,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_referral'])) {
             if ($check_stmt->fetch()) {
                 $error = "Phone number or referral code already exists.";
             } else {
+                // Calculate initial debit and credit amounts
+                $debit_amount = 0.00;
+                $paid_amount = 0.00;
+                $balance_due = 0.00;
+                
+                if ($initial_outstanding_type === 'debit') {
+                    // Debit: You owe referral person
+                    $debit_amount = $initial_outstanding_amount;
+                    $balance_due = $initial_outstanding_amount; // Positive balance due means you owe them
+                } elseif ($initial_outstanding_type === 'credit') {
+                    // Credit: Referral person owes you
+                    $paid_amount = $initial_outstanding_amount; // They've paid this amount
+                    $balance_due = -$initial_outstanding_amount; // Negative balance due means they owe you
+                }
+                
                 $stmt = $pdo->prepare("
                     INSERT INTO referral_person (
                         business_id, referral_code, full_name, phone, email, address, 
                         department, proof_id_type, proof_id_number, proof_id_file,
-                        commission_percent, notes, is_active, created_by, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        commission_percent, initial_outstanding_type, initial_outstanding_amount,
+                        debit_amount, paid_amount, balance_due,
+                        notes, is_active, created_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ");
                 
                 $stmt->execute([
@@ -135,6 +171,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_referral'])) {
                     $proof_id_number,
                     $uploaded_file_path,
                     $commission_percent,
+                    $initial_outstanding_type,
+                    $initial_outstanding_amount,
+                    $debit_amount,
+                    $paid_amount,
+                    $balance_due,
                     $notes,
                     $is_active,
                     $_SESSION['user_id']
@@ -316,6 +357,56 @@ $auto_generated_code = generateReferralCode($pdo, $current_business_id);
                                                 </div>
                                             </div>
 
+                                            <!-- Initial Outstanding Balance -->
+                                            <div class="card border mb-4">
+                                                <div class="card-header bg-light">
+                                                    <h5 class="card-title mb-0">
+                                                        <i class="bx bx-credit-card me-2"></i> Initial Outstanding Balance
+                                                    </h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row">
+                                                        <div class="col-md-6 mb-3">
+                                                            <label class="form-label">Initial Outstanding Type</label>
+                                                            <select name="initial_outstanding_type" class="form-select" id="outstandingType">
+                                                                <option value="">No Outstanding</option>
+                                                                <option value="debit" <?= ($_POST['initial_outstanding_type'] ?? '') === 'debit' ? 'selected' : '' ?>>
+                                                                    Debit (You owe referral person)
+                                                                </option>
+                                                                <option value="credit" <?= ($_POST['initial_outstanding_type'] ?? '') === 'credit' ? 'selected' : '' ?>>
+                                                                    Credit (Referral person owes you)
+                                                                </option>
+                                                            </select>
+                                                            <small class="text-muted">
+                                                                Select if there's any existing outstanding balance
+                                                            </small>
+                                                        </div>
+                                                        <div class="col-md-6 mb-3">
+                                                            <label class="form-label">Initial Outstanding Amount (₹)</label>
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">₹</span>
+                                                                <input type="number" name="initial_outstanding_amount" 
+                                                                       class="form-control" 
+                                                                       value="<?= htmlspecialchars($_POST['initial_outstanding_amount'] ?? '0') ?>"
+                                                                       step="0.01" min="0" 
+                                                                       id="outstandingAmount">
+                                                                <span class="input-group-text">.00</span>
+                                                            </div>
+                                                            <small class="text-muted" id="outstandingDescription">
+                                                                Enter outstanding amount
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="alert alert-info" id="outstandingInfo">
+                                                        <i class="bx bx-info-circle me-2"></i>
+                                                        <small>
+                                                            <strong>Debit:</strong> You owe money to referral person (Business liability)<br>
+                                                            <strong>Credit:</strong> Referral person owes money to you (Business asset)
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             <!-- ID Proof Information -->
                                             <div class="card border mb-4">
                                                 <div class="card-header bg-light">
@@ -417,6 +508,28 @@ $auto_generated_code = generateReferralCode($pdo, $current_business_id);
                                                         <small>
                                                             The referral person will earn <span id="commissionDisplay"><?= htmlspecialchars($_POST['commission_percent'] ?? '5') ?></span>% 
                                                             commission on each sale from their referrals.
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Outstanding Summary -->
+                                            <div class="card border mb-4" id="outstandingSummary" style="display: none;">
+                                                <div class="card-header bg-light">
+                                                    <h5 class="card-title mb-0">
+                                                        <i class="bx bx-money me-2"></i> Outstanding Summary
+                                                    </h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="text-center mb-3">
+                                                        <h3 id="summaryAmount" class="mb-1">₹0.00</h3>
+                                                        <small class="text-muted" id="summaryType">No Outstanding</small>
+                                                    </div>
+                                                    <div class="border-top pt-3">
+                                                        <small class="text-muted">
+                                                            <strong>Initial Balance:</strong> <span id="summaryInitial">₹0.00</span><br>
+                                                            <strong>Type:</strong> <span id="summaryTypeDetail">-</span><br>
+                                                            <strong>Status:</strong> <span id="summaryStatus" class="badge bg-secondary">No Balance</span>
                                                         </small>
                                                     </div>
                                                 </div>
@@ -524,6 +637,50 @@ $(document).ready(function() {
         $('#commissionDisplay').text($(this).val());
     });
 
+    // Update outstanding summary
+    function updateOutstandingSummary() {
+        const type = $('#outstandingType').val();
+        const amount = parseFloat($('#outstandingAmount').val()) || 0;
+        
+        if (type && amount > 0) {
+            $('#outstandingSummary').show();
+            $('#summaryAmount').text('₹' + amount.toFixed(2));
+            $('#summaryInitial').text('₹' + amount.toFixed(2));
+            $('#summaryType').text(type === 'debit' ? 'You owe referral person' : 'Referral person owes you');
+            $('#summaryTypeDetail').text(type === 'debit' ? 'Debit Outstanding' : 'Credit Outstanding');
+            
+            if (type === 'debit') {
+                $('#summaryStatus').removeClass().addClass('badge bg-danger').text('Business Liability');
+                $('#summaryAmount').addClass('text-danger');
+                $('#outstandingDescription').html('<span class="text-danger"><i class="bx bx-down-arrow-alt"></i> You need to pay this amount</span>');
+            } else {
+                $('#summaryStatus').removeClass().addClass('badge bg-success').text('Business Asset');
+                $('#summaryAmount').addClass('text-success');
+                $('#outstandingDescription').html('<span class="text-success"><i class="bx bx-up-arrow-alt"></i> You will receive this amount</span>');
+            }
+        } else {
+            $('#outstandingSummary').hide();
+            $('#summaryAmount').removeClass('text-danger text-success');
+            $('#outstandingDescription').text('Enter outstanding amount');
+        }
+    }
+
+    // Outstanding type and amount change handlers
+    $('#outstandingType, #outstandingAmount').on('change input', function() {
+        updateOutstandingSummary();
+        
+        // Enable/disable amount input based on type
+        const type = $('#outstandingType').val();
+        if (type) {
+            $('#outstandingAmount').prop('disabled', false).focus();
+        } else {
+            $('#outstandingAmount').prop('disabled', true).val(0);
+        }
+    });
+
+    // Initial update
+    updateOutstandingSummary();
+
     // Phone number formatting
     $('input[name="phone"]').on('input', function() {
         let value = $(this).val().replace(/\D/g, '');
@@ -626,6 +783,8 @@ $(document).ready(function() {
         const email = $('input[name="email"]').val();
         const proofIdType = $('select[name="proof_id_type"]').val();
         const proofIdNumber = $('input[name="proof_id_number"]').val();
+        const outstandingType = $('#outstandingType').val();
+        const outstandingAmount = parseFloat($('#outstandingAmount').val()) || 0;
         const fileInput = $('input[name="proof_id_file"]')[0];
         
         // Phone validation
@@ -650,6 +809,28 @@ $(document).ready(function() {
             e.preventDefault();
             showToast('error', 'Commission must be between 0 and 100%');
             $('input[name="commission_percent"]').focus();
+            return false;
+        }
+        
+        // Outstanding validation
+        if (outstandingAmount < 0) {
+            e.preventDefault();
+            showToast('error', 'Outstanding amount cannot be negative');
+            $('#outstandingAmount').focus();
+            return false;
+        }
+        
+        if (outstandingAmount > 0 && !outstandingType) {
+            e.preventDefault();
+            showToast('error', 'Please select outstanding type when amount is greater than 0');
+            $('#outstandingType').focus();
+            return false;
+        }
+        
+        if (outstandingType && outstandingAmount === 0) {
+            e.preventDefault();
+            showToast('error', 'Outstanding amount must be greater than 0 when type is selected');
+            $('#outstandingAmount').focus();
             return false;
         }
         
@@ -722,6 +903,8 @@ $(document).ready(function() {
 .alert-info { background-color: #e7f1ff; border-color: #c2d6ff; }
 #filePreview img { max-width: 100%; height: auto; }
 .img-thumbnail { padding: 0.25rem; background-color: #fff; border: 1px solid #dee2e6; border-radius: 0.375rem; }
+#outstandingSummary .badge { font-size: 0.7em; }
+#summaryAmount { font-size: 2rem; font-weight: bold; }
 </style>
 </body>
 </html>

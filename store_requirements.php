@@ -18,24 +18,41 @@ $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? '';
 $business_id = $_SESSION['business_id'] ?? 1;
 $allowed_roles = ['admin', 'seller', 'staff', 'warehouse_manager', 'field_executive','shop_manager'];
+
 if (!in_array($user_role, $allowed_roles)) {
     header('Location: dashboard.php');
     exit();
 }
 
-// Handle Delete Action
-if (isset($_POST['delete']) && $user_role === 'field_executive' && $_POST['csrf_token'] === $_SESSION['csrf_token']) {
-    $visit_id = (int)$_POST['delete'];
+// Handle AJAX Delete Action
+if (isset($_POST['ajax_delete']) && $_POST['ajax_delete'] == '1' && isset($_POST['visit_id'])) {
+    header('Content-Type: application/json');
     
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        echo json_encode(['success' => false, 'message' => 'Invalid security token']);
+        exit();
+    }
+    
+    if (!in_array($user_role, ['field_executive', 'admin'])) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to delete visits']);
+        exit();
+    }
+    
+    $visit_id = (int)$_POST['visit_id'];
+    
+    // Check if visit belongs to current business and can be deleted
     $stmt = $pdo->prepare("
         SELECT sv.id 
         FROM store_visits sv 
         LEFT JOIN store_requirements sr ON sr.store_visit_id = sv.id
-        WHERE sv.id = ? AND sv.field_executive_id = ? 
+        JOIN stores s ON sv.store_id = s.id
+        WHERE sv.id = ? 
+        AND s.business_id = ?
+        AND (sv.field_executive_id = ? OR ? = 'admin')
         AND sr.invoice_id IS NULL 
         AND sr.requirement_status = 'pending'
     ");
-    $stmt->execute([$visit_id, $user_id]);
+    $stmt->execute([$visit_id, $business_id, $user_id, $user_role]);
     
     if ($stmt->fetch()) {
         try {
@@ -43,33 +60,47 @@ if (isset($_POST['delete']) && $user_role === 'field_executive' && $_POST['csrf_
             $pdo->prepare("DELETE FROM store_requirements WHERE store_visit_id = ?")->execute([$visit_id]);
             $pdo->prepare("DELETE FROM store_visits WHERE id = ?")->execute([$visit_id]);
             $pdo->commit();
-            $_SESSION['success'] = "Visit deleted successfully.";
+            echo json_encode(['success' => true, 'message' => 'Visit deleted successfully']);
         } catch (Exception $e) {
             $pdo->rollBack();
-            $_SESSION['error'] = "Failed to delete visit: " . $e->getMessage();
+            echo json_encode(['success' => false, 'message' => 'Failed to delete visit: ' . $e->getMessage()]);
         }
     } else {
-        $_SESSION['error'] = "Cannot delete visit: Invalid or non-pending visit.";
+        echo json_encode(['success' => false, 'message' => 'Cannot delete visit: Invalid or non-pending visit']);
     }
-    
-    header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
 
-if (isset($_POST['approve_visit']) && $user_role === 'seller' && $_POST['csrf_token'] === $_SESSION['csrf_token']) {
-    $visit_id = (int)$_POST['approve_visit'];
+// Handle AJAX Approve Action
+if (isset($_POST['ajax_approve']) && $_POST['ajax_approve'] == '1' && isset($_POST['visit_id'])) {
+    header('Content-Type: application/json');
+    
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        echo json_encode(['success' => false, 'message' => 'Invalid security token']);
+        exit();
+    }
+    
+    if (!in_array($user_role, ['admin', 'seller'])) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to approve items']);
+        exit();
+    }
+    
+    $visit_id = (int)$_POST['visit_id'];
 
     try {
         $pdo->beginTransaction();
 
-        // Verify visit exists and has pending items
+        // Verify visit exists and belongs to current business
         $check_stmt = $pdo->prepare("
             SELECT 1
             FROM store_visits sv
             JOIN store_requirements sr ON sr.store_visit_id = sv.id
-            WHERE sv.id = ? AND sr.requirement_status = 'pending'
+            JOIN stores s ON sv.store_id = s.id
+            WHERE sv.id = ? 
+            AND s.business_id = ?
+            AND sr.requirement_status = 'pending'
         ");
-        $check_stmt->execute([$visit_id]);
+        $check_stmt->execute([$visit_id, $business_id]);
         
         if ($check_stmt->fetch()) {
             $stmt = $pdo->prepare("
@@ -81,45 +112,56 @@ if (isset($_POST['approve_visit']) && $user_role === 'seller' && $_POST['csrf_to
             ");
             $stmt->execute([$user_id, $visit_id]);
 
-            $_SESSION['success'] = "Items approved successfully.";
+            $pdo->commit();
+            echo json_encode(['success' => true, 'message' => 'Items approved successfully']);
         } else {
-            $_SESSION['error'] = "No pending items found for this visit.";
+            echo json_encode(['success' => false, 'message' => 'No pending items found for this visit']);
         }
-
-        $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        $_SESSION['error'] = "Failed to approve items: " . $e->getMessage();
+        echo json_encode(['success' => false, 'message' => 'Failed to approve items: ' . $e->getMessage()]);
     }
-
-    header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
 
-// Handle Staff Status Update
-if (isset($_POST['update_status']) && in_array($user_role, ['staff', 'warehouse_manager']) && $_POST['csrf_token'] === $_SESSION['csrf_token']) {
+// Handle AJAX Status Update
+if (isset($_POST['ajax_update']) && $_POST['ajax_update'] == '1' && isset($_POST['visit_id'])) {
+    header('Content-Type: application/json');
+    
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        echo json_encode(['success' => false, 'message' => 'Invalid security token']);
+        exit();
+    }
+    
+    if (!in_array($user_role, ['admin', 'staff', 'warehouse_manager'])) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to update status']);
+        exit();
+    }
+    
     $visit_id = (int)$_POST['visit_id'];
-    $new_status = $_POST['new_status'];
+    $new_status = $_POST['new_status'] ?? '';
     $tracking_number = $_POST['tracking_number'] ?? null;
     
     $allowed_statuses = ['packed', 'shipped', 'delivered'];
     if (!in_array($new_status, $allowed_statuses)) {
-        $_SESSION['error'] = "Invalid status selected.";
-        header("Location: " . $_SERVER['PHP_SELF']);
+        echo json_encode(['success' => false, 'message' => 'Invalid status selected']);
         exit();
     }
 
     try {
         $pdo->beginTransaction();
 
-        // Verify visit exists and has approved items
+        // Verify visit exists and belongs to current business
         $check_stmt = $pdo->prepare("
             SELECT 1
             FROM store_visits sv
             JOIN store_requirements sr ON sr.store_visit_id = sv.id
-            WHERE sv.id = ? AND sr.requirement_status IN ('approved', 'packed', 'shipped')
+            JOIN stores s ON sv.store_id = s.id
+            WHERE sv.id = ? 
+            AND s.business_id = ?
+            AND sr.requirement_status IN ('approved', 'packed', 'shipped')
         ");
-        $check_stmt->execute([$visit_id]);
+        $check_stmt->execute([$visit_id, $business_id]);
 
         if ($check_stmt->fetch()) {
             $update_data = [
@@ -128,33 +170,33 @@ if (isset($_POST['update_status']) && in_array($user_role, ['staff', 'warehouse_
                 $new_status . '_at' => date('Y-m-d H:i:s'),
                 'store_visit_id' => $visit_id
             ];
+            
             $query = "
                 UPDATE store_requirements
                 SET requirement_status = :requirement_status,
                     {$new_status}_by = :{$new_status}_by,
                     {$new_status}_at = :{$new_status}_at
             ";
+            
             if ($new_status === 'shipped' && $tracking_number) {
                 $query .= ", tracking_number = :tracking_number";
                 $update_data['tracking_number'] = $tracking_number;
             }
+            
             $query .= " WHERE store_visit_id = :store_visit_id AND requirement_status IN ('approved', 'packed', 'shipped')";
 
             $stmt = $pdo->prepare($query);
             $stmt->execute($update_data);
 
-            $_SESSION['success'] = "Status updated to $new_status successfully.";
+            $pdo->commit();
+            echo json_encode(['success' => true, 'message' => "Status updated to $new_status successfully"]);
         } else {
-            $_SESSION['error'] = "No eligible items to update.";
+            echo json_encode(['success' => false, 'message' => 'No eligible items to update']);
         }
-
-        $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        $_SESSION['error'] = "Failed to update status: " . $e->getMessage();
+        echo json_encode(['success' => false, 'message' => 'Failed to update status: ' . $e->getMessage()]);
     }
-
-    header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
 
@@ -164,17 +206,33 @@ $executive_filter = (int)($_GET['executive'] ?? 0);
 $status_filter = $_GET['status'] ?? '';
 $date_from = $_GET['date_from'] ?? date('Y-m-01');
 $date_to = $_GET['date_to'] ?? date('Y-m-d');
-$where = "WHERE 1=1";
-$params = [];
+
+$where = "WHERE s.business_id = ?";
+$params = [$business_id];
+
 if ($user_role === 'field_executive') {
     $where .= " AND sv.field_executive_id = ?";
     $params[] = $user_id;
     $executive_filter = $user_id;
 }
-if ($store_filter > 0) { $where .= " AND sv.store_id = ?"; $params[] = $store_filter; }
-if ($user_role !== 'field_executive' && $executive_filter > 0) { $where .= " AND sv.field_executive_id = ?"; $params[] = $executive_filter; }
-if ($date_from) { $where .= " AND DATE(sv.visit_date) >= ?"; $params[] = $date_from; }
-if ($date_to) { $where .= " AND DATE(sv.visit_date) <= ?"; $params[] = $date_to; }
+if ($store_filter > 0) { 
+    $where .= " AND sv.store_id = ?"; 
+    $params[] = $store_filter; 
+}
+if ($user_role !== 'field_executive' && $executive_filter > 0) { 
+    $where .= " AND sv.field_executive_id = ?"; 
+    $params[] = $executive_filter; 
+}
+if ($date_from) { 
+    $where .= " AND DATE(sv.visit_date) >= ?"; 
+    $params[] = $date_from; 
+}
+if ($date_to) { 
+    $where .= " AND DATE(sv.visit_date) <= ?"; 
+    $params[] = $date_to; 
+}
+
+// Status filter
 if ($status_filter) {
     $status_conditions = [
         'pending' => "AND EXISTS (SELECT 1 FROM store_requirements sr2 WHERE sr2.store_visit_id = sv.id AND sr2.requirement_status = 'pending')",
@@ -220,11 +278,18 @@ $visits = $pdo->prepare("
 $visits->execute($params);
 $visits = $visits->fetchAll();
 
-// Filters data
-$stores = $pdo->query("SELECT id, store_code, store_name FROM stores WHERE business_id = $business_id AND is_active = 1 ORDER BY store_name")->fetchAll();
-$executives = ($user_role !== 'field_executive')
-    ? $pdo->query("SELECT id, full_name FROM users WHERE business_id = $business_id AND role = 'field_executive' AND is_active = 1 ORDER BY full_name")->fetchAll()
-    : [];
+// Filters data - Business based
+$stores = $pdo->prepare("SELECT id, store_code, store_name FROM stores WHERE business_id = ? AND is_active = 1 ORDER BY store_name");
+$stores->execute([$business_id]);
+$stores = $stores->fetchAll();
+
+if ($user_role !== 'field_executive') {
+    $executives = $pdo->prepare("SELECT id, full_name FROM users WHERE business_id = ? AND role = 'field_executive' AND is_active = 1 ORDER BY full_name");
+    $executives->execute([$business_id]);
+    $executives = $executives->fetchAll();
+} else {
+    $executives = [];
+}
 
 // Stats
 $total_visits = count($visits);
@@ -266,7 +331,6 @@ include 'includes/head.php';
                                 </small>
                             </h4>
                             <div class="d-flex gap-2">
-                                
                                 <?php if ($user_role === 'field_executive' || $user_role === 'admin'): ?>
                                 <a href="store_visit_form.php" class="btn btn-primary">
                                     <i class="bx bx-plus-circle me-1"></i> New Visit
@@ -276,20 +340,6 @@ include 'includes/head.php';
                         </div>
                     </div>
                 </div>
-
-                <!-- Messages -->
-                <?php if ($success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bx bx-check-circle me-2"></i><?= htmlspecialchars($success) ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                <?php endif; ?>
-                <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="bx bx-error-circle me-2"></i><?= htmlspecialchars($error) ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                <?php endif; ?>
 
                 <!-- Filter Card -->
                 <div class="card shadow-sm mb-4">
@@ -448,7 +498,7 @@ include 'includes/head.php';
                                 </thead>
                                 <tbody>
                                     <?php if (empty($visits)): ?>
-                                   
+                                    
                                     <?php else: ?>
                                     <?php foreach($visits as $i => $v): 
                                         // Determine overall status
@@ -520,7 +570,7 @@ include 'includes/head.php';
                                                 </span>
                                                 <small class="text-muted d-block">Total Items</small>
                                             </div>
-                                            <div class="d-flex justify-content-center gap-2">
+                                            <div class="d-flex justify-content-center gap-2 flex-wrap">
                                                 <?php if ($v['pending_items'] > 0): ?>
                                                 <span class="badge bg-warning bg-opacity-10 text-warning px-2 py-1">
                                                     <?= $v['pending_items'] ?> Pending
@@ -531,11 +581,26 @@ include 'includes/head.php';
                                                     <?= $v['approved_items'] ?> Approved
                                                 </span>
                                                 <?php endif; ?>
+                                                <?php if ($v['packed_items'] > 0): ?>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">
+                                                    <?= $v['packed_items'] ?> Packed
+                                                </span>
+                                                <?php endif; ?>
+                                                <?php if ($v['shipped_items'] > 0): ?>
+                                                <span class="badge bg-dark bg-opacity-10 text-dark px-2 py-1">
+                                                    <?= $v['shipped_items'] ?> Shipped
+                                                </span>
+                                                <?php endif; ?>
+                                                <?php if ($v['delivered_items'] > 0): ?>
+                                                <span class="badge bg-success bg-opacity-10 text-success px-2 py-1">
+                                                    <?= $v['delivered_items'] ?> Delivered
+                                                </span>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                         <td class="text-center">
                                             <div class="process-flow">
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="d-flex justify-content-center align-items-center gap-3 mb-2">
                                                     <?php if ($v['approved_by_name']): ?>
                                                     <div class="text-center">
                                                         <i class="bx bx-check-circle text-success fs-4"></i>
@@ -581,56 +646,86 @@ include 'includes/head.php';
                                                         title="View Details">
                                                     <i class="bx bx-show"></i>
                                                 </button>
-                                                <?php if ($user_role === 'field_executive'): ?>
+                                                
+                                                <?php if ($user_role === 'field_executive' && $status === 'pending'): ?>
                                                 <a href="store_visit_form.php?edit=<?= $v['id'] ?>" 
                                                    class="btn btn-outline-warning"
                                                    data-bs-toggle="tooltip"
                                                    title="Edit Visit">
                                                     <i class="bx bx-edit"></i>
                                                 </a>
-                                                <?php if (!$v['has_invoice'] && $v['pending_items'] == $v['total_items']): ?>
-                                                <form action="" method="POST" style="display:inline;" 
-                                                      onsubmit="return confirm('Are you sure you want to delete this visit? This action cannot be undone.')">
-                                                    <input type="hidden" name="delete" value="<?= $v['id'] ?>">
-                                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                                                    <button type="submit" class="btn btn-outline-danger"
-                                                            data-bs-toggle="tooltip" title="Delete Visit">
-                                                        <i class="bx bx-trash"></i>
-                                                    </button>
-                                                </form>
                                                 <?php endif; ?>
-                                                <?php elseif ($user_role === 'seller' && $v['pending_items'] > 0): ?>
-                                                <form action="" method="POST" style="display:inline;" 
-                                                      onsubmit="return confirm('Approve all items in this visit?')">
-                                                    <input type="hidden" name="approve_visit" value="<?= $v['id'] ?>">
-                                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                                                    <button type="submit" class="btn btn-success"
-                                                            data-bs-toggle="tooltip" title="Approve Items">
-                                                        <i class="bx bx-check"></i> Approve
+                                                
+                                                <?php if (($user_role === 'field_executive' && $status === 'pending') || $user_role === 'admin'): ?>
+                                                <?php if (!$v['has_invoice']): ?>
+                                                <button class="btn btn-outline-danger delete-visit" 
+                                                        data-id="<?= $v['id'] ?>"
+                                                        data-csrf="<?= $_SESSION['csrf_token'] ?>"
+                                                        data-bs-toggle="tooltip" 
+                                                        title="Delete Visit">
+                                                    <i class="bx bx-trash"></i>
+                                                </button>
+                                                <?php endif; ?>
+                                                <?php endif; ?>
+                                                
+                                                <?php if (in_array($user_role, ['admin', 'seller']) && $v['pending_items'] > 0): ?>
+                                                <button class="btn btn-success btn-sm approve-visit"
+                                                        data-id="<?= $v['id'] ?>"
+                                                        data-csrf="<?= $_SESSION['csrf_token'] ?>"
+                                                        data-bs-toggle="tooltip" 
+                                                        title="Approve Items">
+                                                    <i class="bx bx-check"></i> Approve
+                                                </button>
+                                                <?php endif; ?>
+                                                
+                                                <?php if (in_array($user_role, ['admin', 'staff', 'warehouse_manager']) && in_array($status, ['approved', 'packed', 'shipped'])): ?>
+                                                <div class="btn-group btn-group-sm ms-1">
+                                                    <button type="button" 
+                                                            class="btn btn-primary dropdown-toggle" 
+                                                            data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                        <i class="bx bx-sync"></i> Update
                                                     </button>
-                                                </form>
-                                                <?php elseif (in_array($user_role, ['staff', 'warehouse_manager']) && in_array($status, ['approved', 'packed', 'shipped'])): ?>
-                                                <form action="" method="POST" style="display:inline;" 
-                                                      onsubmit="return confirm('Update status for all items?')" 
-                                                      class="d-flex gap-1">
-                                                    <input type="hidden" name="visit_id" value="<?= $v['id'] ?>">
-                                                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                                                    <select name="new_status" class="form-select form-select-sm w-auto">
-                                                        <option value="packed" <?= $status == 'approved' ? 'selected' : '' ?>>Packed</option>
-                                                        <option value="shipped" <?= $status == 'packed' ? 'selected' : '' ?>>Shipped</option>
-                                                        <option value="delivered" <?= $status == 'shipped' ? 'selected' : '' ?>>Delivered</option>
-                                                    </select>
-                                                    <?php if ($status == 'packed'): ?>
-                                                    <input type="text" name="tracking_number" 
-                                                           placeholder="Tracking No" 
-                                                           class="form-control form-control-sm w-auto" 
-                                                           style="width: 120px;">
-                                                    <?php endif; ?>
-                                                    <button type="submit" name="update_status" 
-                                                            class="btn btn-primary btn-sm">
-                                                        <i class="bx bx-sync"></i>
-                                                    </button>
-                                                </form>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <?php if ($status == 'approved'): ?>
+                                                        <li>
+                                                            <button class="dropdown-item update-status" 
+                                                                    data-id="<?= $v['id'] ?>"
+                                                                    data-status="packed"
+                                                                    data-csrf="<?= $_SESSION['csrf_token'] ?>">
+                                                                <i class="bx bx-package me-2 text-primary"></i> Mark as Packed
+                                                            </button>
+                                                        </li>
+                                                        <?php endif; ?>
+                                                        
+                                                        <?php if ($status == 'packed'): ?>
+                                                        <li>
+                                                            <div class="px-3 py-2">
+                                                                <input type="text" id="tracking_<?= $v['id'] ?>" 
+                                                                       class="form-control form-control-sm mb-2" 
+                                                                       placeholder="Tracking Number">
+                                                                <button class="btn btn-primary btn-sm w-100 update-status-with-tracking"
+                                                                        data-id="<?= $v['id'] ?>"
+                                                                        data-status="shipped"
+                                                                        data-csrf="<?= $_SESSION['csrf_token'] ?>">
+                                                                    <i class="bx bx-send me-2"></i> Mark as Shipped
+                                                                </button>
+                                                            </div>
+                                                        </li>
+                                                        <?php endif; ?>
+                                                        
+                                                        <?php if ($status == 'shipped'): ?>
+                                                        <li>
+                                                            <button class="dropdown-item update-status"
+                                                                    data-id="<?= $v['id'] ?>"
+                                                                    data-status="delivered"
+                                                                    data-csrf="<?= $_SESSION['csrf_token'] ?>">
+                                                                <i class="bx bx-check-double me-2 text-success"></i> Mark as Delivered
+                                                            </button>
+                                                        </li>
+                                                        <?php endif; ?>
+                                                    </ul>
+                                                </div>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -691,21 +786,294 @@ $(document).ready(function() {
     // Tooltips
     $('[data-bs-toggle="tooltip"]').tooltip();
 
+    // Delete visit with AJAX
+    $(document).on('click', '.delete-visit', function() {
+        const visitId = $(this).data('id');
+        const csrfToken = $(this).data('csrf');
+        const button = $(this);
+        
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading state
+                button.html('<i class="bx bx-loader bx-spin"></i>').prop('disabled', true);
+                
+                // Send AJAX request
+                $.ajax({
+                    url: window.location.href,
+                    type: 'POST',
+                    data: {
+                        ajax_delete: 1,
+                        visit_id: visitId,
+                        csrf_token: csrfToken
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: response.message
+                            });
+                            button.html('<i class="bx bx-trash"></i>').prop('disabled', false);
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'Failed to connect to server'
+                        });
+                        button.html('<i class="bx bx-trash"></i>').prop('disabled', false);
+                    }
+                });
+            }
+        });
+    });
+
+    // Approve visit with AJAX
+    $(document).on('click', '.approve-visit', function() {
+        const visitId = $(this).data('id');
+        const csrfToken = $(this).data('csrf');
+        const button = $(this);
+        
+        Swal.fire({
+            title: 'Approve Items?',
+            text: "Are you sure you want to approve all pending items in this visit?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, approve them!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading state
+                button.html('<i class="bx bx-loader bx-spin"></i>').prop('disabled', true);
+                
+                // Send AJAX request
+                $.ajax({
+                    url: window.location.href,
+                    type: 'POST',
+                    data: {
+                        ajax_approve: 1,
+                        visit_id: visitId,
+                        csrf_token: csrfToken
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Approved!',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: response.message
+                            });
+                            button.html('<i class="bx bx-check"></i> Approve').prop('disabled', false);
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'Failed to connect to server'
+                        });
+                        button.html('<i class="bx bx-check"></i> Approve').prop('disabled', false);
+                    }
+                });
+            }
+        });
+    });
+
+    // Update status without tracking (packed, delivered)
+    $(document).on('click', '.update-status', function() {
+        const visitId = $(this).data('id');
+        const newStatus = $(this).data('status');
+        const csrfToken = $(this).data('csrf');
+        const button = $(this);
+        
+        let statusText = '';
+        let statusIcon = '';
+        
+        switch(newStatus) {
+            case 'packed':
+                statusText = 'packed';
+                statusIcon = '📦';
+                break;
+            case 'delivered':
+                statusText = 'delivered';
+                statusIcon = '✅';
+                break;
+            default:
+                statusText = newStatus;
+        }
+        
+        Swal.fire({
+            title: `Mark as ${statusText}?`,
+            text: `Are you sure you want to mark this visit as ${statusText}?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#007bff',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: `Yes, mark as ${statusText}!`,
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading state
+                button.html('<i class="bx bx-loader bx-spin"></i>').prop('disabled', true);
+                
+                // Send AJAX request
+                $.ajax({
+                    url: window.location.href,
+                    type: 'POST',
+                    data: {
+                        ajax_update: 1,
+                        visit_id: visitId,
+                        new_status: newStatus,
+                        csrf_token: csrfToken
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Updated!',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: response.message
+                            });
+                            location.reload();
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'Failed to connect to server'
+                        });
+                        location.reload();
+                    }
+                });
+            }
+        });
+    });
+
+    // Update status with tracking (shipped)
+    $(document).on('click', '.update-status-with-tracking', function() {
+        const visitId = $(this).data('id');
+        const newStatus = $(this).data('status');
+        const csrfToken = $(this).data('csrf');
+        const trackingNumber = $('#tracking_' + visitId).val();
+        const button = $(this);
+        
+        if (!trackingNumber) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Tracking Number Required',
+                text: 'Please enter a tracking number before marking as shipped.',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Mark as Shipped?',
+            html: `Are you sure you want to mark this visit as shipped with tracking number: <strong>${trackingNumber}</strong>?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#007bff',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, mark as shipped!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading state
+                button.html('<i class="bx bx-loader bx-spin"></i>').prop('disabled', true);
+                
+                // Send AJAX request
+                $.ajax({
+                    url: window.location.href,
+                    type: 'POST',
+                    data: {
+                        ajax_update: 1,
+                        visit_id: visitId,
+                        new_status: newStatus,
+                        tracking_number: trackingNumber,
+                        csrf_token: csrfToken
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Shipped!',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: response.message
+                            });
+                            location.reload();
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'Failed to connect to server'
+                        });
+                        location.reload();
+                    }
+                });
+            }
+        });
+    });
+
     // Auto-submit on filter change (optional)
     $('select[name="store"], select[name="executive"], select[name="status"]').on('change', function() {
         $('#filterForm').submit();
     });
-
-    // Auto-close alerts after 5 seconds
-    setTimeout(() => {
-        $('.alert').alert('close');
-    }, 5000);
-
-    // Row hover effect
-    $('.visit-row').hover(
-        function() { $(this).addClass('bg-light'); },
-        function() { $(this).removeClass('bg-light'); }
-    );
 });
 
 // View visit details
@@ -721,26 +1089,6 @@ function viewVisit(id) {
         .catch(error => {
             $('#visitDetails').html('<div class="alert alert-danger">Failed to load visit details. Please try again.</div>');
         });
-}
-
-// Export function
-function exportVisits() {
-    const btn = event.target.closest('button');
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Exporting...';
-    btn.disabled = true;
-    
-    // Build export URL with current search parameters
-    const params = new URLSearchParams(window.location.search);
-    const exportUrl = 'visits_export.php' + (params.toString() ? '?' + params.toString() : '');
-    
-    window.location = exportUrl;
-    
-    // Reset button after 3 seconds
-    setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-    }, 3000);
 }
 </script>
 
@@ -788,6 +1136,10 @@ function exportVisits() {
     transform: scale(1.1);
     transition: transform 0.3s ease;
 }
+.dropdown-menu {
+    min-width: 250px;
+    padding: 10px;
+}
 @media (max-width: 768px) {
     .btn-group {
         display: flex;
@@ -812,7 +1164,13 @@ function exportVisits() {
     .process-flow {
         min-width: 150px;
     }
+    .dropdown-menu {
+        position: fixed;
+        left: 10px !important;
+        right: 10px !important;
+        width: auto !important;
+    }
 }
 </style>
 </body>
-</html> 
+</html>

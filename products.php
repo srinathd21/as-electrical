@@ -15,6 +15,15 @@ $current_shop_id = $_SESSION['current_shop_id'] ?? null;
 $user_role = $_SESSION['role'] ?? '';
 $is_admin = ($user_role === 'admin');
 $is_stock_manager = in_array($user_role, ['admin', 'shop_manager', 'stock_manager', 'warehouse_manager']);
+
+// Check for session messages
+$success_message = $_SESSION['success_message'] ?? '';
+$error_message = $_SESSION['error_message'] ?? '';
+
+// Clear messages after retrieving
+unset($_SESSION['success_message']);
+unset($_SESSION['error_message']);
+
 // === FILTERS & SEARCH ===
 $search = trim($_GET['search'] ?? '');
 $category = $_GET['category'] ?? '';
@@ -27,20 +36,6 @@ $params = [$current_business_id];
 
 // Shop condition for stock
 $shop_condition = $is_admin ? "" : "AND ps.shop_id = " . (int)$current_shop_id;
-
-if ($search !== '') {
-    $where .= " AND (p.product_name LIKE ? OR p.product_code LIKE ? OR p.barcode LIKE ? OR g.hsn_code LIKE ?)";
-    $like = "%$search%";
-    $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
-}
-if ($category !== '') {
-    $where .= " AND p.category_id = ?";
-    $params[] = $category;
-}
-if ($hsn_filter !== '') {
-    $where .= " AND g.hsn_code = ?";
-    $params[] = $hsn_filter;
-}
 
 // Fetch categories for filter
 $cat_stmt = $pdo->prepare("SELECT id, category_name FROM categories WHERE business_id = ? AND status = 'active' AND parent_id IS NULL ORDER BY category_name");
@@ -60,8 +55,6 @@ $stock_summary_sql = "
         SUM(CASE WHEN COALESCE(ps.quantity, 0) > 0 AND COALESCE(ps.quantity, 0) < p.min_stock_level THEN 1 ELSE 0 END) as low_stock,
         SUM(CASE WHEN COALESCE(ps.quantity, 0) >= p.min_stock_level THEN 1 ELSE 0 END) as in_stock
     FROM products p
-    LEFT JOIN categories c ON p.category_id = c.id
-    LEFT JOIN gst_rates g ON p.gst_id = g.id
     LEFT JOIN product_stocks ps ON ps.product_id = p.id $shop_condition
     $where
 ";
@@ -69,7 +62,22 @@ $summary_stmt = $pdo->prepare($stock_summary_sql);
 $summary_stmt->execute($params);
 $stock_summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
-// Main products query - fetch all filtered records for client-side processing
+// Now build WHERE conditions with proper table references
+if ($search !== '') {
+    // Note: We need to reference tables that will be joined in the main query
+    $where .= " AND (p.product_name LIKE ? OR p.product_code LIKE ? OR p.barcode LIKE ?)";
+    $like = "%$search%";
+    $params[] = $like; 
+    $params[] = $like; 
+    $params[] = $like;
+}
+
+if ($category !== '') {
+    $where .= " AND p.category_id = ?";
+    $params[] = $category;
+}
+
+// Main products query with joins
 $sql = "
     SELECT
         p.id,
@@ -88,6 +96,20 @@ $sql = "
         p.referral_enabled,
         p.referral_type,
         p.referral_value,
+        p.unit_of_measure,
+        p.secondary_unit,
+        p.sec_unit_conversion,
+        p.sec_unit_price_type,
+        p.sec_unit_extra_charge,
+        p.mrp,
+        p.discount_type,
+        p.discount_value,
+        p.retail_price_type,
+        p.retail_price_value,
+        p.wholesale_price_type,
+        p.wholesale_price_value,
+        p.gst_type,
+        p.gst_amount,
         c.category_name,
         s.subcategory_name,
         g.hsn_code,
@@ -95,7 +117,8 @@ $sql = "
         CONCAT(g.sgst_rate, '%') as sgst_rate,
         CONCAT(g.igst_rate, '%') as igst_rate,
         CONCAT(g.cgst_rate + g.sgst_rate + g.igst_rate, '%') AS total_tax_rate,
-        COALESCE(SUM(ps.quantity), 0) AS total_stock
+        COALESCE(SUM(ps.quantity), 0) AS total_stock,
+        COALESCE(ps.total_secondary_units, 0) AS total_secondary_units
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN subcategories s ON p.subcategory_id = s.id
@@ -105,9 +128,20 @@ $sql = "
     GROUP BY p.id
     ORDER BY p.product_name
 ";
+
+// Apply HSN filter after building the main SQL (will be filtered in PHP)
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Apply HSN filter in PHP
+if ($hsn_filter !== '') {
+    $products = array_filter($products, function($product) use ($hsn_filter) {
+        return ($product['hsn_code'] ?? '') == $hsn_filter;
+    });
+    // Re-index array
+    $products = array_values($products);
+}
 
 // Apply stock filter in PHP
 if ($stock_filter !== 'all') {
@@ -130,15 +164,32 @@ if ($stock_filter !== 'all') {
 }
 
 // Calculate stock value summary
+// Note: We need a separate query for this with the same filters
+$summary_params = [$current_business_id];
+$summary_where = "WHERE p.is_active = 1 AND p.business_id = ?";
+
+if ($search !== '') {
+    $summary_where .= " AND (p.product_name LIKE ? OR p.product_code LIKE ? OR p.barcode LIKE ?)";
+    $like = "%$search%";
+    $summary_params[] = $like; 
+    $summary_params[] = $like; 
+    $summary_params[] = $like;
+}
+
+if ($category !== '') {
+    $summary_where .= " AND p.category_id = ?";
+    $summary_params[] = $category;
+}
+
 $summary_sql = "
     SELECT
-        COALESCE(SUM(CASE WHEN COALESCE(ps.quantity, 0) >= p.min_stock_level THEN p.retail_price * COALESCE(ps.quantity, 0) ELSE 0 END), 0) as stock_value
+        COALESCE(SUM(p.stock_price * COALESCE(ps.quantity, 0)), 0) as stock_value
     FROM products p
     LEFT JOIN product_stocks ps ON p.id = ps.product_id $shop_condition
-    $where
+    $summary_where
 ";
 $summary_stmt = $pdo->prepare($summary_sql);
-$summary_stmt->execute($params);
+$summary_stmt->execute($summary_params);
 $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
@@ -181,6 +232,40 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
+
+                <!-- Success/Error Messages -->
+                <?php if ($success_message): ?>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="bx bx-check-circle fs-4 me-2"></i>
+                                <div>
+                                    <strong>Success!</strong> <?= htmlspecialchars($success_message) ?>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($error_message): ?>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="bx bx-error-circle fs-4 me-2"></i>
+                                <div>
+                                    <strong>Error!</strong> <?= htmlspecialchars($error_message) ?>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- Quick Stats Cards -->
                 <div class="row mb-4">
                     <div class="col-xl-3 col-md-6">
@@ -252,6 +337,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
+
                 <!-- Filter Card -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
@@ -267,7 +353,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                             <i class="bx bx-search"></i>
                                         </span>
                                         <input type="text" name="search" class="form-control"
-                                               placeholder="Name / Code / Barcode / HSN"
+                                               placeholder="Name / Code / Barcode"
                                                value="<?= htmlspecialchars($search) ?>">
                                     </div>
                                 </div>
@@ -322,6 +408,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                         </form>
                     </div>
                 </div>
+
                 <!-- Products Table -->
                 <div class="card shadow-sm">
                     <div class="card-body">
@@ -329,11 +416,11 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                             <table id="productsTable" class="table table-hover align-middle w-100">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Product</th>
-                                        <th>Code / Barcode</th>
+                                        <th>Product Details</th>
                                         <th>Category</th>
-                                        <th class="text-end">Retail Price</th>
-                                        <th>HSN & Tax</th>
+                                        <th class="text-end">Prices</th>
+                                        <th>Units & Conversion</th>
+                                        <th>GST Details</th>
                                         <th class="text-end">Stock</th>
                                         <th class="text-center">Status</th>
                                         <th class="text-center">Actions</th>
@@ -373,10 +460,51 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                         $image_src = $has_image ? htmlspecialchars($p['image_thumbnail_path']) : '';
                                         $full_image_src = $has_image ? htmlspecialchars($p['image_path'] ?? $p['image_thumbnail_path']) : '';
                                         $alt_text = htmlspecialchars($p['image_alt_text'] ?? $p['product_name']);
+                                       
+                                        // Unit information
+                                        $unit_of_measure = htmlspecialchars($p['unit_of_measure'] ?? 'pcs');
+                                        $secondary_unit = htmlspecialchars($p['secondary_unit'] ?? '');
+                                        $sec_unit_conversion = $p['sec_unit_conversion'] ?? 0;
+                                        $sec_unit_price_type = $p['sec_unit_price_type'] ?? 'fixed';
+                                        $sec_unit_extra_charge = $p['sec_unit_extra_charge'] ?? 0;
+                                        $total_secondary_units = $p['total_secondary_units'] ?? 0;
+                                       
+                                        // Pricing information
+                                        $mrp = $p['mrp'] ?? 0;
+                                        $discount_type = $p['discount_type'] ?? 'percentage';
+                                        $discount_value = $p['discount_value'] ?? 0;
+                                        $retail_price_type = $p['retail_price_type'] ?? 'percentage';
+                                        $retail_price_value = $p['retail_price_value'] ?? 0;
+                                        $wholesale_price_type = $p['wholesale_price_type'] ?? 'percentage';
+                                        $wholesale_price_value = $p['wholesale_price_value'] ?? 0;
+                                       
+                                        // GST Information
+                                        $gst_type = $p['gst_type'] ?? 'inclusive';
+                                        $gst_amount = $p['gst_amount'] ?? 0;
+                                       
+                                        // Calculate discounted price
+                                        if ($mrp > 0 && $discount_value > 0) {
+                                            if ($discount_type === 'percentage') {
+                                                $discounted_price = $mrp - ($mrp * $discount_value / 100);
+                                            } else {
+                                                $discounted_price = $mrp - $discount_value;
+                                            }
+                                        } else {
+                                            $discounted_price = $p['retail_price'];
+                                        }
+                                       
+                                        // Code and Barcode info
+                                        $code_info = '';
+                                        if (!empty($p['product_code'])) {
+                                            $code_info .= '<span class="badge bg-light text-dark me-2">' . htmlspecialchars($p['product_code']) . '</span>';
+                                        }
+                                        if (!empty($p['barcode'])) {
+                                            $code_info .= '<span class="badge bg-light text-muted"><i class="bx bx-barcode me-1"></i>' . htmlspecialchars($p['barcode']) . '</span>';
+                                        }
                                     ?>
                                     <tr class="product-row" data-id="<?= $p['id'] ?>">
                                         <td>
-                                            <div class="d-flex align-items-center">
+                                            <div class="d-flex align-items-start">
                                                 <?php if ($has_image): ?>
                                                     <div class="avatar-sm me-3 position-relative">
                                                         <img src="<?= $image_src ?>"
@@ -393,64 +521,158 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                                         </div>
                                                     </div>
                                                 <?php endif; ?>
-                                                <div>
+                                                <div class="flex-grow-1">
                                                     <strong class="d-block mb-1"><?= htmlspecialchars($p['product_name']) ?></strong>
+                                                   
+                                                    <!-- Code and Barcode section -->
+                                                    <?php if (!empty($code_info)): ?>
+                                                    <div class="mb-1">
+                                                        <?= $code_info ?>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                   
                                                     <?php if (!empty($p['description'])): ?>
-                                                    <br><small class="text-muted"><?= htmlspecialchars(substr($p['description'], 0, 80)) ?><?= strlen($p['description']) > 80 ? '...' : '' ?></small>
+                                                    <small class="text-muted d-block"><?= htmlspecialchars(substr($p['description'], 0, 80)) ?><?= strlen($p['description']) > 80 ? '...' : '' ?></small>
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            <div>
-                                                <?php if (!empty($p['product_code'])): ?>
-                                                <span class="badge bg-light text-dark"><?= htmlspecialchars($p['product_code']) ?></span>
-                                                <?php endif; ?>
-                                                <?php if (!empty($p['barcode'])): ?>
-                                                <br><small class="text-muted"><i class="bx bx-barcode me-1"></i><?= htmlspecialchars($p['barcode']) ?></small>
+                                            <?= htmlspecialchars($p['category_name'] ?? 'Uncategorized') ?>
+                                            <?php if (!empty($p['subcategory_name'])): ?>
+                                            <br><small class="text-muted"><?= htmlspecialchars($p['subcategory_name']) ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-end">
+                                            <!-- MRP and Discount -->
+                                            <?php if ($mrp > 0): ?>
+                                            <div class="mb-1">
+                                                <s class="text-muted small">₹<?= number_format($mrp, 2) ?></s>
+                                                <?php if ($discount_value > 0): ?>
+                                                <span class="badge bg-danger ms-1">
+                                                    <?php if ($discount_type === 'percentage'): ?>
+                                                    <?= number_format($discount_value, 1) ?>% off
+                                                    <?php else: ?>
+                                                    ₹<?= number_format($discount_value, 2) ?> off
+                                                    <?php endif; ?>
+                                                </span>
                                                 <?php endif; ?>
                                             </div>
-                                        </td>
-                                        <td><?= htmlspecialchars($p['category_name'] ?? 'Uncategorized') ?></td>
-                                        <td class="text-end">
-                                            <strong class="text-success">₹<?= number_format($p['retail_price'], 2) ?></strong>
-                                            <?php if (!empty($p['wholesale_price']) && $p['wholesale_price'] != $p['retail_price']): ?>
-                                            <br><small class="text-muted">Whole: ₹<?= number_format($p['wholesale_price'], 2) ?></small>
                                             <?php endif; ?>
-                                            <?php if ($profit_margin > 0): ?>
-                                            <br><small class="text-success">
-                                                <i class="bx bx-trending-up"></i> <?= number_format($profit_margin, 1) ?>%
-                                            </small>
+                                           
+                                            <!-- Selling Prices -->
+                                            <div>
+                                                <strong class="text-success">₹<?= number_format($p['retail_price'], 2) ?></strong>
+                                                <small class="text-muted d-block">Retail</small>
+                                            </div>
+                                           
+                                            <?php if (!empty($p['wholesale_price']) && $p['wholesale_price'] != $p['retail_price']): ?>
+                                            <div class="mt-1">
+                                                <small class="text-info">₹<?= number_format($p['wholesale_price'], 2) ?></small>
+                                                <small class="text-muted d-block">Wholesale</small>
+                                            </div>
+                                            <?php endif; ?>
+                                           
+                                            <!-- Stock Price -->
+                                            <?php if ($p['stock_price'] > 0): ?>
+                                            <div class="mt-1">
+                                                <small class="text-muted">Cost: ₹<?= number_format($p['stock_price'], 2) ?></small>
+                                                <?php if ($profit_margin > 0): ?>
+                                                <br><small class="text-success">
+                                                    <i class="bx bx-trending-up"></i> <?= number_format($profit_margin, 1) ?>%
+                                                </small>
+                                                <?php endif; ?>
+                                            </div>
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <div>
+                                            <div class="d-flex flex-column">
+                                                <!-- Primary Unit -->
+                                                <div class="mb-1">
+                                                    <span class="badge bg-primary bg-opacity-10 text-primary">
+                                                        <i class="bx bx-cube me-1"></i><?= $unit_of_measure ?>
+                                                    </span>
+                                                </div>
+                                               
+                                                <!-- Secondary Unit and Conversion -->
+                                                <?php if (!empty($secondary_unit) && $sec_unit_conversion > 0): ?>
+                                                <div>
+                                                    <small class="text-muted">
+                                                        <i class="bx bx-transfer me-1"></i>
+                                                        1 <?= $unit_of_measure ?> = <?= number_format($sec_unit_conversion, 2) ?> <?= $secondary_unit ?>
+                                                    </small>
+                                                   
+                                                    <?php if ($sec_unit_extra_charge > 0): ?>
+                                                    <br><small class="text-warning">
+                                                        <i class="bx bx-plus-circle me-1"></i>
+                                                        Extra: 
+                                                        <?php if ($sec_unit_price_type === 'percentage'): ?>
+                                                        <?= number_format($sec_unit_extra_charge, 2) ?>%
+                                                        <?php else: ?>
+                                                        ₹<?= number_format($sec_unit_extra_charge, 2) ?>
+                                                        <?php endif; ?>
+                                                    </small>
+                                                    <?php endif; ?>
+                                                   
+                                                    <?php if ($total_secondary_units > 0): ?>
+                                                    <br><small class="text-info">
+                                                        <i class="bx bx-calculator me-1"></i>
+                                                        Total: <?= number_format($total_secondary_units, 2) ?> <?= $secondary_unit ?>
+                                                    </small>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex flex-column">
+                                                <!-- HSN Code -->
                                                 <?php if (!empty($p['hsn_code'])): ?>
-                                                <span class="badge bg-info bg-opacity-10 text-info">
-                                                    <i class="bx bx-hash me-1"></i><?= htmlspecialchars($p['hsn_code']) ?>
-                                                </span>
+                                                <div class="mb-1">
+                                                    <span class="badge bg-info bg-opacity-10 text-info">
+                                                        <i class="bx bx-hash me-1"></i><?= htmlspecialchars($p['hsn_code']) ?>
+                                                    </span>
+                                                </div>
                                                 <?php else: ?>
-                                                <span class="badge bg-secondary bg-opacity-10 text-secondary">
-                                                    No HSN
-                                                </span>
+                                                <div class="mb-1">
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                                                        No HSN
+                                                    </span>
+                                                </div>
                                                 <?php endif; ?>
                                                
+                                                <!-- GST Type Badge -->
+                                                <div class="mb-1">
+                                                    <span class="badge bg-<?= $gst_type == 'inclusive' ? 'success' : 'primary' ?> bg-opacity-10 text-<?= $gst_type == 'inclusive' ? 'success' : 'primary' ?>">
+                                                        <i class="bx bx-receipt me-1"></i>
+                                                        GST <?= ucfirst($gst_type) ?>
+                                                        <?php if ($gst_amount > 0): ?>
+                                                        <span class="ms-1">(₹<?= number_format($gst_amount, 2) ?>)</span>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                </div>
+                                               
+                                                <!-- Tax Rates -->
                                                 <?php if (!empty($p['total_tax_rate']) && $p['total_tax_rate'] != '0%'): ?>
-                                                <div class="mt-1">
+                                                <div>
                                                     <small class="text-muted">
                                                         <?php if ($tax_type == 'CGST+SGST'): ?>
-                                                        <span class="badge bg-primary bg-opacity-10 text-primary me-1">
-                                                            C: <?= $p['cgst_rate'] ?>
-                                                        </span>
-                                                        <span class="badge bg-primary bg-opacity-10 text-primary">
-                                                            S: <?= $p['sgst_rate'] ?>
-                                                        </span>
+                                                        <div class="d-flex gap-1 mb-1">
+                                                            <span class="badge bg-primary bg-opacity-10 text-primary">
+                                                                C: <?= $p['cgst_rate'] ?>
+                                                            </span>
+                                                            <span class="badge bg-primary bg-opacity-10 text-primary">
+                                                                S: <?= $p['sgst_rate'] ?>
+                                                            </span>
+                                                        </div>
                                                         <?php else: ?>
-                                                        <span class="badge bg-warning bg-opacity-10 text-warning">
-                                                            I: <?= $p['igst_rate'] ?>
-                                                        </span>
+                                                        <div class="mb-1">
+                                                            <span class="badge bg-warning bg-opacity-10 text-warning">
+                                                                I: <?= $p['igst_rate'] ?>
+                                                            </span>
+                                                        </div>
                                                         <?php endif; ?>
-                                                        <br><small>Total: <?= $p['total_tax_rate'] ?></small>
+                                                        <small>Total: <?= $p['total_tax_rate'] ?></small>
                                                     </small>
                                                 </div>
                                                 <?php endif; ?>
@@ -458,10 +680,24 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                         </td>
                                         <td class="text-end">
                                             <div class="d-flex flex-column align-items-end">
-                                                <span class="badge bg-<?= $stock_class ?> rounded-pill px-3 py-1 fs-6">
-                                                    <?= $current_stock ?>
-                                                </span>
-                                                <small class="text-muted">Min: <?= $min_stock ?></small>
+                                                <!-- Primary Stock -->
+                                                <div class="mb-1">
+                                                    <span class="badge bg-<?= $stock_class ?> rounded-pill px-3 py-1 fs-6">
+                                                        <?= number_format($current_stock, 2) ?> <?= $unit_of_measure ?>
+                                                    </span>
+                                                </div>
+                                               
+                                                <!-- Secondary Stock -->
+                                                <?php if (!empty($secondary_unit) && $sec_unit_conversion > 0 && $total_secondary_units > 0): ?>
+                                                <div class="mb-1">
+                                                    <small class="text-info">
+                                                        ≈ <?= number_format($total_secondary_units, 2) ?> <?= $secondary_unit ?>
+                                                    </small>
+                                                </div>
+                                                <?php endif; ?>
+                                               
+                                                <!-- Min Stock and Progress -->
+                                                <small class="text-muted">Min: <?= $min_stock ?> <?= $unit_of_measure ?></small>
                                                 <?php if ($stock_percentage > 0): ?>
                                                 <div class="progress mt-1" style="width: 80px; height: 6px;">
                                                     <div class="progress-bar bg-<?= $stock_class ?>"
@@ -475,6 +711,19 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                             <span class="badge bg-<?= $stock_class ?> bg-opacity-10 text-<?= $stock_class ?> px-3 py-1">
                                                 <i class="bx bx-circle me-1"></i><?= $stock_text ?>
                                             </span>
+                                           
+                                            <?php if ($p['referral_enabled'] == 1): ?>
+                                            <br>
+                                            <span class="badge bg-purple bg-opacity-10 text-purple mt-1">
+                                                <i class="bx bx-share-alt me-1"></i>
+                                                <?php if ($p['referral_type'] === 'percentage'): ?>
+                                                <?= number_format($p['referral_value'], 1) ?>%
+                                                <?php else: ?>
+                                                ₹<?= number_format($p['referral_value'], 2) ?>
+                                                <?php endif; ?>
+                                                Commission
+                                            </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="text-center">
                                             <div class="btn-group btn-group-sm">
@@ -496,20 +745,21 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                                         data-id="<?= $p['id'] ?>"
                                                         data-name="<?= htmlspecialchars($p['product_name']) ?>"
                                                         data-current="<?= $current_stock ?>"
+                                                        data-unit="<?= $unit_of_measure ?>"
+                                                        data-secondary="<?= $secondary_unit ?>"
+                                                        data-conversion="<?= $sec_unit_conversion ?>"
                                                         data-bs-toggle="tooltip"
                                                         title="Adjust Stock">
                                                     <i class="bx bx-transfer"></i>
                                                 </button>
-                                                <?php if ($is_stock_manager): ?>
-<button type="button"
-        class="btn btn-outline-danger delete-product-btn"
-        data-id="<?= $p['id'] ?>"
-        data-name="<?= htmlspecialchars($p['product_name']) ?>"
-        data-bs-toggle="tooltip"
-        title="Delete Product">
-    <i class="bx bx-trash"></i>
-</button>
-<?php endif; ?>
+                                                <button type="button"
+                                                        class="btn btn-outline-danger delete-product-btn"
+                                                        data-id="<?= $p['id'] ?>"
+                                                        data-name="<?= htmlspecialchars($p['product_name']) ?>"
+                                                        data-bs-toggle="tooltip"
+                                                        title="Delete Product">
+                                                    <i class="bx bx-trash"></i>
+                                                </button>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -561,9 +811,10 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
+
 <!-- Quick Stock Adjustment Modal -->
 <div class="modal fade" id="adjustStockModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -574,15 +825,33 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
             <div class="modal-body">
                 <form id="adjustStockForm">
                     <input type="hidden" id="adjustProductId" name="product_id">
-                    <div class="mb-3">
-                        <label class="form-label">Product</label>
-                        <input type="text" class="form-control bg-light" id="adjustProductName" readonly>
-                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Current Stock</label>
-                            <input type="number" class="form-control bg-light" id="adjustCurrentStock" readonly>
+                            <label class="form-label">Product</label>
+                            <input type="text" class="form-control bg-light" id="adjustProductName" readonly>
                         </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Primary Unit</label>
+                            <input type="text" class="form-control bg-light" id="adjustPrimaryUnit" readonly>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Current Stock</label>
+                            <input type="text" class="form-control bg-light" id="adjustCurrentStock" readonly>
+                        </div>
+                    </div>
+                   
+                    <!-- Secondary Unit Information -->
+                    <div class="row mb-3" id="secondaryUnitSection" style="display: none;">
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 mb-0">
+                                <i class="bx bx-info-circle me-2"></i>
+                                <span id="secondaryUnitInfo"></span>
+                                <span id="secondaryStockInfo"></span>
+                            </div>
+                        </div>
+                    </div>
+                   
+                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Adjustment Type</label>
                             <select class="form-select" id="adjustType" name="type">
@@ -591,15 +860,31 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
                                 <option value="set">Set to Specific Value</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" id="quantityLabel">Quantity to Add</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="adjustQuantity" name="quantity" min="1" value="1" required>
-                            <span class="input-group-text">units</span>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" id="quantityLabel">Quantity</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="adjustQuantity" name="quantity" min="0" step="0.0001" value="1" required>
+                                <span class="input-group-text" id="adjustUnitText">units</span>
+                            </div>
+                            <small class="text-muted" id="quantityHelp"></small>
                         </div>
-                        <small class="text-muted" id="quantityHelp"></small>
                     </div>
+                   
+                    <!-- Secondary Unit Adjustment Option -->
+                    <div class="row mb-3" id="secondaryAdjustmentSection" style="display: none;">
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="adjustSecondaryUnit">
+                                <label class="form-check-label" for="adjustSecondaryUnit">
+                                    Adjust in secondary unit (<span id="secondaryUnitName"></span>)
+                                </label>
+                                <small class="text-muted d-block mt-1">
+                                    When checked, the quantity will be converted to primary units using the conversion rate.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                   
                     <div class="mb-3">
                         <label class="form-label">Reason <small class="text-muted">(Optional)</small></label>
                         <textarea class="form-control" id="adjustReason" name="reason" rows="2" placeholder="e.g., Purchase order, Damaged goods, Stock correction..."></textarea>
@@ -617,6 +902,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
+
 <!-- Image Modal -->
 <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -639,8 +925,12 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
+
+<!-- Auto-dismissible Success Toast -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999"></div>
+
 <script>
-        // Delete Confirmation Modal
+    // Delete Confirmation Modal
     const deleteModal = new bootstrap.Modal('#deleteConfirmModal');
     let deleteUrl = '';
 
@@ -659,6 +949,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
     $('#deleteConfirmModal').on('hidden.bs.modal', function () {
         $('#confirmDeleteBtn').attr('href', '#');
     });
+
 $(document).ready(function() {
     // Initialize DataTables with client-side processing
     $('#productsTable').DataTable({
@@ -696,49 +987,102 @@ $(document).ready(function() {
     // Stock adjustment modal
     const adjustStockModal = new bootstrap.Modal('#adjustStockModal');
     $('.adjust-stock-btn').click(function() {
-        $('#adjustProductId').val($(this).data('id'));
-        $('#adjustProductName').val($(this).data('name'));
-        $('#adjustCurrentStock').val($(this).data('current'));
+        const productId = $(this).data('id');
+        const productName = $(this).data('name');
+        const currentStock = parseFloat($(this).data('current'));
+        const primaryUnit = $(this).data('unit');
+        const secondaryUnit = $(this).data('secondary');
+        const conversion = parseFloat($(this).data('conversion'));
+        
+        $('#adjustProductId').val(productId);
+        $('#adjustProductName').val(productName);
+        $('#adjustCurrentStock').val(currentStock.toFixed(4) + ' ' + primaryUnit);
+        $('#adjustPrimaryUnit').val(primaryUnit);
         $('#adjustQuantity').val('');
         $('#adjustReason').val('');
-        $('#adjustType').val('add'); // Reset to default
+        $('#adjustType').val('add');
+        $('#adjustUnitText').text(primaryUnit);
+        
+        // Show/hide secondary unit sections
+        if (secondaryUnit && conversion > 0) {
+            $('#secondaryUnitSection').show();
+            $('#secondaryAdjustmentSection').show();
+            $('#secondaryUnitInfo').html(`1 ${primaryUnit} = ${conversion.toFixed(4)} ${secondaryUnit}`);
+            $('#secondaryUnitName').text(secondaryUnit);
+            
+            // Calculate and show secondary stock if we have total_secondary_units in data attribute
+            const secondaryStock = $(this).closest('tr').find('small.text-info').text().match(/≈ ([\d,.]+)/);
+            if (secondaryStock) {
+                $('#secondaryStockInfo').html(` | Current: ${secondaryStock[1]} ${secondaryUnit}`);
+            }
+        } else {
+            $('#secondaryUnitSection').hide();
+            $('#secondaryAdjustmentSection').hide();
+        }
+        
         updateQuantityLabel();
         adjustStockModal.show();
+    });
+
+    // Handle secondary unit checkbox
+    $('#adjustSecondaryUnit').change(function() {
+        const primaryUnit = $('#adjustPrimaryUnit').val();
+        const secondaryUnit = $('#secondaryUnitName').text();
+        const isChecked = $(this).is(':checked');
+        
+        if (isChecked) {
+            $('#adjustUnitText').text(secondaryUnit);
+            $('#quantityHelp').text(`1 ${primaryUnit} = ${$('#secondaryUnitInfo').text().match(/= ([\d.]+)/)[1]} ${secondaryUnit}`);
+        } else {
+            $('#adjustUnitText').text(primaryUnit);
+            $('#quantityHelp').text('');
+        }
     });
 
     // Initialize on modal show
     $('#adjustStockModal').on('show.bs.modal', function() {
         updateQuantityLabel();
+        $('#adjustSecondaryUnit').prop('checked', false);
+        $('#adjustSecondaryUnit').trigger('change');
     });
 
     // Dynamic quantity validation based on adjustment type
     $('#adjustType').change(function() {
-        const currentStock = parseInt($('#adjustCurrentStock').val()) || 0;
+        const currentStock = parseFloat($('#adjustCurrentStock').val()) || 0;
         const type = $(this).val();
+        const primaryUnit = $('#adjustPrimaryUnit').val();
         
         updateQuantityLabel();
         
         if (type === 'remove') {
             $('#adjustQuantity').attr('max', currentStock);
             $('#adjustQuantity').attr('placeholder', `Max: ${currentStock}`);
-            $('#quantityHelp').text(`Maximum you can remove: ${currentStock} units`);
+            $('#quantityHelp').text(`Maximum you can remove: ${currentStock} ${primaryUnit}`);
         } else if (type === 'set') {
             $('#adjustQuantity').removeAttr('max');
             $('#adjustQuantity').attr('placeholder', 'Enter new stock value');
-            $('#quantityHelp').text('Set the exact stock quantity');
+            $('#quantityHelp').text(`Set the exact stock quantity in ${primaryUnit}`);
         } else {
             $('#adjustQuantity').removeAttr('max');
             $('#adjustQuantity').attr('placeholder', 'Enter quantity to add');
-            $('#quantityHelp').text('Enter the quantity to add to current stock');
+            $('#quantityHelp').text(`Enter the quantity to add to current stock in ${primaryUnit}`);
         }
     });
 
     $('#saveStockAdjustment').click(function() {
         const productId = $('#adjustProductId').val();
         const type = $('#adjustType').val();
-        const quantity = $('#adjustQuantity').val();
+        let quantity = $('#adjustQuantity').val();
         const reason = $('#adjustReason').val();
-        const currentStock = parseInt($('#adjustCurrentStock').val()) || 0;
+        const currentStock = parseFloat($('#adjustCurrentStock').val()) || 0;
+        const primaryUnit = $('#adjustPrimaryUnit').val();
+        const adjustInSecondary = $('#adjustSecondaryUnit').is(':checked');
+        const conversionRate = parseFloat($('#secondaryUnitInfo').text().match(/= ([\d.]+)/)?.[1]) || 1;
+        
+        // Convert to primary units if adjusting in secondary
+        if (adjustInSecondary) {
+            quantity = parseFloat(quantity) / conversionRate;
+        }
         
         // Validation
         if (!quantity || quantity <= 0) {
@@ -747,13 +1091,13 @@ $(document).ready(function() {
             return;
         }
         
-        if (type === 'remove' && parseInt(quantity) > currentStock) {
-            showToast('warning', `Cannot remove more than current stock (${currentStock})`);
+        if (type === 'remove' && parseFloat(quantity) > currentStock) {
+            showToast('warning', `Cannot remove more than current stock (${currentStock} ${primaryUnit})`);
             $('#adjustQuantity').focus();
             return;
         }
         
-        if (type === 'set' && parseInt(quantity) < 0) {
+        if (type === 'set' && parseFloat(quantity) < 0) {
             showToast('warning', 'Stock cannot be negative');
             $('#adjustQuantity').focus();
             return;
@@ -764,7 +1108,9 @@ $(document).ready(function() {
             type: type,
             quantity: quantity,
             reason: reason || 'Manual adjustment',
-            shop_id: '<?= $current_shop_id ?>'
+            shop_id: '<?= $current_shop_id ?>',
+            adjust_in_secondary: adjustInSecondary ? 1 : 0,
+            conversion_rate: adjustInSecondary ? conversionRate : 1
         };
         
         $(this).prop('disabled', true).html('<i class="bx bx-loader bx-spin"></i> Saving...');
@@ -774,7 +1120,7 @@ $(document).ready(function() {
             method: 'POST',
             data: formData,
             dataType: 'json',
-            timeout: 10000, // 10 second timeout
+            timeout: 10000,
             success: function(response) {
                 if (response.success) {
                     showToast('success', 'Stock adjusted successfully!');
@@ -783,24 +1129,31 @@ $(document).ready(function() {
                     // Update the row immediately without full page reload
                     const row = $(`tr[data-id="${productId}"]`);
                     if (row.length) {
-                        const stockBadge = row.find('.badge.bg-danger, .badge.bg-warning, .badge.bg-success');
-                        const stockCount = row.find('.badge.rounded-pill');
-                        const stockStatus = row.find('.badge.bg-opacity-10');
-                        
                         // Calculate new stock based on type
                         let newStock = currentStock;
-                        if (type === 'add') newStock = currentStock + parseInt(quantity);
-                        else if (type === 'remove') newStock = currentStock - parseInt(quantity);
-                        else if (type === 'set') newStock = parseInt(quantity);
+                        if (type === 'add') newStock = currentStock + parseFloat(quantity);
+                        else if (type === 'remove') newStock = currentStock - parseFloat(quantity);
+                        else if (type === 'set') newStock = parseFloat(quantity);
                         
-                        // Update stock count
-                        if (stockCount.length) {
-                            stockCount.text(newStock);
+                        // Update primary stock display
+                        const stockBadge = row.find('.badge.rounded-pill');
+                        if (stockBadge.length) {
+                            stockBadge.text(newStock.toFixed(2) + ' ' + primaryUnit);
+                        }
+                        
+                        // Update secondary stock if exists
+                        const secondaryUnit = $('#secondaryUnitName').text();
+                        if (secondaryUnit && conversionRate > 0) {
+                            const newSecondaryStock = newStock * conversionRate;
+                            const secondaryStockElement = row.find('small.text-info');
+                            if (secondaryStockElement.length) {
+                                secondaryStockElement.text(`≈ ${newSecondaryStock.toFixed(2)} ${secondaryUnit}`);
+                            }
                         }
                         
                         // Update stock status
                         const minStockText = row.find('small.text-muted:contains("Min:")').text();
-                        const minStock = parseInt(minStockText.replace('Min: ', '')) || 10;
+                        const minStock = parseFloat(minStockText.replace('Min: ', '')) || 10;
                         let stockClass, stockText;
                         
                         if (newStock == 0) {
@@ -818,8 +1171,9 @@ $(document).ready(function() {
                         }
                         
                         // Update badges
+                        const statusBadge = row.find('.badge.bg-opacity-10');
                         stockBadge.removeClass('bg-danger bg-warning bg-success').addClass('bg-' + stockClass);
-                        stockStatus.removeClass('bg-danger bg-warning bg-success text-danger text-warning text-success')
+                        statusBadge.removeClass('bg-danger bg-warning bg-success text-danger text-warning text-success')
                                    .addClass('bg-' + stockClass + ' bg-opacity-10 text-' + stockClass)
                                    .html('<i class="bx bx-circle me-1"></i>' + stockText);
                         
@@ -914,7 +1268,63 @@ $(document).ready(function() {
         $('.toast-container').append(toast);
         new bootstrap.Toast(toast[0]).show();
     }
+
+    // Auto-dismiss success messages after 5 seconds
+    setTimeout(function() {
+        $('.alert-success').fadeOut('slow');
+    }, 5000);
 });
 </script>
+
+<!-- Additional CSS for messages -->
+<style>
+.alert {
+    border-left-width: 4px;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    animation: slideIn 0.3s ease-out;
+}
+
+.alert-success {
+    border-left-color: #28a745;
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.alert-danger {
+    border-left-color: #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.toast {
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.text-bg-success {
+    background-color: #28a745 !important;
+}
+
+.text-bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+}
+
+.text-bg-error, .text-bg-danger {
+    background-color: #dc3545 !important;
+}
+</style>
 </body>
 </html>

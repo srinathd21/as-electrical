@@ -131,10 +131,12 @@ if (!empty($quotations)) {
                                 </small>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                <a href="pos3.php" class="btn btn-primary">
+                                <a href="pos.php" class="btn btn-primary">
                                     <i class="bx bx-plus-circle me-1"></i> Create Quotation
                                 </a>
-                                
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModal">
+                                    <i class="bx bx-import me-1"></i> Import
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -323,18 +325,7 @@ if (!empty($quotations)) {
                                 </thead>
                                 <tbody>
                                     <?php if (empty($quotations)): ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center py-5">
-                                            <div class="empty-state">
-                                                <i class="bx bx-file fs-1 text-muted mb-3 d-block"></i>
-                                                <h5>No quotations found</h5>
-                                                <p class="text-muted">Create your first quotation to get started</p>
-                                                <a href="pos3.php" class="btn btn-primary mt-2">
-                                                    <i class="bx bx-plus-circle me-1"></i> Create Quotation
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    
                                     <?php else: ?>
                                     <?php 
                                     foreach ($quotations as $i => $q):
@@ -384,7 +375,7 @@ if (!empty($quotations)) {
                                                         <i class="bx bx-calendar me-1"></i><?= date('d M Y', strtotime($q['quotation_date'])) ?>
                                                         <i class="bx bx-user ms-2 me-1"></i><?= htmlspecialchars($q['created_by_name'] ?? 'System') ?>
                                                     </small>
-                                                    <div class="d-flex gap-2 mt-2 flex-wrap">
+                                                    <div class="d-flex gap-2 mt-2">
                                                         <span class="badge bg-<?= $status_class ?> bg-opacity-10 text-<?= $status_class ?> px-3 py-1 d-inline-block">
                                                             <i class="bx <?= $status_icon ?> me-1"></i>
                                                             <?= ucfirst($q['status']) ?>
@@ -403,12 +394,13 @@ if (!empty($quotations)) {
                                             <div>
                                                 <strong class="d-block mb-1"><?= htmlspecialchars($q['customer_name'] ?? 'Customer') ?></strong>
                                                 <?php if ($q['customer_phone']): ?>
-                                                <small class="text-muted d-block">
+                                                <small class="text-muted">
                                                     <i class="bx bx-phone me-1"></i><?= htmlspecialchars($q['customer_phone']) ?>
                                                 </small>
+                                                <br>
                                                 <?php endif; ?>
                                                 <?php if ($q['customer_email']): ?>
-                                                <small class="text-muted d-block">
+                                                <small class="text-muted">
                                                     <i class="bx bx-envelope me-1"></i><?= htmlspecialchars($q['customer_email']) ?>
                                                 </small>
                                                 <?php endif; ?>
@@ -464,17 +456,6 @@ if (!empty($quotations)) {
                                                     <i class="bx bx-receipt"></i>
                                                 </button>
                                                 <?php endif; ?>
-                                                
-                                                <?php if ($q['customer_phone']): ?>
-                                                <button class="btn btn-outline-success whatsapp-btn"
-                                                        data-quotation-id="<?= $q['id'] ?>"
-                                                        data-customer-phone="<?= htmlspecialchars($q['customer_phone']) ?>"
-                                                        data-customer-name="<?= htmlspecialchars($q['customer_name']) ?>"
-                                                        title="Send via WhatsApp">
-                                                    <i class="bx bxl-whatsapp"></i>
-                                                </button>
-                                                <?php endif; ?>
-                                                
                                                 <?php if ($q['status'] == 'draft'): ?>
                                                 <button class="btn btn-outline-danger delete-quotation-btn"
                                                         data-quotation-id="<?= $q['id'] ?>"
@@ -503,60 +484,6 @@ if (!empty($quotations)) {
             </div>
         </div>
         <?php include 'includes/footer.php'; ?>
-    </div>
-</div>
-
-<!-- WhatsApp Modal -->
-<div class="modal fade" id="whatsappModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bx bxl-whatsapp me-2"></i> Send Quotation via WhatsApp</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="whatsappForm">
-                <div class="modal-body">
-                    <input type="hidden" name="quotation_id" id="whatsappQuotationId">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Customer Name</label>
-                        <input type="text" id="whatsappCustomerName" class="form-control" readonly>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                        <input type="tel" name="phone" id="whatsappPhone" class="form-control" 
-                               placeholder="Enter customer's WhatsApp number" required>
-                        <small class="text-muted">Include country code (e.g., 919876543210 for India)</small>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bx bx-info-circle me-2"></i>
-                        The customer will receive a link to view the quotation online. They can view, print, or download the PDF without logging in.
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Preview Message</label>
-                        <div class="border rounded p-3 bg-light" id="messagePreview">
-                            <p class="mb-1"><strong>Dear [Customer],</strong></p>
-                            <p class="mb-1">Thank you for your interest. Please find your quotation below:</p>
-                            <p class="mb-1">Quotation No: [Number]<br>
-                            Date: [Date]<br>
-                            Valid Until: [Date]<br>
-                            Total Amount: ₹[Amount]</p>
-                            <p class="mb-1">View online: [Link]</p>
-                            <p class="mb-0">Thank you,<br>[Company Name]</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success" id="sendWhatsappBtn">
-                        <i class="bx bxl-whatsapp me-1"></i> Open WhatsApp
-                    </button>
-                </div>
-            </form>
-        </div>
     </div>
 </div>
 
@@ -697,71 +624,6 @@ $(document).ready(function() {
     });
 
     $('[data-bs-toggle="tooltip"]').tooltip();
-
-    // ==================== WHATSAPP SHARE ====================
-    $('.whatsapp-btn').click(function() {
-        const quotationId = $(this).data('quotation-id');
-        const customerPhone = $(this).data('customer-phone');
-        const customerName = $(this).data('customer-name');
-        
-        $('#whatsappQuotationId').val(quotationId);
-        $('#whatsappCustomerName').val(customerName);
-        $('#whatsappPhone').val(customerPhone);
-        
-        // Show modal
-        const whatsappModal = new bootstrap.Modal(document.getElementById('whatsappModal'));
-        whatsappModal.show();
-    });
-    
-    // Handle WhatsApp form submission
-    $('#whatsappForm').submit(function(e) {
-        e.preventDefault();
-        
-        const quotationId = $('#whatsappQuotationId').val();
-        const phone = $('#whatsappPhone').val();
-        
-        if (!phone) {
-            alert('Please enter a phone number.');
-            return false;
-        }
-        
-        // Show processing
-        const btn = $('#sendWhatsappBtn');
-        const originalText = btn.html();
-        btn.html('<i class="bx bx-loader bx-spin me-2"></i> Preparing...');
-        btn.prop('disabled', true);
-        
-        // Send AJAX to get WhatsApp link
-        $.ajax({
-            url: 'ajax/send_quotation_whatsapp.php',
-            method: 'POST',
-            data: {
-                quotation_id: quotationId,
-                phone: phone
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Open WhatsApp in new tab
-                    window.open(response.whatsapp_url, '_blank');
-                    
-                    // Close modal
-                    $('#whatsappModal').modal('hide');
-                    
-                    // Show success message
-                    alert('WhatsApp opened successfully!');
-                } else {
-                    alert(response.message || 'Failed to generate WhatsApp link.');
-                }
-                btn.html(originalText);
-                btn.prop('disabled', false);
-            },
-            error: function() {
-                alert('Failed to process request. Please try again.');
-                btn.html(originalText);
-                btn.prop('disabled', false);
-            }
-        });
-    });
 
     // ==================== CONVERT TO INVOICE ====================
     $('.convert-to-invoice-btn').click(function() {

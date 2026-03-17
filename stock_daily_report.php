@@ -8,37 +8,42 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$allowed_roles = ['admin', 'warehouse_manager', 'shop_manager','stock_manager'];
+$allowed_roles = ['admin', 'warehouse_manager', 'shop_manager', 'stock_manager'];
 $user_role = $_SESSION['role'] ?? '';
 if (!in_array($user_role, $allowed_roles)) {
-    $_SESSION['error'] = "Access denied.";
+    $_SESSION['error'] = "Access denied. You don't have permission to view stock reports.";
     header('Location: dashboard.php');
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
 $business_id = $_SESSION['business_id'] ?? 1;
-$user_shop_id = $_SESSION['current_shop_id'] ?? null;
+$user_shop_id = $_SESSION['current_shop_id'] ?? $_SESSION['shop_id'] ?? null;
 $selected_date = $_GET['date'] ?? date('Y-m-d');
 
-if (!preg_match('/^\d{4}-\d{2}-\d{1,2}$/', $selected_date)) {
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selected_date)) {
     $selected_date = date('Y-m-d');
 }
 
 // Fetch shops for current business
 $shop_query = "SELECT id, shop_name FROM shops WHERE business_id = ? AND is_active = 1 ORDER BY shop_name";
-$shops = $pdo->prepare($shop_query);
-$shops->execute([$business_id]);
-$shops = $shops->fetchAll();
+$shop_stmt = $pdo->prepare($shop_query);
+$shop_stmt->execute([$business_id]);
+$shops = $shop_stmt->fetchAll();
 
 // === SHOP-WISE REPORT ===
 $shop_report = [];
-$total_opening = $total_inward = $total_outward = $total_closing = 0;
+$total_opening = $total_inward = $total_outward = $total_sales = $total_closing = 0;
 
 foreach ($shops as $shop) {
     $shop_id = $shop['id'];
+    
+    // Skip if user is not admin and shop doesn't match their assigned shop
+    if ($user_role !== 'admin' && $user_shop_id && $shop_id != $user_shop_id) {
+        continue;
+    }
 
-    // Opening = Closing of previous day
+    // Opening = Closing of previous day (using product_stocks)
     $prev_date = date('Y-m-d', strtotime($selected_date . ' -1 day'));
     $opening_query = "
         SELECT COALESCE(SUM(ps.quantity), 0)
@@ -46,13 +51,13 @@ foreach ($shops as $shop) {
         JOIN products p ON ps.product_id = p.id
         WHERE ps.shop_id = ? 
           AND p.business_id = ?
-          AND ps.last_updated <= ?
+          AND DATE(ps.last_updated) <= ?
     ";
-    $opening = (float)$pdo->prepare($opening_query)->execute([$shop_id, $business_id, $prev_date . ' 23:59:59']) 
-               ? $pdo->query("SELECT COALESCE(SUM(ps.quantity), 0) FROM product_stocks ps JOIN products p ON ps.product_id = p.id WHERE ps.shop_id = $shop_id AND p.business_id = $business_id AND ps.last_updated <= '$prev_date 23:59:59'")->fetchColumn() 
-               : 0;
+    $opening_stmt = $pdo->prepare($opening_query);
+    $opening_stmt->execute([$shop_id, $business_id, $prev_date]);
+    $opening = (float)$opening_stmt->fetchColumn();
 
-    // Inward
+    // Inward from stock_adjustments (add, transfer_in) on selected date
     $inward_query = "
         SELECT COALESCE(SUM(sa.quantity), 0)
         FROM stock_adjustments sa
@@ -62,11 +67,11 @@ foreach ($shops as $shop) {
           AND sa.adjustment_type IN ('add', 'transfer_in')
           AND DATE(sa.adjusted_at) = ?
     ";
-    $inward = (float)$pdo->prepare($inward_query)->execute([$shop_id, $business_id, $selected_date]) 
-              ? $pdo->query("SELECT COALESCE(SUM(sa.quantity), 0) FROM stock_adjustments sa JOIN products p ON sa.product_id = p.id WHERE sa.shop_id = $shop_id AND p.business_id = $business_id AND sa.adjustment_type IN ('add', 'transfer_in') AND DATE(sa.adjusted_at) = '$selected_date'")->fetchColumn() 
-              : 0;
+    $inward_stmt = $pdo->prepare($inward_query);
+    $inward_stmt->execute([$shop_id, $business_id, $selected_date]);
+    $inward = (float)$inward_stmt->fetchColumn();
 
-    // Outward
+    // Outward from stock_adjustments (remove, transfer_out, damage, expiry) on selected date
     $outward_query = "
         SELECT COALESCE(SUM(sa.quantity), 0)
         FROM stock_adjustments sa
@@ -76,11 +81,28 @@ foreach ($shops as $shop) {
           AND sa.adjustment_type IN ('remove', 'transfer_out', 'damage', 'expiry')
           AND DATE(sa.adjusted_at) = ?
     ";
-    $outward = (float)$pdo->prepare($outward_query)->execute([$shop_id, $business_id, $selected_date]) 
-               ? $pdo->query("SELECT COALESCE(SUM(sa.quantity), 0) FROM stock_adjustments sa JOIN products p ON sa.product_id = p.id WHERE sa.shop_id = $shop_id AND p.business_id = $business_id AND sa.adjustment_type IN ('remove', 'transfer_out', 'damage', 'expiry') AND DATE(sa.adjusted_at) = '$selected_date'")->fetchColumn() 
-               : 0;
+    $outward_stmt = $pdo->prepare($outward_query);
+    $outward_stmt->execute([$shop_id, $business_id, $selected_date]);
+    $outward = (float)$outward_stmt->fetchColumn();
 
-    $closing = $opening + $inward - $outward;
+    // Sales from invoices (outward stock movement) on selected date
+    $sales_query = "
+        SELECT COALESCE(SUM(ii.quantity), 0)
+        FROM invoices i
+        JOIN invoice_items ii ON i.id = ii.invoice_id
+        JOIN products p ON ii.product_id = p.id
+        WHERE i.shop_id = ? 
+          AND p.business_id = ?
+          AND DATE(i.created_at) = ?
+          AND ii.return_qty = 0
+    ";
+    $sales_stmt = $pdo->prepare($sales_query);
+    $sales_stmt->execute([$shop_id, $business_id, $selected_date]);
+    $sales = (float)$sales_stmt->fetchColumn();
+
+    // Add sales to outward movement for total stock reduction
+    $total_outward_shop = $outward + $sales;
+    $closing = $opening + $inward - $total_outward_shop;
 
     $shop_report[] = [
         'shop_id' => $shop_id,
@@ -88,12 +110,15 @@ foreach ($shops as $shop) {
         'opening' => $opening,
         'inward' => $inward,
         'outward' => $outward,
+        'sales' => $sales,
+        'total_outward' => $total_outward_shop,
         'closing' => $closing
     ];
 
     $total_opening += $opening;
     $total_inward += $inward;
     $total_outward += $outward;
+    $total_sales += $sales;
     $total_closing += $closing;
 }
 
@@ -103,12 +128,15 @@ $product_query = "
         p.id,
         p.product_name,
         p.product_code,
-        COALESCE(SUM(ps.quantity), 0) AS current_stock,
+        COALESCE((
+            SELECT SUM(ps.quantity)
+            FROM product_stocks ps
+            WHERE ps.product_id = p.id
+        ), 0) AS current_stock,
         COALESCE((
             SELECT SUM(sa.quantity)
             FROM stock_adjustments sa
             WHERE sa.product_id = p.id
-              AND p.business_id = ?
               AND sa.adjustment_type IN ('add', 'transfer_in')
               AND DATE(sa.adjusted_at) = ?
         ), 0) AS inward,
@@ -116,32 +144,47 @@ $product_query = "
             SELECT SUM(sa.quantity)
             FROM stock_adjustments sa
             WHERE sa.product_id = p.id
-              AND p.business_id = ?
               AND sa.adjustment_type IN ('remove', 'transfer_out', 'damage', 'expiry')
               AND DATE(sa.adjusted_at) = ?
-        ), 0) AS outward
+        ), 0) AS outward,
+        COALESCE((
+            SELECT SUM(ii.quantity)
+            FROM invoices i
+            JOIN invoice_items ii ON i.id = ii.invoice_id
+            WHERE ii.product_id = p.id
+              AND DATE(i.created_at) = ?
+              AND ii.return_qty = 0
+        ), 0) AS sales
     FROM products p
-    LEFT JOIN product_stocks ps ON ps.product_id = p.id
     WHERE p.business_id = ?
-    GROUP BY p.id
-    HAVING inward > 0 OR outward > 0 OR current_stock > 0
     ORDER BY p.product_name
 ";
 
-$product_report = $pdo->prepare($product_query);
-$product_report->execute([$business_id, $selected_date, $business_id, $selected_date, $business_id]);
-$product_report = $product_report->fetchAll();
+$product_stmt = $pdo->prepare($product_query);
+$product_stmt->execute([$selected_date, $selected_date, $selected_date, $business_id]);
+$product_report = $product_stmt->fetchAll();
 
-foreach ($product_report as &$prod) {
-    $prod['opening'] = $prod['current_stock'] - $prod['inward'] + $prod['outward'];
+// Calculate opening and filter products with no activity/stock
+$filtered_product_report = [];
+foreach ($product_report as $prod) {
+    $prod['inward'] = (float)$prod['inward'];
+    $prod['outward'] = (float)$prod['outward'];
+    $prod['sales'] = (float)$prod['sales'];
+    $prod['total_outward'] = $prod['outward'] + $prod['sales'];
+    $prod['opening'] = $prod['current_stock'] - $prod['inward'] + $prod['total_outward'];
     $prod['closing'] = $prod['current_stock'];
+    
+    // Only include products that have movement or stock
+    if ($prod['inward'] > 0 || $prod['outward'] > 0 || $prod['sales'] > 0 || $prod['current_stock'] > 0) {
+        $filtered_product_report[] = $prod;
+    }
 }
+$product_report = $filtered_product_report;
 
 // Messages
 $success = $_SESSION['success'] ?? ''; unset($_SESSION['success']);
 $error = $_SESSION['error'] ?? ''; unset($_SESSION['error']);
 ?>
-
 <!doctype html>
 <html lang="en">
 <?php 
@@ -174,12 +217,16 @@ include 'includes/head.php';
                             <div class="d-flex gap-2">
                                 <form method="GET" class="d-inline">
                                     <input type="date" name="date" class="form-control" 
-                                           value="<?= $selected_date ?>" onchange="this.form.submit()">
+                                           value="<?= $selected_date ?>" max="<?= date('Y-m-d') ?>" onchange="this.form.submit()">
                                 </form>
+                                <?php if (!empty($shop_report) || !empty($product_report)): ?>
                                 <button onclick="exportDailyReport()" class="btn btn-primary">
                                     <i class="bx bx-download me-1"></i> Export Excel
                                 </button>
-                                
+                                <button onclick="window.print()" class="btn btn-outline-secondary">
+                                    <i class="bx bx-printer me-1"></i> Print
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -209,8 +256,7 @@ include 'includes/head.php';
                                 </h5>
                                 <small class="text-muted">
                                     <?= date('l', strtotime($selected_date)) ?> • 
-                                    <?= date('F', strtotime($selected_date)) ?> • 
-                                    <?= date('W', strtotime($selected_date)) ?>th Week
+                                    Week <?= date('W', strtotime($selected_date)) ?>
                                 </small>
                             </div>
                             <div class="d-flex gap-2">
@@ -222,17 +268,27 @@ include 'includes/head.php';
                                 <a href="?date=<?= date('Y-m-d') ?>" class="btn btn-outline-primary">
                                     <i class="bx bx-calendar me-1"></i> Today
                                 </a>
-                                <a href="?date=<?= date('Y-m-d', strtotime($selected_date . ' +1 day')) ?>" 
-                                   class="btn btn-outline-secondary">
-                                    Next Day <i class="bx bx-chevron-right ms-1"></i>
-                                </a>
                                 <?php endif; ?>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Summary Stats -->
+                <?php if (empty($shop_report)): ?>
+                <!-- Empty State -->
+                <div class="empty-state text-center py-5">
+                    <i class="bx bx-store-alt fs-1 text-muted mb-3"></i>
+                    <h5>No Stock Data Found</h5>
+                    <p class="text-muted">No stock data available for <?= date('d M Y', strtotime($selected_date)) ?></p>
+                    <div class="mt-4">
+                        <a href="?date=<?= date('Y-m-d') ?>" class="btn btn-primary">
+                            <i class="bx bx-calendar me-1"></i> View Today's Report
+                        </a>
+                    </div>
+                </div>
+                <?php else: ?>
+
+                <!-- Summary Cards -->
                 <div class="row mb-4">
                     <div class="col-xl-3 col-md-6">
                         <div class="card card-hover border-start border-primary border-4 shadow-sm">
@@ -256,7 +312,7 @@ include 'includes/head.php';
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h6 class="text-muted mb-1">Inward (+)</h6>
+                                        <h6 class="text-muted mb-1">Inward (+) </h6>
                                         <h3 class="mb-0 text-success">+<?= number_format($total_inward) ?></h3>
                                     </div>
                                     <div class="avatar-sm">
@@ -273,12 +329,12 @@ include 'includes/head.php';
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h6 class="text-muted mb-1">Outward (-)</h6>
-                                        <h3 class="mb-0 text-danger">-<?= number_format($total_outward) ?></h3>
+                                        <h6 class="text-muted mb-1">Sales (-)</h6>
+                                        <h3 class="mb-0 text-danger">-<?= number_format($total_sales) ?></h3>
                                     </div>
                                     <div class="avatar-sm">
                                         <span class="avatar-title bg-danger bg-opacity-10 rounded-circle fs-3">
-                                            <i class="bx bx-down-arrow-alt text-danger"></i>
+                                            <i class="bx bx-cart text-danger"></i>
                                         </span>
                                     </div>
                                 </div>
@@ -320,15 +376,16 @@ include 'includes/head.php';
                                         <th>Shop/Location</th>
                                         <th class="text-center">Opening</th>
                                         <th class="text-center">Inward (+) </th>
-                                        <th class="text-center">Outward (-)</th>
+                                        <th class="text-center">Sales (-)</th>
+                                        <th class="text-center">Adjustments</th>
+                                        <th class="text-center">Total Outward</th>
                                         <th class="text-center">Closing</th>
                                         <th class="text-center">Net Change</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($shop_report as $row): 
-                                        $net_change = $row['inward'] - $row['outward'];
-                                        $net_change_class = $net_change > 0 ? 'text-success' : ($net_change < 0 ? 'text-danger' : 'text-muted');
+                                        $net_change = $row['inward'] - $row['total_outward'];
                                     ?>
                                     <tr>
                                         <td>
@@ -344,26 +401,12 @@ include 'includes/head.php';
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2">
-                                                <?= number_format($row['opening']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
-                                                <i class="bx bx-up-arrow-alt me-1"></i>+<?= number_format($row['inward']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2">
-                                                <i class="bx bx-down-arrow-alt me-1"></i>-<?= number_format($row['outward']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-info bg-opacity-10 text-info px-3 py-2 fw-bold">
-                                                <?= number_format($row['closing']) ?>
-                                            </span>
-                                        </td>
+                                        <td class="text-center fw-bold"><?= number_format($row['opening']) ?></td>
+                                        <td class="text-center text-success fw-bold">+<?= number_format($row['inward']) ?></td>
+                                        <td class="text-center text-danger fw-bold">-<?= number_format($row['sales']) ?></td>
+                                        <td class="text-center text-warning fw-bold"><?= number_format($row['outward']) ?></td>
+                                        <td class="text-center text-danger fw-bold">-<?= number_format($row['total_outward']) ?></td>
+                                        <td class="text-center text-info fw-bold"><?= number_format($row['closing']) ?></td>
                                         <td class="text-center">
                                             <span class="badge bg-<?= $net_change > 0 ? 'success' : ($net_change < 0 ? 'danger' : 'secondary') ?> bg-opacity-10 text-<?= $net_change > 0 ? 'success' : ($net_change < 0 ? 'danger' : 'secondary') ?> px-3 py-2">
                                                 <?= $net_change > 0 ? '+' : '' ?><?= number_format($net_change) ?>
@@ -372,15 +415,17 @@ include 'includes/head.php';
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>
-                                <tfoot class="table-light">
+                                <tfoot class="table-light fw-bold">
                                     <tr>
                                         <th class="text-end">TOTAL</th>
                                         <th class="text-center"><?= number_format($total_opening) ?></th>
                                         <th class="text-center text-success">+<?= number_format($total_inward) ?></th>
-                                        <th class="text-center text-danger">-<?= number_format($total_outward) ?></th>
-                                        <th class="text-center text-primary fw-bold"><?= number_format($total_closing) ?></th>
-                                        <th class="text-center <?= ($total_inward - $total_outward) > 0 ? 'text-success' : (($total_inward - $total_outward) < 0 ? 'text-danger' : 'text-muted') ?>">
-                                            <?= ($total_inward - $total_outward) > 0 ? '+' : '' ?><?= number_format($total_inward - $total_outward) ?>
+                                        <th class="text-center text-danger">-<?= number_format($total_sales) ?></th>
+                                        <th class="text-center text-warning"><?= number_format($total_outward) ?></th>
+                                        <th class="text-center text-danger">-<?= number_format($total_outward + $total_sales) ?></th>
+                                        <th class="text-center text-primary"><?= number_format($total_closing) ?></th>
+                                        <th class="text-center <?= ($total_inward - ($total_outward + $total_sales)) > 0 ? 'text-success' : (($total_inward - ($total_outward + $total_sales)) < 0 ? 'text-danger' : 'text-muted') ?>">
+                                            <?= ($total_inward - ($total_outward + $total_sales)) > 0 ? '+' : '' ?><?= number_format($total_inward - ($total_outward + $total_sales)) ?>
                                         </th>
                                     </tr>
                                 </tfoot>
@@ -398,7 +443,12 @@ include 'includes/head.php';
                         </h5>
                     </div>
                     <div class="card-body">
-                        <?php if (!empty($product_report)): ?>
+                        <?php if (empty($product_report)): ?>
+                        <div class="empty-state text-center py-4">
+                            <i class="bx bx-package fs-1 text-muted mb-3"></i>
+                            <p class="text-muted">No product movement on <?= date('d M Y', strtotime($selected_date)) ?></p>
+                        </div>
+                        <?php else: ?>
                         <div class="table-responsive">
                             <table id="productReportTable" class="table table-hover align-middle w-100">
                                 <thead class="table-light">
@@ -407,16 +457,15 @@ include 'includes/head.php';
                                         <th>Product Details</th>
                                         <th class="text-center">Opening</th>
                                         <th class="text-center">Inward (+) </th>
-                                        <th class="text-center">Outward (-)</th>
+                                        <th class="text-center">Sales (-)</th>
+                                        <th class="text-center">Adjustments</th>
+                                        <th class="text-center">Total Outward</th>
                                         <th class="text-center">Closing</th>
-                                        <th class="text-center">Movement</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($product_report as $i => $prod): 
-                                        $movement = $prod['inward'] > 0 || $prod['outward'] > 0 ? 'Yes' : 'No';
-                                        $movement_class = $movement === 'Yes' ? 'success' : 'secondary';
-                                        $net_change = $prod['inward'] - $prod['outward'];
+                                        $has_movement = $prod['inward'] > 0 || $prod['sales'] > 0 || $prod['outward'] > 0;
                                     ?>
                                     <tr>
                                         <td><?= $i + 1 ?></td>
@@ -438,51 +487,16 @@ include 'includes/head.php';
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2">
-                                                <?= number_format($prod['opening']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
-                                                <i class="bx bx-up-arrow-alt me-1"></i>+<?= number_format($prod['inward']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2">
-                                                <i class="bx bx-down-arrow-alt me-1"></i>-<?= number_format($prod['outward']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-info bg-opacity-10 text-info px-3 py-2 fw-bold">
-                                                <?= number_format($prod['closing']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <div class="d-flex flex-column align-items-center">
-                                                <span class="badge bg-<?= $movement_class ?> bg-opacity-10 text-<?= $movement_class ?> px-3 py-2 mb-1">
-                                                    <?= $movement ?>
-                                                </span>
-                                                <?php if ($movement === 'Yes'): ?>
-                                                <small class="text-muted">
-                                                    <?= $net_change > 0 ? 'Net +' . number_format($net_change) : ($net_change < 0 ? 'Net ' . number_format($net_change) : 'No Change') ?>
-                                                </small>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
+                                        <td class="text-center fw-bold"><?= number_format($prod['opening']) ?></td>
+                                        <td class="text-center text-success fw-bold">+<?= number_format($prod['inward']) ?></td>
+                                        <td class="text-center text-danger fw-bold">-<?= number_format($prod['sales']) ?></td>
+                                        <td class="text-center text-warning fw-bold"><?= number_format($prod['outward']) ?></td>
+                                        <td class="text-center text-danger fw-bold">-<?= number_format($prod['total_outward']) ?></td>
+                                        <td class="text-center text-info fw-bold"><?= number_format($prod['closing']) ?></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
-                        </div>
-                        <?php else: ?>
-                        <div class="empty-state text-center py-5">
-                            <i class="bx bx-package fs-1 text-muted mb-3"></i>
-                            <h5>No Product Movement Found</h5>
-                            <p class="text-muted">No stock adjustments were made on <?= date('d M Y', strtotime($selected_date)) ?></p>
-                            <a href="?date=<?= date('Y-m-d') ?>" class="btn btn-outline-primary">
-                                <i class="bx bx-calendar me-1"></i> View Today's Report
-                            </a>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -516,21 +530,25 @@ include 'includes/head.php';
                             <div class="col-md-6">
                                 <h6 class="mb-3"><i class="bx bx-bar-chart me-2"></i> Daily Summary</h6>
                                 <div class="row">
-                                    <div class="col-4">
+                                    <div class="col-3">
                                         <div class="text-center p-2 border rounded">
                                             <small class="text-muted d-block">Opening</small>
                                             <h5 class="mb-0 text-primary"><?= number_format($total_opening) ?></h5>
                                         </div>
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-3">
                                         <div class="text-center p-2 border rounded">
-                                            <small class="text-muted d-block">Movement</small>
-                                            <h5 class="mb-0 <?= ($total_inward - $total_outward) > 0 ? 'text-success' : 'text-danger' ?>">
-                                                <?= ($total_inward - $total_outward) > 0 ? '+' : '' ?><?= number_format($total_inward - $total_outward) ?>
-                                            </h5>
+                                            <small class="text-muted d-block">Inward</small>
+                                            <h5 class="mb-0 text-success">+<?= number_format($total_inward) ?></h5>
                                         </div>
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-3">
+                                        <div class="text-center p-2 border rounded">
+                                            <small class="text-muted d-block">Sales</small>
+                                            <h5 class="mb-0 text-danger">-<?= number_format($total_sales) ?></h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
                                         <div class="text-center p-2 border rounded">
                                             <small class="text-muted d-block">Closing</small>
                                             <h5 class="mb-0 text-info"><?= number_format($total_closing) ?></h5>
@@ -542,17 +560,20 @@ include 'includes/head.php';
                     </div>
                 </div>
 
+                <?php endif; ?>
+
             </div>
         </div>
         <?php include 'includes/footer.php'; ?>
     </div>
 </div>
 
+<?php include 'includes/rightbar.php'; ?>
 <?php include 'includes/scripts.php'; ?>
 
 <script>
 $(document).ready(function() {
-    // Initialize DataTables
+    <?php if (!empty($shop_report)): ?>
     $('#shopReportTable').DataTable({
         responsive: true,
         pageLength: 10,
@@ -570,7 +591,9 @@ $(document).ready(function() {
             }
         }
     });
+    <?php endif; ?>
 
+    <?php if (!empty($product_report)): ?>
     $('#productReportTable').DataTable({
         responsive: true,
         pageLength: 10,
@@ -588,25 +611,32 @@ $(document).ready(function() {
             }
         }
     });
+    <?php endif; ?>
 
-    // Auto-close alerts after 5 seconds
     setTimeout(() => {
         $('.alert').alert('close');
     }, 5000);
 });
 
 function exportDailyReport() {
+    <?php if (empty($shop_report) && empty($product_report)): ?>
+    Swal.fire({
+        icon: 'info',
+        title: 'No Data',
+        text: 'No stock data to export for the selected date.',
+        timer: 3000
+    });
+    return;
+    <?php endif; ?>
+    
     const btn = event.target.closest('button');
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Exporting...';
     btn.disabled = true;
     
-    // Build export URL with current date
     const exportUrl = 'stock_daily_report_export.php?date=<?= $selected_date ?>&business_id=<?= $business_id ?>';
-    
     window.location = exportUrl;
     
-    // Reset button after 3 seconds
     setTimeout(() => {
         btn.innerHTML = original;
         btn.disabled = false;

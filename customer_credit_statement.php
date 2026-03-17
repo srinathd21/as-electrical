@@ -483,7 +483,9 @@ $payments_history = $payments_history_stmt->fetchAll();
                                 </nav>
                             </div>
                             <div class="d-flex gap-2">
-                              
+                                <button class="btn btn-outline-secondary" onclick="window.print()">
+                                    <i class="bx bx-printer me-1"></i> Print
+                                </button>
                                 <a href="customers.php" class="btn btn-outline-primary">
                                     <i class="bx bx-arrow-back me-1"></i> Back to Customers
                                 </a>

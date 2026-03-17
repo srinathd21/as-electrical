@@ -109,7 +109,23 @@ $stats_sql = "
         SUM(paid_amount) as total_paid,
         SUM(balance_due) as total_due,
         SUM(total_referrals) as total_referral_sales,
-        SUM(total_sales_amount) as total_sales_value
+        SUM(total_sales_amount) as total_sales_value,
+        SUM(CASE 
+            WHEN balance_due > 0 THEN balance_due 
+            ELSE 0 
+        END) as total_debit_outstanding,
+        SUM(CASE 
+            WHEN balance_due < 0 THEN ABS(balance_due) 
+            ELSE 0 
+        END) as total_credit_outstanding,
+        SUM(CASE 
+            WHEN initial_outstanding_type = 'debit' THEN initial_outstanding_amount 
+            ELSE 0 
+        END) as total_initial_debit,
+        SUM(CASE 
+            WHEN initial_outstanding_type = 'credit' THEN initial_outstanding_amount 
+            ELSE 0 
+        END) as total_initial_credit
     FROM referral_person
     WHERE business_id = ?
 ";
@@ -147,7 +163,9 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                 <a href="create_referral.php" class="btn btn-primary">
                                     <i class="bx bx-user-plus me-1"></i> Add Referral Person
                                 </a>
-                               
+                                <a href="referral_transactions.php" class="btn btn-outline-secondary">
+                                    <i class="bx bx-transfer me-1"></i> View Transactions
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -217,16 +235,67 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h6 class="text-muted mb-1">Total Payable</h6>
+                                        <h6 class="text-muted mb-1">Net Balance</h6>
                                         <h3 class="mb-0 text-warning">₹<?= number_format($stats['total_due'] ?? 0, 0) ?></h3>
-                                        <small class="text-muted">
-                                            Earned: ₹<?= number_format($stats['total_earned'] ?? 0, 0) ?> | 
-                                            Paid: ₹<?= number_format($stats['total_paid'] ?? 0, 0) ?>
+                                        <small class="text-muted d-block">
+                                            <span class="text-danger">
+                                                <i class="bx bx-down-arrow-alt"></i> Debit: ₹<?= number_format($stats['total_debit_outstanding'] ?? 0, 0) ?>
+                                            </span>
+                                            <span class="text-success ms-2">
+                                                <i class="bx bx-up-arrow-alt"></i> Credit: ₹<?= number_format($stats['total_credit_outstanding'] ?? 0, 0) ?>
+                                            </span>
                                         </small>
                                     </div>
                                     <div class="avatar-sm">
                                         <span class="avatar-title bg-warning bg-opacity-10 rounded-circle fs-3">
                                             <i class="bx bx-wallet text-warning"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Initial Outstanding Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card card-hover border-start border-danger border-4 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="text-muted mb-1">Initial Debit Outstanding</h6>
+                                        <h3 class="mb-0 text-danger">₹<?= number_format($stats['total_initial_debit'] ?? 0, 0) ?></h3>
+                                        <small class="text-muted">
+                                            <i class="bx bx-info-circle me-1"></i>
+                                            Amount you owe to referral persons
+                                        </small>
+                                    </div>
+                                    <div class="avatar-sm">
+                                        <span class="avatar-title bg-danger bg-opacity-10 rounded-circle fs-3">
+                                            <i class="bx bx-down-arrow-alt text-danger"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card card-hover border-start border-success border-4 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="text-muted mb-1">Initial Credit Outstanding</h6>
+                                        <h3 class="mb-0 text-success">₹<?= number_format($stats['total_initial_credit'] ?? 0, 0) ?></h3>
+                                        <small class="text-muted">
+                                            <i class="bx bx-info-circle me-1"></i>
+                                            Amount referral persons owe to you
+                                        </small>
+                                    </div>
+                                    <div class="avatar-sm">
+                                        <span class="avatar-title bg-success bg-opacity-10 rounded-circle fs-3">
+                                            <i class="bx bx-up-arrow-alt text-success"></i>
                                         </span>
                                     </div>
                                 </div>
@@ -264,7 +333,7 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                             <i class="bx bx-filter me-1"></i> Apply Filters
                                         </button>
                                         <?php if ($filter_search || $filter_status): ?>
-                                        <a href="referral_persons.php" class="btn btn-outline-secondary"><i class="bx bx-reset"></i></a>
+                                        <a href="referrals.php" class="btn btn-outline-secondary"><i class="bx bx-reset"></i></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -323,8 +392,8 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                         <?php endif; ?>
                                         <th>Referral Person</th>
                                         <th>Contact Info</th>
-                                        <th class="text-center">Earnings</th>
-                                        <th class="text-end">Balance Due</th>
+                                        <th class="text-center">Commission & Earnings</th>
+                                        <th class="text-end">Balance & Outstanding</th>
                                         <th class="text-center">Performance</th>
                                         <th>Status</th>
                                         <th class="text-center">Actions</th>
@@ -348,7 +417,41 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                     <?php foreach ($referral_persons as $person):
                                         $status_class = $person['is_active'] ? 'success' : 'danger';
                                         $status_icon = $person['is_active'] ? 'bx-check-circle' : 'bx-x-circle';
-                                        $balance_class = $person['balance_due'] > 0 ? 'warning' : 'secondary';
+                                        
+                                        // Determine balance class
+                                        if ($person['balance_due'] > 0) {
+                                            $balance_class = 'danger'; // You owe them (Debit)
+                                            $balance_icon = 'bx-down-arrow-alt';
+                                            $balance_type = 'Debit';
+                                        } elseif ($person['balance_due'] < 0) {
+                                            $balance_class = 'success'; // They owe you (Credit)
+                                            $balance_icon = 'bx-up-arrow-alt';
+                                            $balance_type = 'Credit';
+                                        } else {
+                                            $balance_class = 'secondary';
+                                            $balance_icon = 'bx-check';
+                                            $balance_type = 'Settled';
+                                        }
+                                        
+                                        // Determine initial outstanding class
+                                        $initial_outstanding_html = '';
+                                        if ($person['initial_outstanding_type'] && $person['initial_outstanding_amount'] > 0) {
+                                            if ($person['initial_outstanding_type'] === 'debit') {
+                                                $initial_class = 'danger';
+                                                $initial_icon = 'bx-down-arrow-alt';
+                                                $initial_text = 'Initial Debit Outstanding';
+                                            } else {
+                                                $initial_class = 'success';
+                                                $initial_icon = 'bx-up-arrow-alt';
+                                                $initial_text = 'Initial Credit Outstanding';
+                                            }
+                                            $initial_outstanding_html = '
+                                                <small class="text-' . $initial_class . ' d-block">
+                                                    <i class="bx ' . $initial_icon . ' me-1"></i>
+                                                    ' . $initial_text . ': ₹' . number_format($person['initial_outstanding_amount'], 0) . '
+                                                </small>';
+                                        }
+                                        
                                         $avg_sale = $person['total_referrals'] > 0 ? $person['total_sales_amount'] / $person['total_referrals'] : 0;
                                     ?>
                                     <tr>
@@ -398,15 +501,27 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                             <div>
                                                 <strong>₹<?= number_format($person['debit_amount'], 0) ?></strong>
                                                 <small class="text-muted d-block">Total Earned</small>
+                                                <small class="text-info">
+                                                    <i class="bx bx-percent me-1"></i>
+                                                    <?= $person['commission_percent'] ?>% Commission
+                                                </small>
                                             </div>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-<?= $balance_class ?> fs-5">
-                                                ₹<?= number_format($person['balance_due'], 0) ?>
-                                            </strong>
-                                            <small class="text-muted d-block">
-                                                Paid: ₹<?= number_format($person['paid_amount'], 0) ?>
-                                            </small>
+                                            <div>
+                                                <strong class="text-<?= $balance_class ?> fs-5">
+                                                    <i class="bx <?= $balance_icon ?> me-1"></i>
+                                                    ₹<?= number_format(abs($person['balance_due']), 0) ?>
+                                                </strong>
+                                                <small class="text-<?= $balance_class ?> d-block mb-1">
+                                                    <?= $balance_type ?> Outstanding
+                                                </small>
+                                                <?= $initial_outstanding_html ?>
+                                                <small class="text-muted d-block mt-1">
+                                                    Earned: ₹<?= number_format($person['debit_amount'], 0) ?> | 
+                                                    Paid: ₹<?= number_format($person['paid_amount'], 0) ?>
+                                                </small>
+                                            </div>
                                         </td>
                                         <td class="text-center">
                                             <div>
@@ -414,6 +529,9 @@ $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                                                     <?= $person['total_referrals'] ?> sales
                                                 </span>
                                                 <small class="text-muted d-block">
+                                                    ₹<?= number_format($person['total_sales_amount'], 0) ?> total sales
+                                                </small>
+                                                <small class="text-muted">
                                                     Avg: ₹<?= number_format($avg_sale, 0) ?>
                                                 </small>
                                             </div>
@@ -489,6 +607,14 @@ $(document).ready(function() {
 
     // Auto-hide alerts
     setTimeout(() => $('.alert').fadeOut(), 5000);
+    
+    // Add data-tooltip for outstanding info
+    $('.outstanding-tooltip').each(function() {
+        $(this).tooltip({
+            title: $(this).data('tooltip'),
+            placement: 'top'
+        });
+    });
 });
 </script>
 
@@ -497,6 +623,9 @@ $(document).ready(function() {
 .card-hover:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important; }
 .empty-state { padding: 4rem 0; }
 .table-hover tbody tr:hover { background-color: #f8f9fa; }
+.balance-positive { color: #28a745; }
+.balance-negative { color: #dc3545; }
+.balance-neutral { color: #6c757d; }
 </style>
 </body>
 </html>

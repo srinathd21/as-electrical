@@ -325,7 +325,54 @@ $today_checkin = $today_checkin_stmt->fetch();
                 </div>
 
                 <!-- Attendance Section -->
-               
+                <div class="row mb-4">
+                    <div class="col-lg-12">
+                        <div class="card attendance-card">
+                            <div class="attendance-header">
+                                <h5 class="mb-0"><i class="bx bx-time me-2"></i> Today's Attendance</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <?php if($today_checkin): ?>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <h6>Status: <span class="badge bg-<?php 
+                                                    echo $today_checkin['status'] == 'present' ? 'success' : 
+                                                           ($today_checkin['status'] == 'late' ? 'warning' : 'danger'); 
+                                                ?>"><?php echo ucfirst($today_checkin['status']); ?></span></h6>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <p class="mb-0"><strong>Check-in:</strong><br>
+                                                <?php echo $today_checkin['check_in'] ? date('h:i A', strtotime($today_checkin['check_in'])) : '--:--'; ?></p>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <p class="mb-0"><strong>Check-out:</strong><br>
+                                                <?php echo $today_checkin['check_out'] ? date('h:i A', strtotime($today_checkin['check_out'])) : 'Not checked out'; ?></p>
+                                            </div>
+                                        </div>
+                                        <?php else: ?>
+                                        <p class="mb-0 text-muted">You haven't checked in today.</p>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="col-md-4 text-center">
+                                        <?php if($today_checkin && !$today_checkin['check_out']): ?>
+                                        <button class="btn check-out-btn" onclick="checkOut()">
+                                            <i class="bx bx-log-out me-1"></i> Check Out
+                                        </button>
+                                        <?php elseif(!$today_checkin): ?>
+                                        <button class="btn check-in-btn" onclick="checkIn()">
+                                            <i class="bx bx-log-in me-1"></i> Check In
+                                        </button>
+                                        <?php else: ?>
+                                        <span class="badge bg-success">Attendance completed for today</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 
 

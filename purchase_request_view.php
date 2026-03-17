@@ -272,7 +272,9 @@ include 'includes/head.php';
                                     <i class="bx bx-mail-send me-1"></i> No Email
                                 </button>
                                 <?php endif; ?>
-                              
+                                <button onclick="window.print()" class="btn btn-outline-dark">
+                                    <i class="bx bx-printer me-1"></i> Print
+                                </button>
                                 <a href="purchase_requests.php" class="btn btn-outline-primary">
                                     <i class="bx bx-arrow-back me-1"></i> Back to List
                                 </a>
@@ -656,7 +658,9 @@ include 'includes/head.php';
                                         </button>
                                     </form>
                                     <?php endif; ?>
-                                   
+                                    <button onclick="window.print()" class="btn btn-dark">
+                                        <i class="bx bx-printer me-1"></i> Print Request
+                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -506,18 +506,13 @@ $branch_count = $stats['branch_count'] ?? 0;
                                                         title="Edit Shop">
                                                     <i class="bx bx-edit"></i>
                                                 </button>
-                                                <button type="button" 
-                                                        class="btn btn-outline-danger delete-shop-btn"
-                                                        data-id="<?= $shop['id'] ?>"
-                                                        data-shop_name="<?= htmlspecialchars($shop['shop_name']) ?>"
-                                                        data-staff_count="<?= $shop['staff_count'] ?>"
-                                                        data-products_count="<?= $shop['products_count'] ?>"
-                                                        data-invoice_count="<?= $shop['invoice_count'] ?>"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#deleteConfirmModal"
-                                                        title="Delete Shop">
+                                                <a href="shops.php?delete=<?= $shop['id'] ?>" 
+                                                   class="btn btn-outline-danger delete-btn"
+                                                   onclick="return confirmDelete('<?= htmlspecialchars(addslashes($shop['shop_name'])) ?>', <?= $shop['staff_count'] ?>, <?= $shop['products_count'] ?>, <?= $shop['invoice_count'] ?>)"
+                                                   data-bs-toggle="tooltip"
+                                                   title="Delete Shop">
                                                     <i class="bx bx-trash"></i>
-                                                </button>
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
@@ -600,36 +595,6 @@ $branch_count = $stats['branch_count'] ?? 0;
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteConfirmModalLabel">
-                    <i class="bx bx-error-circle me-2"></i>Confirm Delete
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-center mb-4">
-                    <i class="bx bx-store fs-1 text-danger"></i>
-                </div>
-                <p class="fs-6">Are you sure you want to delete <strong id="deleteShopName"></strong>?</p>
-                <div id="deleteWarnings" class="alert alert-warning mt-3 d-none">
-                    <i class="bx bx-error-circle me-1"></i>
-                    <strong>Warning:</strong> This shop has related data:
-                    <ul class="mt-2 mb-0" id="warningList"></ul>
-                </div>
-                <p class="text-danger mb-0 mt-3"><i class="bx bx-error-circle me-1"></i> This action cannot be undone!</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <a href="#" id="confirmDeleteBtn" class="btn btn-danger">Delete Permanently</a>
-            </div>
-        </div>
-    </div>
-</div>
-
 <?php include 'includes/rightbar.php'; ?>
 <?php include 'includes/scripts.php'; ?>
 
@@ -674,41 +639,6 @@ $(document).ready(function() {
         modal.show();
     });
 
-    // Delete button handler
-    $('.delete-shop-btn').click(function() {
-        const shopId = $(this).data('id');
-        const shopName = $(this).data('shop_name');
-        const staffCount = $(this).data('staff_count');
-        const productsCount = $(this).data('products_count');
-        const invoiceCount = $(this).data('invoice_count');
-        
-        $('#deleteShopName').text(shopName);
-        $('#confirmDeleteBtn').attr('href', 'shops.php?delete=' + shopId);
-        
-        // Build warning list
-        let warnings = [];
-        if (staffCount > 0) {
-            warnings.push(`${staffCount} user(s) are assigned to this shop`);
-        }
-        if (productsCount > 0) {
-            warnings.push(`${productsCount} product stock record(s) exist`);
-        }
-        if (invoiceCount > 0) {
-            warnings.push(`${invoiceCount} sales invoice(s) are linked`);
-        }
-        
-        if (warnings.length > 0) {
-            $('#deleteWarnings').removeClass('d-none');
-            const warningList = $('#warningList');
-            warningList.empty();
-            warnings.forEach(warning => {
-                warningList.append(`<li class="text-warning-emphasis"><i class="bx bx-info-circle me-1"></i>${warning}</li>`);
-            });
-        } else {
-            $('#deleteWarnings').addClass('d-none');
-        }
-    });
-
     // Reset modal when closed
     $('#addShopModal').on('hidden.bs.modal', function () {
         $('#modalTitle').text('Add New Location');
@@ -725,7 +655,7 @@ $(document).ready(function() {
         searchTimer = setTimeout(() => $('#filterForm').submit(), 500);
     });
 
-    // Auto-submit on filter change
+    // Auto-submit on filter change (optional)
     $('select[name="type"], select[name="status"]').on('change', function() {
         $('#filterForm').submit();
     });
@@ -736,79 +666,92 @@ $(document).ready(function() {
         function() { $(this).removeClass('bg-light'); }
     );
 
+    // Export function
+    window.exportShops = function() {
+        const btn = event.target.closest('button');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Exporting...';
+        btn.disabled = true;
+        
+        // Build export URL with current search parameters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = 'shops_export.php' + (params.toString() ? '?' + params.toString() : '');
+        
+        window.location = exportUrl;
+        
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }, 3000);
+    };
+
+    // Print function
+    window.printShops = function() {
+        window.print();
+    };
+
     // Auto-close alerts after 5 seconds
     setTimeout(() => {
         $('.alert').alert('close');
     }, 5000);
 });
 
-// Form validation with Bootstrap validation style
-(function() {
-    'use strict';
+// Form validation
+document.getElementById('shopForm').addEventListener('submit', function(e) {
+    const shopName = this.querySelector('[name="shop_name"]');
+    const shopCode = this.querySelector('[name="shop_code"]');
     
-    // Fetch all the forms we want to apply custom Bootstrap validation styles to
-    const form = document.getElementById('shopForm');
+    if (!shopName.value.trim()) {
+        e.preventDefault();
+        alert('Please enter a location name!');
+        shopName.focus();
+        return;
+    }
     
-    form.addEventListener('submit', function(event) {
-        const shopName = document.getElementById('shop_name');
-        const shopCode = document.getElementById('shop_code');
-        let isValid = true;
-        
-        // Reset validation states
-        shopName.classList.remove('is-invalid');
-        shopCode.classList.remove('is-invalid');
-        
-        if (!shopName.value.trim()) {
-            shopName.classList.add('is-invalid');
-            isValid = false;
-        }
-        
-        if (!shopCode.value.trim()) {
-            shopCode.classList.add('is-invalid');
-            isValid = false;
-        }
-        
-        if (!isValid) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            // Show error message in modal
-            const modalBody = document.querySelector('#addShopModal .modal-body');
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger alert-dismissible fade show mb-3';
-            errorDiv.innerHTML = '<i class="bx bx-error-circle me-2"></i>Please fill in all required fields!<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-            
-            // Remove any existing error
-            const existingError = modalBody.querySelector('.alert');
-            if (existingError) {
-                existingError.remove();
-            }
-            
-            modalBody.insertBefore(errorDiv, modalBody.firstChild);
-            
-            // Auto dismiss after 3 seconds
-            setTimeout(() => {
-                if (errorDiv.parentNode) {
-                    errorDiv.remove();
-                }
-            }, 3000);
-        } else {
-            // Show loading state
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Saving...';
-            submitBtn.disabled = true;
-            
-            // Re-enable after 5 seconds if form doesn't submit
-            setTimeout(() => {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }, 5000);
-        }
-        
-        form.classList.add('was-validated');
-    }, false);
-})();
+    if (!shopCode.value.trim()) {
+        e.preventDefault();
+        alert('Please enter a location code!');
+        shopCode.focus();
+        return;
+    }
+    
+    // Show loading state
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Saving...';
+    submitBtn.disabled = true;
+    
+    // Re-enable after 5 seconds if form doesn't submit
+    setTimeout(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }, 5000);
+});
+
+// Delete confirmation with warning
+function confirmDelete(shopName, staffCount, productsCount, invoiceCount) {
+    let message = `Are you sure you want to delete "${shopName}"?\n\n`;
+    let warnings = [];
+    
+    if (staffCount > 0) {
+        warnings.push(`• ${staffCount} user(s) are assigned to this shop`);
+    }
+    if (productsCount > 0) {
+        warnings.push(`• ${productsCount} product stock record(s) exist`);
+    }
+    if (invoiceCount > 0) {
+        warnings.push(`• ${invoiceCount} sales invoice(s) are linked`);
+    }
+    
+    if (warnings.length > 0) {
+        message += "WARNING: This shop has related data:\n" + warnings.join('\n') + "\n\n";
+    }
+    
+    message += "This action cannot be undone!";
+    
+    return confirm(message);
+}
 </script>
 
 <style>
@@ -853,21 +796,6 @@ $(document).ready(function() {
     transform: scale(1.1);
     transition: transform 0.3s ease;
 }
-/* Bootstrap validation styles */
-.was-validated .form-control:invalid,
-.form-control.is-invalid {
-    border-color: #dc3545;
-    padding-right: calc(1.5em + 0.75rem);
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right calc(0.375em + 0.1875rem) center;
-    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-}
-.was-validated .form-control:invalid:focus,
-.form-control.is-invalid:focus {
-    border-color: #dc3545;
-    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
 @media (max-width: 768px) {
     .btn-group {
         display: flex;
@@ -877,26 +805,6 @@ $(document).ready(function() {
     .btn-group .btn {
         width: 100%;
     }
-}
-/* Delete modal styling */
-#deleteConfirmModal .modal-header {
-    background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
-}
-#deleteConfirmModal .btn-danger {
-    background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
-    border: none;
-}
-#deleteConfirmModal .btn-danger:hover {
-    background: linear-gradient(135deg, #bb2d3b 0%, #9a2530 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-}
-#deleteWarnings ul {
-    list-style-type: none;
-    padding-left: 0;
-}
-#deleteWarnings li {
-    padding: 4px 0;
 }
 </style>
 </body>

@@ -187,33 +187,18 @@ $main_cats = $main_cats_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                                     onclick="editCategory(<?= $cat['id'] ?>, '<?= addslashes(htmlspecialchars($cat['category_name'])) ?>', <?= $cat['parent_id'] ?: '0' ?>, '<?= addslashes(htmlspecialchars($cat['description'] ?? '')) ?>')">
                                                                 <i class="bx bx-edit"></i>
                                                             </button>
-                                                            <a href="?toggle=<?= $cat['id'] ?>" class="btn btn-outline-info" title="Toggle Status">
+                                                            <a href="?toggle=<?= $cat['id'] ?>" class="btn btn-outline-info toggle-status" title="Toggle Status">
                                                                 <i class="bx <?= ($cat['status'] ?? 'active') === 'active' ? 'bx-hide' : 'bx-show' ?>"></i>
                                                             </a>
-                                                            <button class="btn btn-outline-danger delete-btn"
-                                                                    data-id="<?= $cat['id'] ?>"
-                                                                    data-name="<?= htmlspecialchars($cat['category_name']) ?>"
-                                                                    data-has-products="<?= $cat['product_count'] > 0 ? 'true' : 'false' ?>"
-                                                                    title="Delete Category">
+                                                            <a href="?delete=<?= $cat['id'] ?>" class="btn btn-outline-danger delete-category">
                                                                 <i class="bx bx-trash"></i>
-                                                            </button>
+                                                            </a>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 <?php endforeach; ?>
                                             <?php else: ?>
-                                                <tr>
-                                                    <td colspan="6" class="text-center py-4">
-                                                        <div class="empty-state">
-                                                            <i class="bx bx-category fs-1 text-muted mb-3"></i>
-                                                            <h5>No categories found</h5>
-                                                            <p class="text-muted">Get started by adding your first category</p>
-                                                            <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#categoryModal">
-                                                                <i class="bx bx-plus me-1"></i> Add Category
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -268,36 +253,6 @@ $main_cats = $main_cats_stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center pt-0">
-                <div class="mb-4">
-                    <i class="bx bx-trash text-danger" style="font-size: 4rem;"></i>
-                </div>
-                <h5 class="mb-3">Delete Category</h5>
-                <p class="text-muted mb-2">Are you sure you want to delete <strong id="deleteCategoryName"></strong>?</p>
-                <div id="deleteWarning" class="alert alert-warning d-none">
-                    <i class="bx bx-error-circle me-1"></i>
-                    <span id="deleteWarningMessage"></span>
-                </div>
-                <div class="d-flex justify-content-center gap-2 mt-3">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-                        <i class="bx bx-x me-1"></i> Cancel
-                    </button>
-                    <a href="#" id="confirmDeleteBtn" class="btn btn-danger">
-                        <i class="bx bx-trash me-1"></i> Delete Category
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <?php include('includes/rightbar.php') ?>
 <?php include('includes/scripts.php') ?>
 <script>
@@ -322,31 +277,98 @@ $(document).ready(function() {
         }
     });
 
-    // Delete button handler
-    $('.delete-btn').click(function() {
-        const id = $(this).data('id');
-        const name = $(this).data('name');
-        const hasProducts = $(this).data('has-products') === true;
+    // SweetAlert for delete confirmation
+    $('.delete-category').on('click', function(e) {
+        e.preventDefault();
+        let deleteUrl = $(this).attr('href');
         
-        $('#deleteCategoryName').text(name);
-        $('#confirmDeleteBtn').attr('href', '?delete=' + id);
-        
-        // Show warning if category has products
-        if (hasProducts) {
-            $('#deleteWarning').removeClass('d-none');
-            $('#deleteWarningMessage').text('This category has associated products. Deleting it will make those products uncategorized.');
-        } else {
-            $('#deleteWarning').addClass('d-none');
-        }
-        
-        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        modal.show();
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "Delete this category? Associated products will become uncategorized.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: true,
+            timer: 3000,
+            timerProgressBar: true,
+            customClass: {
+                container: 'swal-toast-small'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = deleteUrl;
+            }
+        });
     });
 
-    // Auto-close alerts
-    setTimeout(function() {
-        $('.alert').alert('close');
-    }, 5000);
+    // SweetAlert for toggle status confirmation
+    $('.toggle-status').on('click', function(e) {
+        e.preventDefault();
+        let toggleUrl = $(this).attr('href');
+        let currentIcon = $(this).find('i');
+        let newStatus = currentIcon.hasClass('bx-hide') ? 'inactive' : 'active';
+        
+        Swal.fire({
+            title: 'Toggle Status',
+            text: "Are you sure you want to change this category's status?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, toggle it!',
+            cancelButtonText: 'Cancel',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: true,
+            timer: 3000,
+            timerProgressBar: true,
+            customClass: {
+                container: 'swal-toast-small'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = toggleUrl;
+            }
+        });
+    });
+
+    // Show success/error messages as SweetAlert toasts
+    <?php if ($success): ?>
+    Swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: '<?= addslashes($success) ?>',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        customClass: {
+            container: 'swal-toast-small'
+        }
+    });
+    <?php endif; ?>
+
+    <?php if ($error): ?>
+    Swal.fire({
+        icon: 'error',
+        title: 'Error!',
+        text: '<?= addslashes($error) ?>',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        customClass: {
+            container: 'swal-toast-small'
+        }
+    });
+    <?php endif; ?>
 });
 
 function editCategory(id, name, parent, desc) {
@@ -363,29 +385,41 @@ function editCategory(id, name, parent, desc) {
 document.getElementById('categoryModal').addEventListener('hidden.bs.modal', function () {
     document.getElementById('modalTitle').innerHTML = '<i class="bx bx-plus-circle"></i> Add Category';
     document.querySelector('#categoryModal form').reset();
-    document.getElementById('editId').val('');
+    document.getElementById('editId').value = '';
     document.getElementById('saveCategoryBtn').innerHTML = '<i class="bx bx-save me-2"></i> Save Category';
-});
-
-// Reset delete modal when closed
-document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function () {
-    $('#deleteWarning').addClass('d-none');
 });
 </script>
 <style>
 .table th { font-weight: 600; background-color: #f8f9fa; }
 .btn-group .btn { padding: 0.375rem 0.75rem; }
-.btn-group .btn:hover { transform: translateY(-1px); }
-.empty-state {
-    text-align: center;
-    padding: 2rem;
+
+/* SweetAlert2 small toast customization */
+.swal-toast-small {
+    font-size: 0.875rem !important;
 }
-.empty-state i {
-    font-size: 4rem;
-    opacity: 0.5;
+.swal-toast-small .swal2-popup {
+    font-size: 0.875rem !important;
+    padding: 0.5rem !important;
+    width: auto !important;
+    min-width: 250px !important;
 }
-#deleteModal .modal-body {
-    padding: 2rem;
+.swal-toast-small .swal2-title {
+    font-size: 1rem !important;
+    margin: 0 !important;
+    padding: 0 0 0.25rem 0 !important;
+}
+.swal-toast-small .swal2-html-container {
+    font-size: 0.875rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.swal-toast-small .swal2-actions {
+    margin: 0.25rem 0 0 0 !important;
+}
+.swal-toast-small .swal2-confirm,
+.swal-toast-small .swal2-cancel {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
 }
 </style>
 </body>

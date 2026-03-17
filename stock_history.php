@@ -8,18 +8,18 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Authorization (Admin + Warehouse + Shop Managers)
-$allowed_roles = ['admin', 'warehouse_manager', 'shop_manager','stock_manager'];
+// Authorization (Admin + Warehouse + Shop Managers + Stock Managers)
+$allowed_roles = ['admin', 'warehouse_manager', 'shop_manager', 'stock_manager'];
 $user_role = $_SESSION['role'] ?? '';
 if (!in_array($user_role, $allowed_roles)) {
-    $_SESSION['error'] = "Access denied.";
+    $_SESSION['error'] = "Access denied. You don't have permission to view stock history.";
     header('Location: dashboard.php');
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
 $business_id = $_SESSION['business_id'] ?? 1;
-$user_shop_id = $_SESSION['shop_id'] ?? null;
+$user_shop_id = $_SESSION['current_shop_id'] ?? $_SESSION['shop_id'] ?? null;
 
 // === FILTERS ===
 $search     = trim($_GET['search'] ?? '');
@@ -40,6 +40,8 @@ $params = [$business_id];
 if ($user_role !== 'admin' && $user_shop_id) {
     $where .= " AND sa.shop_id = ?";
     $params[] = $user_shop_id;
+    // Override location filter to user's shop only
+    $location = $user_shop_id;
 }
 
 if ($search) {
@@ -50,7 +52,7 @@ if ($search) {
     $params[] = $like;
 }
 
-if ($location > 0) {
+if ($location > 0 && ($user_role === 'admin' || $user_role === 'warehouse_manager')) {
     $where .= " AND sa.shop_id = ?";
     $params[] = $location;
 }
@@ -86,22 +88,26 @@ $query = "
         s.shop_name,
         u.full_name AS adjusted_by_name
     FROM stock_adjustments sa
-    JOIN products p ON sa.product_id = p.id
-    JOIN shops s ON sa.shop_id = s.id
-    JOIN users u ON sa.adjusted_by = u.id
+    JOIN products p ON sa.product_id = p.id AND p.business_id = ?
+    JOIN shops s ON sa.shop_id = s.id AND s.business_id = ?
+    JOIN users u ON sa.adjusted_by = u.id AND u.business_id = ?
     $where
     ORDER BY sa.adjusted_at DESC
     LIMIT 1000
 ";
+
+// Add business_id params for joins
+$full_params = array_merge([$business_id, $business_id, $business_id], $params);
+
 $stmt = $pdo->prepare($query);
-$stmt->execute($params);
+$stmt->execute($full_params);
 $history = $stmt->fetchAll();
 
 // Fetch Shops for Filter (only from current business)
 $shop_query = "SELECT id, shop_name FROM shops WHERE business_id = ? AND is_active = 1 ORDER BY shop_name";
-$shops = $pdo->prepare($shop_query);
-$shops->execute([$business_id]);
-$shops = $shops->fetchAll();
+$shop_stmt = $pdo->prepare($shop_query);
+$shop_stmt->execute([$business_id]);
+$shops = $shop_stmt->fetchAll();
 
 // Adjustment Types (for filter)
 $adjustment_types = [
@@ -116,8 +122,17 @@ $adjustment_types = [
 
 // Stats calculation
 $total_adjustments = count($history);
-$stock_added = array_sum(array_column(array_filter($history, fn($h) => in_array($h['adjustment_type'], ['add', 'transfer_in'])), 'quantity'));
-$stock_removed = array_sum(array_column(array_filter($history, fn($h) => in_array($h['adjustment_type'], ['remove', 'damage', 'expiry', 'transfer_out'])), 'quantity'));
+$stock_added = 0;
+$stock_removed = 0;
+
+foreach ($history as $h) {
+    if (in_array($h['adjustment_type'], ['add', 'transfer_in'])) {
+        $stock_added += $h['quantity'];
+    } elseif (in_array($h['adjustment_type'], ['remove', 'damage', 'expiry', 'transfer_out'])) {
+        $stock_removed += $h['quantity'];
+    }
+}
+
 $unique_products = count(array_unique(array_column($history, 'product_name')));
 $unique_shops = count(array_unique(array_column($history, 'shop_name')));
 
@@ -156,12 +171,14 @@ include 'includes/head.php';
                                 </small>
                             </h4>
                             <div class="d-flex gap-2">
+                                <?php if (!empty($history)): ?>
                                 <button onclick="window.print()" class="btn btn-outline-secondary">
                                     <i class="bx bx-printer me-1"></i> Print Report
                                 </button>
                                 <button onclick="exportStockHistory()" class="btn btn-primary">
                                     <i class="bx bx-download me-1"></i> Export Excel
                                 </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -226,11 +243,11 @@ include 'includes/head.php';
                                 </div>
                                 <div class="col-lg-2 col-md-6">
                                     <label class="form-label">From Date</label>
-                                    <input type="date" name="date_from" class="form-control" value="<?= $date_from ?>">
+                                    <input type="date" name="date_from" class="form-control" value="<?= $date_from ?>" max="<?= date('Y-m-d') ?>">
                                 </div>
                                 <div class="col-lg-2 col-md-6">
                                     <label class="form-label">To Date</label>
-                                    <input type="date" name="date_to" class="form-control" value="<?= $date_to ?>">
+                                    <input type="date" name="date_to" class="form-control" value="<?= $date_to ?>" max="<?= date('Y-m-d') ?>">
                                 </div>
                                 <div class="col-lg-1 col-md-12">
                                     <label class="form-label d-none d-md-block">&nbsp;</label>
@@ -389,7 +406,20 @@ include 'includes/head.php';
                                 </thead>
                                 <tbody>
                                     <?php if (empty($history)): ?>
-                                    
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5">
+                                            <div class="empty-state">
+                                                <i class="bx bx-package display-1 text-muted"></i>
+                                                <h5 class="mt-3">No stock movements found</h5>
+                                                <p class="text-muted">No stock adjustments recorded for the selected criteria</p>
+                                                <?php if ($search || $location || ($reason && $reason !== 'all') || $date_from != date('Y-m-d', strtotime('-30 days')) || $date_to != date('Y-m-d')): ?>
+                                                <a href="stock_history.php" class="btn btn-primary mt-3">
+                                                    <i class="bx bx-reset me-1"></i> Clear Filters
+                                                </a>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
                                     <?php else: ?>
                                     <?php foreach ($history as $h): 
                                         $is_add = in_array($h['adjustment_type'], ['add', 'transfer_in']);
@@ -459,7 +489,7 @@ include 'includes/head.php';
                                                     <i class="bx bx-right-arrow-alt text-primary"></i>
                                                     <span class="fw-bold ms-2"><?= number_format($h['new_stock']) ?></span>
                                                 </div>
-                                                <div class="progress" style="height: 6px;">
+                                                <div class="progress" style="height: 6px; width: 120px; margin: 0 auto;">
                                                     <?php 
                                                     $max_stock = max($h['old_stock'], $h['new_stock']);
                                                     if ($max_stock > 0) {
@@ -497,11 +527,13 @@ include 'includes/head.php';
     </div>
 </div>
 
+<?php include 'includes/rightbar.php'; ?>
 <?php include 'includes/scripts.php'; ?>
 
 <script>
 $(document).ready(function() {
-    // Initialize DataTables
+    // Initialize DataTables only if there's data
+    <?php if (!empty($history)): ?>
     $('#historyTable').DataTable({
         responsive: true,
         pageLength: 25,
@@ -520,15 +552,18 @@ $(document).ready(function() {
             }
         }
     });
+    <?php endif; ?>
 
     // Tooltips
     $('[data-bs-toggle="tooltip"]').tooltip();
 
-    // Auto-submit on filter change
+    // Auto-submit on filter change (debounced)
+    let filterTimer;
     $('select[name="location"], select[name="reason"], input[name="date_from"], input[name="date_to"]').on('change', function() {
-        if ($(this).val() !== '') {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => {
             $('#filterForm').submit();
-        }
+        }, 500);
     });
 
     // Auto-close alerts after 5 seconds
@@ -544,6 +579,16 @@ $(document).ready(function() {
 });
 
 function exportStockHistory() {
+    <?php if (empty($history)): ?>
+    Swal.fire({
+        icon: 'info',
+        title: 'No Data',
+        text: 'No stock movements to export for the selected criteria.',
+        timer: 3000
+    });
+    return;
+    <?php endif; ?>
+    
     const btn = event.target.closest('button');
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Exporting...';
@@ -616,4 +661,4 @@ function exportStockHistory() {
 }
 </style>
 </body>
-</html> 
+</html>

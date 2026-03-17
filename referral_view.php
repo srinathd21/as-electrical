@@ -81,6 +81,40 @@ $customers_stmt = $pdo->prepare("
 ");
 $customers_stmt->execute([$referral_id, $current_business_id]);
 $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Determine outstanding type and color
+if ($referral['balance_due'] > 0) {
+    $balance_class = 'danger';
+    $balance_icon = 'bx-down-arrow-alt';
+    $balance_type = 'Debit Outstanding';
+    $balance_description = 'You owe money to referral person';
+} elseif ($referral['balance_due'] < 0) {
+    $balance_class = 'success';
+    $balance_icon = 'bx-up-arrow-alt';
+    $balance_type = 'Credit Outstanding';
+    $balance_description = 'Referral person owes money to you';
+} else {
+    $balance_class = 'secondary';
+    $balance_icon = 'bx-check';
+    $balance_type = 'Settled';
+    $balance_description = 'No outstanding balance';
+}
+
+// Determine initial outstanding display
+$initial_outstanding_html = '';
+if ($referral['initial_outstanding_type'] && $referral['initial_outstanding_amount'] > 0) {
+    if ($referral['initial_outstanding_type'] === 'debit') {
+        $initial_class = 'danger';
+        $initial_icon = 'bx-down-arrow-alt';
+        $initial_type = 'Initial Debit';
+        $initial_description = 'You initially owed money to referral person';
+    } else {
+        $initial_class = 'success';
+        $initial_icon = 'bx-up-arrow-alt';
+        $initial_type = 'Initial Credit';
+        $initial_description = 'Referral person initially owed money to you';
+    }
+}
 ?>
 
 <!doctype html>
@@ -108,7 +142,7 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 </h4>
                                 <nav aria-label="breadcrumb">
                                     <ol class="breadcrumb mb-0">
-                                        <li class="breadcrumb-item"><a href="referral_persons.php">Referral Persons</a></li>
+                                        <li class="breadcrumb-item"><a href="referrals.php">Referral Persons</a></li>
                                         <li class="breadcrumb-item active"><?= htmlspecialchars($referral['full_name']) ?></li>
                                     </ol>
                                 </nav>
@@ -131,7 +165,7 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <!-- Profile & Stats -->
                 <div class="row mb-4">
                     <div class="col-lg-4">
-                        <div class="card shadow-sm">
+                        <div class="card shadow-sm h-100">
                             <div class="card-body">
                                 <div class="d-flex align-items-center mb-4">
                                     <div class="avatar-lg me-3">
@@ -192,6 +226,27 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         </div>
                                     </div>
                                     <?php endif; ?>
+                                    <?php if (!empty($referral['department'])): ?>
+                                    <div class="d-flex align-items-center mt-3">
+                                        <i class="bx bx-briefcase text-primary me-3 fs-5"></i>
+                                        <div>
+                                            <small class="text-muted">Department</small><br>
+                                            <strong><?= htmlspecialchars($referral['department']) ?></strong>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Commission Info -->
+                                <div class="border-top pt-3 mt-3">
+                                    <h6 class="mb-2">Commission Settings</h6>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="bx bx-percent text-primary me-3 fs-5"></i>
+                                        <div>
+                                            <small class="text-muted">Commission Rate</small><br>
+                                            <strong><?= $referral['commission_percent'] ?>% per sale</strong>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <?php if (!empty($referral['notes'])): ?>
@@ -205,9 +260,62 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <div class="col-lg-8">
+                        <!-- Outstanding Summary -->
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title mb-4">
+                                    <i class="bx bx-credit-card me-2"></i> Financial Summary
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-4">
+                                        <div class="border-start border-<?= $balance_class ?> border-4 ps-3">
+                                            <h6 class="text-muted mb-1">Current Balance</h6>
+                                            <h3 class="mb-2 text-<?= $balance_class ?>">
+                                                <i class="bx <?= $balance_icon ?> me-2"></i>
+                                                ₹<?= number_format(abs($referral['balance_due']), 0) ?>
+                                            </h3>
+                                            <p class="text-<?= $balance_class ?> mb-1">
+                                                <strong><?= $balance_type ?></strong>
+                                            </p>
+                                            <small class="text-muted"><?= $balance_description ?></small>
+                                            <div class="mt-3">
+                                                <small class="text-muted">
+                                                    <strong>Earned:</strong> ₹<?= number_format($referral['debit_amount'], 0) ?><br>
+                                                    <strong>Paid:</strong> ₹<?= number_format($referral['paid_amount'], 0) ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <?php if ($referral['initial_outstanding_type'] && $referral['initial_outstanding_amount'] > 0): ?>
+                                    <div class="col-md-6 mb-4">
+                                        <div class="border-start border-<?= $initial_class ?> border-4 ps-3">
+                                            <h6 class="text-muted mb-1">Initial Outstanding</h6>
+                                            <h3 class="mb-2 text-<?= $initial_class ?>">
+                                                <i class="bx <?= $initial_icon ?> me-2"></i>
+                                                ₹<?= number_format($referral['initial_outstanding_amount'], 0) ?>
+                                            </h3>
+                                            <p class="text-<?= $initial_class ?> mb-1">
+                                                <strong><?= $initial_type ?></strong>
+                                            </p>
+                                            <small class="text-muted"><?= $initial_description ?></small>
+                                            <div class="mt-3">
+                                                <small class="text-muted">
+                                                    <strong>Type:</strong> <?= ucfirst($referral['initial_outstanding_type']) ?><br>
+                                                    <strong>Added on:</strong> <?= date('d M Y', strtotime($referral['created_at'])) ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Cards -->
                         <div class="row mb-4">
-                            <div class="col-md-6 col-lg-3">
-                                <div class="card card-hover border-start border-primary border-4">
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card card-hover border-start border-primary border-4 h-100">
                                     <div class="card-body">
                                         <h6 class="text-muted mb-1">Total Earned</h6>
                                         <h3 class="mb-0 text-primary">₹<?= number_format($referral['debit_amount'], 0) ?></h3>
@@ -215,17 +323,8 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6 col-lg-3">
-                                <div class="card card-hover border-start border-warning border-4">
-                                    <div class="card-body">
-                                        <h6 class="text-muted mb-1">Balance Due</h6>
-                                        <h3 class="mb-0 text-warning">₹<?= number_format($referral['balance_due'], 0) ?></h3>
-                                        <small class="text-muted">Paid: ₹<?= number_format($referral['paid_amount'], 0) ?></small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 col-lg-3">
-                                <div class="card card-hover border-start border-success border-4">
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card card-hover border-start border-success border-4 h-100">
                                     <div class="card-body">
                                         <h6 class="text-muted mb-1">Sales Generated</h6>
                                         <h3 class="mb-0 text-success">₹<?= number_format($referral['total_sales_generated'], 0) ?></h3>
@@ -233,8 +332,8 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6 col-lg-3">
-                                <div class="card card-hover border-start border-info border-4">
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card card-hover border-start border-info border-4 h-100">
                                     <div class="card-body">
                                         <h6 class="text-muted mb-1">Referral Count</h6>
                                         <h3 class="mb-0 text-info"><?= $referral['total_referrals'] ?></h3>
@@ -301,55 +400,96 @@ $referred_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
 
                 <!-- Referred Customers -->
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-4">
-                            <i class="bx bx-group me-1"></i> Referred Customers (<?= count($referred_customers) ?>)
-                        </h5>
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Customer</th>
-                                        <th>Contact</th>
-                                        <th class="text-center">Invoices</th>
-                                        <th class="text-end">Total Spent</th>
-                                        <th class="text-end">Commission Earned</th>
-                                        <th>Last Purchase</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($referred_customers)): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center py-5">
-                                            <i class="bx bx-user-x display-4 text-muted d-block mb-3"></i>
-                                            <h6>No Referred Customers Yet</h6>
-                                        </td>
-                                    </tr>
-                                    <?php else: ?>
-                                    <?php foreach ($referred_customers as $cust): ?>
-                                    <tr>
-                                        <td>
-                                            <strong><?= htmlspecialchars($cust['name']) ?></strong>
-                                        </td>
-                                        <td>
-                                            <?= !empty($cust['phone']) ? htmlspecialchars($cust['phone']) : '<em class="text-muted">No phone</em>' ?><br>
-                                            <small class="text-muted"><?= htmlspecialchars($cust['email'] ?? '') ?></small>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-info"><?= $cust['total_invoices'] ?></span>
-                                        </td>
-                                        <td class="text-end">₹<?= number_format($cust['total_amount'], 0) ?></td>
-                                        <td class="text-end text-success">₹<?= number_format($cust['commission_earned'], 0) ?></td>
-                                        <td><?= date('d M Y', strtotime($cust['last_purchase'])) ?></td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-4">
+                                    <i class="bx bx-group me-1"></i> Referred Customers (<?= count($referred_customers) ?>)
+                                </h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Customer</th>
+                                                <th>Contact</th>
+                                                <th class="text-center">Invoices</th>
+                                                <th class="text-end">Total Spent</th>
+                                                <th class="text-end">Commission Earned</th>
+                                                <th>Last Purchase</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (empty($referred_customers)): ?>
+                                            <tr>
+                                                <td colspan="6" class="text-center py-5">
+                                                    <i class="bx bx-user-x display-4 text-muted d-block mb-3"></i>
+                                                    <h6>No Referred Customers Yet</h6>
+                                                </td>
+                                            </tr>
+                                            <?php else: ?>
+                                            <?php foreach ($referred_customers as $cust): ?>
+                                            <tr>
+                                                <td>
+                                                    <strong><?= htmlspecialchars($cust['name']) ?></strong>
+                                                </td>
+                                                <td>
+                                                    <?= !empty($cust['phone']) ? htmlspecialchars($cust['phone']) : '<em class="text-muted">No phone</em>' ?><br>
+                                                    <small class="text-muted"><?= htmlspecialchars($cust['email'] ?? '') ?></small>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-info"><?= $cust['total_invoices'] ?></span>
+                                                </td>
+                                                <td class="text-end">₹<?= number_format($cust['total_amount'], 0) ?></td>
+                                                <td class="text-end text-success">₹<?= number_format($cust['commission_earned'], 0) ?></td>
+                                                <td><?= date('d M Y', strtotime($cust['last_purchase'])) ?></td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- ID Proof Information (if available) -->
+                <?php if (!empty($referral['proof_id_type']) || !empty($referral['proof_id_number']) || !empty($referral['proof_id_file'])): ?>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-4">
+                                    <i class="bx bx-id-card me-1"></i> ID Proof Information
+                                </h5>
+                                <div class="row">
+                                    <?php if (!empty($referral['proof_id_type'])): ?>
+                                    <div class="col-md-4 mb-3">
+                                        <small class="text-muted d-block">ID Type</small>
+                                        <strong><?= ucfirst(str_replace('_', ' ', $referral['proof_id_type'])) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($referral['proof_id_number'])): ?>
+                                    <div class="col-md-4 mb-3">
+                                        <small class="text-muted d-block">ID Number</small>
+                                        <strong><?= htmlspecialchars($referral['proof_id_number']) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($referral['proof_id_file'])): ?>
+                                    <div class="col-md-4 mb-3">
+                                        <small class="text-muted d-block">Uploaded Document</small>
+                                        <a href="<?= htmlspecialchars($referral['proof_id_file']) ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bx bx-download me-1"></i> View Document
+                                        </a>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
         <?php include(__DIR__ . '/includes/footer.php'); ?>
@@ -366,9 +506,10 @@ $(document).ready(function() {
 </script>
 
 <style>
-.card-hover:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.12) !important; }
+.card-hover:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.12) !important; transition: all 0.2s ease; }
 .avatar-lg .avatar-title { font-size: 3.5rem; }
 .border-start { border-left-width: 4px !important; }
+.h-100 { height: 100%; }
 </style>
 </body>
 </html>

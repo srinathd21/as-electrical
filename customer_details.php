@@ -219,7 +219,7 @@ $returns = $returns_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <a href="customers.php" class="btn btn-outline-secondary">
                                     <i class="bx bx-arrow-back me-1"></i> Back
                                 </a>
-                                <a href="pos3.php?customer_id=<?= $customer_id ?>" class="btn btn-success">
+                                <a href="pos.php?customer_id=<?= $customer_id ?>" class="btn btn-success">
                                     <i class="bx bx-plus-circle me-1"></i> New Sale
                                 </a>
                             </div>
@@ -265,7 +265,12 @@ $returns = $returns_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         title="Edit Customer">
                                     <i class="bx bx-edit"></i>
                                 </button>
-                               
+                                <button class="btn btn-sm btn-outline-danger delete-customer-btn"
+                                        data-id="<?= $customer['id'] ?>"
+                                        data-name="<?= htmlspecialchars($customer['name'], ENT_QUOTES) ?>"
+                                        title="Delete Customer">
+                                    <i class="bx bx-trash"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -315,7 +320,7 @@ $returns = $returns_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <a href="customer_credit_statement.php?customer_id=<?= $customer_id ?>" class="btn btn-outline-danger btn-sm">
                                             <i class="bx bx-receipt me-1"></i> View Statement
                                         </a>
-                                        <a href="customer_credit_statement.php?customer_id=<?= $customer_id ?>" class="btn btn-danger btn-sm">
+                                        <a href="collect_payment.php?customer_id=<?= $customer_id ?>" class="btn btn-danger btn-sm">
                                             <i class="bx bx-money me-1"></i> Collect Payment
                                         </a>
                                     </div>

@@ -29,7 +29,7 @@ $success = $error = '';
 $categories = $gst_rates = [];
 
 // Image upload configuration
-$upload_dir = '../uploads/products/';
+$upload_dir = 'uploads/products/';
 $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 $max_file_size = 2 * 1024 * 1024; // 2MB
 
@@ -432,10 +432,14 @@ $stmt->execute([
 
                     // Add initial stock to product_stocks table
                     if ($initial_stock > 0) {
-                        $check_stock = $pdo->prepare("SELECT id FROM product_stocks WHERE product_id = ? AND shop_id = ?");
+                        $check_stock = $pdo->prepare("SELECT id, quantity FROM product_stocks WHERE product_id = ? AND shop_id = ?");
                         $check_stock->execute([$product_id, $current_shop_id]);
+                        $existing_stock = $check_stock->fetch();
 
-                        if ($check_stock->fetch()) {
+                        if ($existing_stock) {
+                            // Store old quantity before update
+                            $old_quantity = $existing_stock['quantity'];
+                            
                             // Update existing stock
                             $update_stmt = $pdo->prepare("
                                 UPDATE product_stocks 
@@ -450,8 +454,12 @@ $stmt->execute([
                                 $product_id,
                                 $current_shop_id
                             ]);
+                            
+                            $new_quantity = $old_quantity + $initial_stock;
                         } else {
                             // Insert new stock record
+                            $old_quantity = 0;
+                            
                             $insert_stmt = $pdo->prepare("
                                 INSERT INTO product_stocks 
                                 (product_id, shop_id, business_id, quantity, total_secondary_units, last_updated) 
@@ -464,7 +472,59 @@ $stmt->execute([
                                 $initial_stock,
                                 $total_secondary_units
                             ]);
+                            
+                            $new_quantity = $initial_stock;
                         }
+                        
+                        // Generate unique adjustment number
+                        $date = new DateTime();
+                        $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                        
+                        // Ensure uniqueness of adjustment number
+                        $check_adj = $pdo->prepare("SELECT id FROM stock_adjustments WHERE adjustment_number = ?");
+                        $check_adj->execute([$adjustment_number]);
+                        while ($check_adj->fetch()) {
+                            $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                            $check_adj->execute([$adjustment_number]);
+                        }
+                        
+                        // Record stock adjustment
+                        $adj_stmt = $pdo->prepare("
+                            INSERT INTO stock_adjustments (
+                                adjustment_number,
+                                product_id,
+                                shop_id,
+                                adjustment_type,
+                                quantity,
+                                old_stock,
+                                new_stock,
+                                reason,
+                                reference_type,
+                                notes,
+                                adjusted_by,
+                                adjusted_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        ");
+                        
+                        $notes = "Initial stock added";
+                        if ($total_secondary_units && $secondary_unit) {
+                            $notes .= " ($total_secondary_units $secondary_unit)";
+                        }
+                        
+                        $adj_stmt->execute([
+                            $adjustment_number,
+                            $product_id,
+                            $current_shop_id,
+                            'add', // adjustment_type
+                            $initial_stock,
+                            $old_quantity,
+                            $new_quantity,
+                            'Initial stock on product creation',
+                            'initial_stock',
+                            $notes,
+                            $_SESSION['user_id']
+                        ]);
+                        
                     } else {
                         // Even if no initial stock, create a record with 0 quantity
                         $check_stock = $pdo->prepare("SELECT id FROM product_stocks WHERE product_id = ? AND shop_id = ?");
@@ -480,6 +540,40 @@ $stmt->execute([
                                 $product_id,
                                 $current_shop_id,
                                 $current_business_id
+                            ]);
+                            
+                            // Still record a zero stock adjustment for audit trail
+                            $adjustment_number = 'ADJ' . date('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                            
+                            $adj_stmt = $pdo->prepare("
+                                INSERT INTO stock_adjustments (
+                                    adjustment_number,
+                                    product_id,
+                                    shop_id,
+                                    adjustment_type,
+                                    quantity,
+                                    old_stock,
+                                    new_stock,
+                                    reason,
+                                    reference_type,
+                                    notes,
+                                    adjusted_by,
+                                    adjusted_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                            ");
+                            
+                            $adj_stmt->execute([
+                                $adjustment_number,
+                                $product_id,
+                                $current_shop_id,
+                                'add', // adjustment_type
+                                0,
+                                0,
+                                0,
+                                'Product created with zero stock',
+                                'initial_stock',
+                                'Product added with no initial stock',
+                                $_SESSION['user_id']
                             ]);
                         }
                     }
@@ -1227,7 +1321,6 @@ $stmt->execute([
 
 <?php include('includes/rightbar.php'); ?>
 <?php include('includes/scripts.php'); ?>
-
 <script>
 // Track manual entries
 let manualStockPrice = false;
@@ -1235,105 +1328,14 @@ let manualRetailPrice = false;
 let manualWholesalePrice = false;
 let discountSymbol = '%'; // Default symbol
 
+// Track calculation modes
+let stockPriceCalculationMode = 'auto'; // 'auto' or 'manual'
+let retailPriceCalculationMode = 'auto'; // 'auto' or 'manual'
+let wholesalePriceCalculationMode = 'auto'; // 'auto' or 'manual'
+
 // GST Calculation Variables
 let gstRate = 0;
 let gstType = 'inclusive'; // Default: GST Inclusive
-
-// Toast notification function
-function showToast(type, message, duration = 5000) {
-    // Remove existing toasts
-    $('.toast').remove();
-    
-    // Create toast container if it doesn't exist
-    if ($('.toast-container').length === 0) {
-        $('body').append('<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999"></div>');
-    }
-    
-    // Set icon based on type
-    let icon = '';
-    switch(type) {
-        case 'success':
-            icon = '<i class="bx bx-check-circle me-2"></i>';
-            break;
-        case 'error':
-        case 'danger':
-            icon = '<i class="bx bx-error-circle me-2"></i>';
-            break;
-        case 'warning':
-            icon = '<i class="bx bx-error me-2"></i>';
-            break;
-        default:
-            icon = '<i class="bx bx-info-circle me-2"></i>';
-    }
-    
-    // Create toast
-    const toast = $(`
-        <div class="toast align-items-center text-bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="${duration}">
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${icon}${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    `);
-    
-    // Add to container and show
-    $('.toast-container').append(toast);
-    const bsToast = new bootstrap.Toast(toast[0], { autohide: true, delay: duration });
-    bsToast.show();
-}
-
-// Confirmation modal function (replaces confirm)
-function showConfirmModal(title, message, onConfirm, confirmText = 'Confirm', cancelText = 'Cancel') {
-    // Remove existing modal
-    $('#dynamicConfirmModal').remove();
-    
-    // Create modal
-    const modal = $(`
-        <div class="modal fade" id="dynamicConfirmModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">${title}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body text-center pt-0">
-                        <div class="mb-4">
-                            <i class="bx bx-question-mark text-primary" style="font-size: 4rem;"></i>
-                        </div>
-                        <p class="text-muted mb-4">${message}</p>
-                        <div class="d-flex justify-content-center gap-2">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-                                <i class="bx bx-x me-1"></i> ${cancelText}
-                            </button>
-                            <button type="button" class="btn btn-primary" id="confirmActionBtn">
-                                <i class="bx bx-check me-1"></i> ${confirmText}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `);
-    
-    $('body').append(modal);
-    
-    // Handle confirm
-    $('#confirmActionBtn').on('click', function() {
-        onConfirm();
-        $('#dynamicConfirmModal').modal('hide');
-    });
-    
-    // Show modal
-    const bsModal = new bootstrap.Modal(document.getElementById('dynamicConfirmModal'));
-    bsModal.show();
-    
-    // Clean up on hide
-    $('#dynamicConfirmModal').on('hidden.bs.modal', function() {
-        $(this).remove();
-    });
-}
 
 function setDiscountSymbol(symbol) {
     discountSymbol = symbol;
@@ -1386,7 +1388,7 @@ function calculateGST() {
     // Reset GST rate
     gstRate = 0;
     
-    if (selectedOption.value && mrpInput > 0) {
+    if (selectedOption && selectedOption.value && mrpInput > 0) {
         // Get GST rate from data attribute
         gstRate = parseFloat(selectedOption.getAttribute('data-rate')) || 0;
         
@@ -1436,7 +1438,7 @@ function calculateGST() {
         // Update final MRP (same as input if no GST)
         finalMRPInput.value = mrpInput.toFixed(2);
         
-        if (!selectedOption.value && mrpInput > 0) {
+        if (!selectedOption || !selectedOption.value && mrpInput > 0) {
             finalMRPText.innerHTML = 'No GST applied';
             finalMRPText.style.color = '#6c757d';
         } else if (mrpInput <= 0) {
@@ -1452,6 +1454,7 @@ function calculateGST() {
 // Clear manual stock price entry
 function clearManualStockPrice() {
     manualStockPrice = false;
+    stockPriceCalculationMode = 'auto';
     document.getElementById('stockPrice').value = '';
     document.getElementById('stockPriceText').innerHTML = 'Will be calculated from Final MRP & Discount';
     document.getElementById('stockPriceText').style.color = '#6c757d';
@@ -1461,6 +1464,7 @@ function clearManualStockPrice() {
 // Clear manual retail price entry
 function clearManualRetailPrice() {
     manualRetailPrice = false;
+    retailPriceCalculationMode = 'auto';
     document.getElementById('retailPrice').value = '';
     calculateRetailPrice();
 }
@@ -1468,6 +1472,7 @@ function clearManualRetailPrice() {
 // Clear manual wholesale price entry
 function clearManualWholesalePrice() {
     manualWholesalePrice = false;
+    wholesalePriceCalculationMode = 'auto';
     document.getElementById('wholesalePrice').value = '';
     calculateWholesalePrice();
 }
@@ -1482,20 +1487,18 @@ function calculateStockPrice() {
     const stockPriceText = document.getElementById('stockPriceText');
     
     let discountValue = 0;
-    let discountType = 'percentage';
     let discountAmount = 0;
     let currentStockPrice = parseFloat(stockPriceInput.value) || 0;
     let calculatedStockPrice = 0;
     
-    // If MRP is provided, calculate stock price
-    if (mrp > 0) {
+    // If in auto mode and MRP is provided, calculate stock price
+    if (mrp > 0 && !manualStockPrice) {
         if (discountInput) {
             if (discountSymbol === '%') {
-                discountType = 'percentage';
                 discountValue = parseFloat(discountInput.replace('%', '')) || 0;
                 
                 if (discountValue > 100) {
-                    showToast('warning', 'Discount percentage cannot exceed 100%');
+                    alert('Discount percentage cannot exceed 100%');
                     discountValue = 100;
                     document.getElementById('discount').value = '100%';
                 }
@@ -1503,11 +1506,10 @@ function calculateStockPrice() {
                 discountAmount = mrp * discountValue / 100;
                 calculatedStockPrice = mrp - discountAmount;
             } else {
-                discountType = 'fixed';
                 discountValue = parseFloat(discountInput) || 0;
                 
                 if (discountValue > mrp) {
-                    showToast('warning', 'Discount amount cannot exceed MRP');
+                    alert('Discount amount cannot exceed MRP');
                     discountValue = mrp;
                     document.getElementById('discount').value = mrp.toFixed(2);
                 }
@@ -1525,29 +1527,38 @@ function calculateStockPrice() {
             calculatedStockPrice = 0;
         }
         
-        // If user hasn't manually entered stock price, use calculated value
-        if (!manualStockPrice) {
-            stockPriceInput.value = calculatedStockPrice.toFixed(2);
-            if (discountAmount > 0) {
-                stockPriceText.innerHTML = `Calculated from Final MRP (₹${mrp.toFixed(2)}) - Discount`;
-                stockPriceText.style.color = '#198754';
-            } else {
-                stockPriceText.innerHTML = `Same as Final MRP (no discount)`;
-                stockPriceText.style.color = '#6c757d';
-            }
+        // Update stock price field
+        stockPriceInput.value = calculatedStockPrice.toFixed(2);
+        
+        if (discountAmount > 0) {
+            stockPriceText.innerHTML = `Calculated from Final MRP (₹${mrp.toFixed(2)}) - Discount`;
+            stockPriceText.style.color = '#198754';
         } else {
-            stockPriceText.innerHTML = `Manually entered`;
-            stockPriceText.style.color = '#0d6efd';
-        }
-    } else {
-        // No MRP provided
-        if (currentStockPrice > 0) {
-            stockPriceText.innerHTML = `Manually entered`;
-            stockPriceText.style.color = '#0d6efd';
-        } else {
-            stockPriceText.innerHTML = `Enter cost price manually`;
+            stockPriceText.innerHTML = `Same as Final MRP (no discount)`;
             stockPriceText.style.color = '#6c757d';
         }
+        
+        stockPriceCalculationMode = 'auto';
+    } 
+    // If in manual mode, just update discount based on stock price
+    else if (mrp > 0 && manualStockPrice) {
+        currentStockPrice = parseFloat(stockPriceInput.value) || 0;
+        discountAmount = mrp - currentStockPrice;
+        
+        // Update discount field based on manual stock price
+        if (discountAmount > 0) {
+            if (discountSymbol === '%') {
+                discountValue = (discountAmount / mrp) * 100;
+                document.getElementById('discount').value = discountValue.toFixed(2) + '%';
+            } else {
+                document.getElementById('discount').value = discountAmount.toFixed(2);
+            }
+        } else {
+            document.getElementById('discount').value = '';
+        }
+        
+        stockPriceText.innerHTML = `Manually entered - Discount calculated`;
+        stockPriceText.style.color = '#0d6efd';
     }
     
     // Update "You Save" field
@@ -1584,38 +1595,53 @@ function calculateRetailPrice() {
     let currentRetailPrice = parseFloat(retailPriceInput.value) || 0;
     let calculatedRetailPrice = stockPrice;
     
-    // Calculate markup amount and retail price
-    if (stockPrice > 0 && retailPriceValue > 0) {
-        if (retailPriceType === 'percentage') {
-            markupAmount = stockPrice * retailPriceValue / 100;
-            calculatedRetailPrice = stockPrice + markupAmount;
-        } else {
-            markupAmount = retailPriceValue;
-            calculatedRetailPrice = stockPrice + retailPriceValue;
-        }
-        
-        // Only update if retail price is not manually set
-        if (!manualRetailPrice) {
+    // If in auto mode and stock price is available
+    if (stockPrice > 0 && !manualRetailPrice) {
+        if (retailPriceValue > 0) {
+            if (retailPriceType === 'percentage') {
+                markupAmount = stockPrice * retailPriceValue / 100;
+                calculatedRetailPrice = stockPrice + markupAmount;
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${retailPriceValue}%)`;
+            } else {
+                markupAmount = retailPriceValue;
+                calculatedRetailPrice = stockPrice + retailPriceValue;
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+            
             retailPriceInput.value = calculatedRetailPrice.toFixed(2);
-            retailPriceText.innerHTML = `Based on stock price + ${retailPriceValue}${retailPriceType === 'percentage' ? '%' : '₹'} markup`;
+            retailPriceText.innerHTML = `Based on stock price + markup`;
             retailPriceText.style.color = '#198754';
+            retailPriceCalculationMode = 'auto';
         } else {
-            retailPriceText.innerHTML = `Manually entered`;
-            retailPriceText.style.color = '#0d6efd';
-        }
-    } else if (stockPrice > 0) {
-        if (!manualRetailPrice) {
             retailPriceInput.value = stockPrice.toFixed(2);
+            retailMarkupText.innerHTML = `Markup: ₹0.00`;
             retailPriceText.innerHTML = `Same as stock price (no markup)`;
             retailPriceText.style.color = '#6c757d';
-        } else {
-            retailPriceText.innerHTML = `Manually entered`;
-            retailPriceText.style.color = '#0d6efd';
         }
+    } 
+    // If in manual mode, calculate markup based on retail price
+    else if (stockPrice > 0 && manualRetailPrice) {
+        currentRetailPrice = parseFloat(retailPriceInput.value) || 0;
+        
+        if (currentRetailPrice > stockPrice) {
+            markupAmount = currentRetailPrice - stockPrice;
+            
+            if (retailPriceType === 'percentage') {
+                const calculatedPercentage = (markupAmount / stockPrice) * 100;
+                document.getElementById('retailPriceValue').value = calculatedPercentage.toFixed(2);
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${calculatedPercentage.toFixed(2)}%)`;
+            } else {
+                document.getElementById('retailPriceValue').value = markupAmount.toFixed(2);
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+        } else {
+            document.getElementById('retailPriceValue').value = '0';
+            retailMarkupText.innerHTML = `Markup: ₹0.00`;
+        }
+        
+        retailPriceText.innerHTML = `Manually entered - Markup calculated`;
+        retailPriceText.style.color = '#0d6efd';
     }
-    
-    // Update markup amount display
-    retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)}`;
     
     // Calculate profit margin
     calculateProfitMargins();
@@ -1636,38 +1662,53 @@ function calculateWholesalePrice() {
     let currentWholesalePrice = parseFloat(wholesalePriceInput.value) || 0;
     let calculatedWholesalePrice = stockPrice;
     
-    // Calculate markup amount and wholesale price
-    if (stockPrice > 0 && wholesalePriceValue > 0) {
-        if (wholesalePriceType === 'percentage') {
-            markupAmount = stockPrice * wholesalePriceValue / 100;
-            calculatedWholesalePrice = stockPrice + markupAmount;
-        } else {
-            markupAmount = wholesalePriceValue;
-            calculatedWholesalePrice = stockPrice + wholesalePriceValue;
-        }
-        
-        // Only update if wholesale price is not manually set
-        if (!manualWholesalePrice) {
+    // If in auto mode and stock price is available
+    if (stockPrice > 0 && !manualWholesalePrice) {
+        if (wholesalePriceValue > 0) {
+            if (wholesalePriceType === 'percentage') {
+                markupAmount = stockPrice * wholesalePriceValue / 100;
+                calculatedWholesalePrice = stockPrice + markupAmount;
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${wholesalePriceValue}%)`;
+            } else {
+                markupAmount = wholesalePriceValue;
+                calculatedWholesalePrice = stockPrice + wholesalePriceValue;
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+            
             wholesalePriceInput.value = calculatedWholesalePrice.toFixed(2);
-            wholesalePriceText.innerHTML = `Based on stock price + ${wholesalePriceValue}${wholesalePriceType === 'percentage' ? '%' : '₹'} markup`;
+            wholesalePriceText.innerHTML = `Based on stock price + markup`;
             wholesalePriceText.style.color = '#0d6efd';
+            wholesalePriceCalculationMode = 'auto';
         } else {
-            wholesalePriceText.innerHTML = `Manually entered`;
-            wholesalePriceText.style.color = '#0d6efd';
-        }
-    } else if (stockPrice > 0) {
-        if (!manualWholesalePrice) {
             wholesalePriceInput.value = stockPrice.toFixed(2);
+            wholesaleMarkupText.innerHTML = `Markup: ₹0.00`;
             wholesalePriceText.innerHTML = `Same as stock price (no markup)`;
             wholesalePriceText.style.color = '#6c757d';
-        } else {
-            wholesalePriceText.innerHTML = `Manually entered`;
-            wholesalePriceText.style.color = '#0d6efd';
         }
+    } 
+    // If in manual mode, calculate markup based on wholesale price
+    else if (stockPrice > 0 && manualWholesalePrice) {
+        currentWholesalePrice = parseFloat(wholesalePriceInput.value) || 0;
+        
+        if (currentWholesalePrice > stockPrice) {
+            markupAmount = currentWholesalePrice - stockPrice;
+            
+            if (wholesalePriceType === 'percentage') {
+                const calculatedPercentage = (markupAmount / stockPrice) * 100;
+                document.getElementById('wholesalePriceValue').value = calculatedPercentage.toFixed(2);
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${calculatedPercentage.toFixed(2)}%)`;
+            } else {
+                document.getElementById('wholesalePriceValue').value = markupAmount.toFixed(2);
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+        } else {
+            document.getElementById('wholesalePriceValue').value = '0';
+            wholesaleMarkupText.innerHTML = `Markup: ₹0.00`;
+        }
+        
+        wholesalePriceText.innerHTML = `Manually entered - Markup calculated`;
+        wholesalePriceText.style.color = '#0d6efd';
     }
-    
-    // Update markup amount display
-    wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)}`;
     
     // Calculate profit margin
     calculateProfitMargins();
@@ -1803,7 +1844,7 @@ function calculateSecondaryPrices() {
 
         // Validate conversion rate
         if (conversion === 0) {
-            showToast('warning', 'Conversion rate cannot be 0');
+            alert('Conversion rate cannot be 0');
             document.getElementById('secUnitConversion').value = '';
             previewBox.style.display = 'none';
         }
@@ -1811,7 +1852,6 @@ function calculateSecondaryPrices() {
         // Warn about very high or low conversion rates
         if (conversion > 10000) {
             document.getElementById('secUnitConversion').style.borderColor = '#ffc107';
-            showToast('info', 'High conversion rate detected. Please verify.');
         } else {
             document.getElementById('secUnitConversion').style.borderColor = '';
         }
@@ -1895,8 +1935,12 @@ document.getElementById('stockPrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualStockPrice = true;
-        document.getElementById('stockPriceText').innerHTML = 'Manually entered';
+        stockPriceCalculationMode = 'manual';
+        document.getElementById('stockPriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('stockPriceText').style.color = '#0d6efd';
+        
+        // Recalculate discount based on manual stock price
+        calculateStockPrice();
     }
     calculateRetailPrice();
     calculateWholesalePrice();
@@ -1909,8 +1953,12 @@ document.getElementById('retailPrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualRetailPrice = true;
-        document.getElementById('retailPriceText').innerHTML = 'Manually entered';
+        retailPriceCalculationMode = 'manual';
+        document.getElementById('retailPriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('retailPriceText').style.color = '#0d6efd';
+        
+        // Calculate markup based on manual retail price
+        calculateRetailPrice();
     }
     calculateProfitMargins();
     calculateSecondaryPrices();
@@ -1921,8 +1969,12 @@ document.getElementById('wholesalePrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualWholesalePrice = true;
-        document.getElementById('wholesalePriceText').innerHTML = 'Manually entered';
+        wholesalePriceCalculationMode = 'manual';
+        document.getElementById('wholesalePriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('wholesalePriceText').style.color = '#0d6efd';
+        
+        // Calculate markup based on manual wholesale price
+        calculateWholesalePrice();
     }
     calculateProfitMargins();
     calculateSecondaryPrices();
@@ -1966,7 +2018,7 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
     }
     
     // GST validation
-    if (gstType === 'exclusive' && !gstSelect.value) {
+    if (gstType === 'exclusive' && gstSelect.value === '') {
         errors.push('Please select GST rate when product is GST Exclusive.');
     }
     
@@ -2037,18 +2089,7 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
     // Show errors if any
     if (errors.length > 0) {
         e.preventDefault();
-        // Show first error as toast and all errors in a modal
-        showToast('error', errors[0]);
-        
-        // Show all errors in a modal for better visibility
-        const errorList = errors.map(err => `<li class="text-start">${err}</li>`).join('');
-        showConfirmModal(
-            'Form Validation Errors',
-            `<ul class="text-danger" style="list-style-type: none; padding-left: 0;">${errorList}</ul>`,
-            function() {}, // Empty function since we don't need confirm action
-            'OK',
-            ''
-        );
+        alert('Please fix the following errors:\n\n' + errors.join('\n'));
         return;
     }
     
@@ -2059,7 +2100,7 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
         const maxSize = 2 * 1024 * 1024; // 2MB
         if (fileSize > maxSize) {
             e.preventDefault();
-            showToast('error', 'File size exceeds 2MB limit. Please choose a smaller image.');
+            alert('File size exceeds 2MB limit. Please choose a smaller image.');
             fileInput.focus();
         }
     }
@@ -2071,7 +2112,6 @@ function generateBarcode() {
     const random = Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
     const barcode = prefix + random;
     document.querySelector('input[name="barcode"]').value = barcode;
-    showToast('success', 'Barcode generated successfully!');
 }
 
 // AJAX: Load subcategories when category changes
@@ -2121,7 +2161,6 @@ document.getElementById('categorySelect').addEventListener('change', function() 
         .catch(error => {
             console.error('Error loading subcategories:', error);
             subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
-            showToast('error', 'Failed to load subcategories');
         })
         .finally(() => {
             loadingDiv.style.display = 'none';
@@ -2152,21 +2191,6 @@ document.getElementById('productImage').addEventListener('change', function(e) {
     const preview = document.getElementById('imagePreview');
     
     if (file) {
-        // Validate file type
-        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (!validTypes.includes(file.type)) {
-            showToast('error', 'Please select a valid image file (JPEG, PNG, GIF, WEBP)');
-            this.value = '';
-            return;
-        }
-        
-        // Validate file size (2MB)
-        if (file.size > 2 * 1024 * 1024) {
-            showToast('error', 'Image size should be less than 2MB');
-            this.value = '';
-            return;
-        }
-        
         const reader = new FileReader();
         
         reader.onload = function(e) {
@@ -2174,11 +2198,6 @@ document.getElementById('productImage').addEventListener('change', function(e) {
                 <img src="${e.target.result}" class="img-fluid rounded" style="max-height: 200px; object-fit: contain;">
                 <p class="mt-2 mb-0"><small>${file.name} (${(file.size / 1024).toFixed(1)} KB)</small></p>
             `;
-            showToast('success', 'Image loaded successfully');
-        };
-        
-        reader.onerror = function() {
-            showToast('error', 'Error loading image');
         };
         
         reader.readAsDataURL(file);
@@ -2204,17 +2223,70 @@ document.getElementById('discount').addEventListener('input', function(e) {
         this.value = value + '%';
     }
     
+    // Reset manual stock price mode when discount is changed
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    
     // Calculate stock price on input
     calculateStockPrice();
 });
 
 // Event listeners for price calculations
-document.getElementById('mrpInput').addEventListener('input', calculateGST);
-document.getElementById('gstSelect').addEventListener('change', calculateGST);
-document.getElementById('retailPriceValue').addEventListener('input', calculateRetailPrice);
-document.getElementById('retailPriceType').addEventListener('change', updateRetailPriceUnit);
-document.getElementById('wholesalePriceValue').addEventListener('input', calculateWholesalePrice);
-document.getElementById('wholesalePriceType').addEventListener('change', updateWholesalePriceUnit);
+document.getElementById('mrpInput').addEventListener('input', function() {
+    // Reset manual stock price mode when MRP is changed
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    calculateGST();
+});
+
+document.getElementById('gstSelect').addEventListener('change', function() {
+    // Reset manual stock price mode when GST is changed
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    calculateGST();
+});
+
+document.getElementById('retailPriceValue').addEventListener('input', function() {
+    // Reset manual retail price mode when markup is changed
+    if (manualRetailPrice) {
+        manualRetailPrice = false;
+        retailPriceCalculationMode = 'auto';
+    }
+    calculateRetailPrice();
+});
+
+document.getElementById('retailPriceType').addEventListener('change', function() {
+    // Reset manual retail price mode when markup type is changed
+    if (manualRetailPrice) {
+        manualRetailPrice = false;
+        retailPriceCalculationMode = 'auto';
+    }
+    updateRetailPriceUnit();
+});
+
+document.getElementById('wholesalePriceValue').addEventListener('input', function() {
+    // Reset manual wholesale price mode when markup is changed
+    if (manualWholesalePrice) {
+        manualWholesalePrice = false;
+        wholesalePriceCalculationMode = 'auto';
+    }
+    calculateWholesalePrice();
+});
+
+document.getElementById('wholesalePriceType').addEventListener('change', function() {
+    // Reset manual wholesale price mode when markup type is changed
+    if (manualWholesalePrice) {
+        manualWholesalePrice = false;
+        wholesalePriceCalculationMode = 'auto';
+    }
+    updateWholesalePriceUnit();
+});
 
 // Enhanced secondary unit event listeners
 document.getElementById('secUnitPriceType').addEventListener('change', updateSecUnitExtraUnit);
@@ -2250,70 +2322,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockPrice = parseFloat(document.getElementById('stockPrice').value) || 0;
     const retailPrice = parseFloat(document.getElementById('retailPrice').value) || 0;
     const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value) || 0;
+    const discountInput = document.getElementById('discount').value.trim();
     
-    if (stockPrice > 0) manualStockPrice = true;
-    if (retailPrice > 0) manualRetailPrice = true;
-    if (wholesalePrice > 0) manualWholesalePrice = true;
+    if (stockPrice > 0) {
+        manualStockPrice = true;
+        stockPriceCalculationMode = 'manual';
+        document.getElementById('stockPriceText').innerHTML = 'Manually entered';
+        document.getElementById('stockPriceText').style.color = '#0d6efd';
+    }
+    
+    if (retailPrice > 0) {
+        manualRetailPrice = true;
+        retailPriceCalculationMode = 'manual';
+        document.getElementById('retailPriceText').innerHTML = 'Manually entered';
+        document.getElementById('retailPriceText').style.color = '#0d6efd';
+    }
+    
+    if (wholesalePrice > 0) {
+        manualWholesalePrice = true;
+        wholesalePriceCalculationMode = 'manual';
+        document.getElementById('wholesalePriceText').innerHTML = 'Manually entered';
+        document.getElementById('wholesalePriceText').style.color = '#0d6efd';
+    }
     
     // Calculate GST and prices on page load
     calculateGST();
+    
+    // If discount is present, ensure it's processed correctly
+    if (discountInput) {
+        if (discountInput.includes('%')) {
+            discountSymbol = '%';
+        } else {
+            discountSymbol = '₹';
+        }
+        document.getElementById('discountSymbol').textContent = discountSymbol;
+    }
+    
     calculateSecondaryPrices();
 });
 
 // Quick add category function
 function quickAddCategory() {
-    // Use modal instead of prompt
-    // Remove existing modal
-    $('#quickCategoryModal').remove();
-    
-    // Create modal
-    const modal = $(`
-        <div class="modal fade" id="quickCategoryModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bx bx-plus-circle me-1"></i> Quick Add Category
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Category Name <span class="text-danger">*</span></label>
-                            <input type="text" id="quickCategoryName" class="form-control" placeholder="Enter category name">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" id="saveQuickCategoryBtn">
-                            <i class="bx bx-save me-1"></i> Save Category
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `);
-    
-    $('body').append(modal);
-    
-    // Handle save
-    $('#saveQuickCategoryBtn').on('click', function() {
-        const categoryName = $('#quickCategoryName').val().trim();
-        
-        if (!categoryName) {
-            showToast('warning', 'Please enter a category name');
-            return;
-        }
-        
-        // Show loading
-        $(this).html('<i class="bx bx-loader bx-spin me-1"></i> Saving...').prop('disabled', true);
-        
+    const categoryName = prompt('Enter new category name:');
+    if (categoryName && categoryName.trim()) {
         fetch('ajax/quick_add_category.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `category_name=${encodeURIComponent(categoryName)}&business_id=<?= $current_business_id ?>`
+            body: `category_name=${encodeURIComponent(categoryName.trim())}&business_id=<?= $current_business_id ?>`
         })
         .then(response => response.json())
         .then(data => {
@@ -2325,103 +2382,34 @@ function quickAddCategory() {
                 newOption.textContent = data.category_name;
                 categorySelect.appendChild(newOption);
                 categorySelect.value = data.category_id;
-                
-                // Trigger change event to load subcategories
-                categorySelect.dispatchEvent(new Event('change'));
-                
-                showToast('success', 'Category added successfully!');
-                $('#quickCategoryModal').modal('hide');
+                alert('Category added successfully!');
             } else {
-                showToast('error', data.message || 'Failed to add category');
+                alert('Error: ' + data.message);
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showToast('error', 'Failed to add category');
-        })
-        .finally(() => {
-            $('#saveQuickCategoryBtn').html('<i class="bx bx-save me-1"></i> Save Category').prop('disabled', false);
+            alert('Failed to add category');
         });
-    });
-    
-    // Show modal
-    const bsModal = new bootstrap.Modal(document.getElementById('quickCategoryModal'));
-    bsModal.show();
-    
-    // Focus input when shown
-    $('#quickCategoryModal').on('shown.bs.modal', function() {
-        $('#quickCategoryName').focus();
-    });
-    
-    // Clean up on hide
-    $('#quickCategoryModal').on('hidden.bs.modal', function() {
-        $(this).remove();
-    });
+    }
 }
 
 // Quick add subcategory function
 function quickAddSubcategory() {
     const categorySelect = document.getElementById('categorySelect');
     if (!categorySelect.value) {
-        showToast('warning', 'Please select a category first');
+        alert('Please select a category first');
         return;
     }
     
-    // Remove existing modal
-    $('#quickSubcategoryModal').remove();
-    
-    // Create modal
-    const modal = $(`
-        <div class="modal fade" id="quickSubcategoryModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bx bx-plus-circle me-1"></i> Quick Add Subcategory
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Category</label>
-                            <input type="text" class="form-control" value="${categorySelect.options[categorySelect.selectedIndex].text}" readonly>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Subcategory Name <span class="text-danger">*</span></label>
-                            <input type="text" id="quickSubcategoryName" class="form-control" placeholder="Enter subcategory name">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" id="saveQuickSubcategoryBtn">
-                            <i class="bx bx-save me-1"></i> Save Subcategory
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `);
-    
-    $('body').append(modal);
-    
-    // Handle save
-    $('#saveQuickSubcategoryBtn').on('click', function() {
-        const subcategoryName = $('#quickSubcategoryName').val().trim();
-        
-        if (!subcategoryName) {
-            showToast('warning', 'Please enter a subcategory name');
-            return;
-        }
-        
-        // Show loading
-        $(this).html('<i class="bx bx-loader bx-spin me-1"></i> Saving...').prop('disabled', true);
-        
+    const subcategoryName = prompt('Enter new subcategory name:');
+    if (subcategoryName && subcategoryName.trim()) {
         fetch('ajax/quick_add_subcategory.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `subcategory_name=${encodeURIComponent(subcategoryName)}&category_id=${categorySelect.value}&business_id=<?= $current_business_id ?>`
+            body: `subcategory_name=${encodeURIComponent(subcategoryName.trim())}&category_id=${categorySelect.value}&business_id=<?= $current_business_id ?>`
         })
         .then(response => response.json())
         .then(data => {
@@ -2433,62 +2421,44 @@ function quickAddSubcategory() {
                 newOption.textContent = data.subcategory_name;
                 subcategorySelect.appendChild(newOption);
                 subcategorySelect.value = data.subcategory_id;
-                
-                showToast('success', 'Subcategory added successfully!');
-                $('#quickSubcategoryModal').modal('hide');
+                alert('Subcategory added successfully!');
             } else {
-                showToast('error', data.message || 'Failed to add subcategory');
+                alert('Error: ' + data.message);
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showToast('error', 'Failed to add subcategory');
-        })
-        .finally(() => {
-            $('#saveQuickSubcategoryBtn').html('<i class="bx bx-save me-1"></i> Save Subcategory').prop('disabled', false);
+            alert('Failed to add subcategory');
         });
-    });
-    
-    // Show modal
-    const bsModal = new bootstrap.Modal(document.getElementById('quickSubcategoryModal'));
-    bsModal.show();
-    
-    // Focus input when shown
-    $('#quickSubcategoryModal').on('shown.bs.modal', function() {
-        $('#quickSubcategoryName').focus();
-    });
-    
-    // Clean up on hide
-    $('#quickSubcategoryModal').on('hidden.bs.modal', function() {
-        $(this).remove();
-    });
+    }
 }
 
 // Enhanced: Populate sample data for testing with GST example
 function populateSampleData() {
-    showConfirmModal(
-        'Confirm Action',
-        'This will fill the form with sample data. Continue?',
-        function() {
-            document.querySelector('input[name="product_name"]').value = 'Sample Wire Coil';
-            document.querySelector('input[name="product_code"]').value = 'PROD' + Math.floor(Math.random() * 10000);
-            document.querySelector('input[name="secondary_unit"]').value = 'mtr';
-            document.getElementById('secUnitConversion').value = '90';
-            document.getElementById('secUnitExtraCharge').value = '0.50';
-            document.getElementById('mrpInput').value = '1000.00';
-            document.getElementById('discount').value = '10%';
-            setDiscountSymbol('%');
-            document.getElementById('retailPriceValue').value = '20';
-            document.getElementById('wholesalePriceValue').value = '10';
-            document.querySelector('input[name="min_stock_level"]').value = '20';
-            document.querySelector('textarea[name="description"]').value = 'Sample product with GST calculation and secondary unit conversion.';
-            document.querySelector('input[name="image_alt_text"]').value = 'Sample wire coil product';
-            generateBarcode();
-            calculateGST();
-            calculateSecondaryPrices();
-            showToast('success', 'Sample data populated successfully!');
-        }
-    );
+    if (confirm('This will fill the form with sample data. Continue?')) {
+        document.querySelector('input[name="product_name"]').value = 'Sample Wire Coil';
+        document.querySelector('input[name="product_code"]').value = 'PROD' + Math.floor(Math.random() * 10000);
+        document.querySelector('input[name="secondary_unit"]').value = 'mtr';
+        document.getElementById('secUnitConversion').value = '90';
+        document.getElementById('secUnitExtraCharge').value = '0.50';
+        document.getElementById('mrpInput').value = '1000.00';
+        document.getElementById('discount').value = '10%';
+        setDiscountSymbol('%');
+        document.getElementById('retailPriceValue').value = '20';
+        document.getElementById('wholesalePriceValue').value = '10';
+        document.querySelector('input[name="min_stock_level"]').value = '20';
+        document.querySelector('textarea[name="description"]').value = 'Sample product with GST calculation and secondary unit conversion.';
+        document.querySelector('input[name="image_alt_text"]').value = 'Sample wire coil product';
+        generateBarcode();
+        
+        // Reset manual flags
+        manualStockPrice = false;
+        manualRetailPrice = false;
+        manualWholesalePrice = false;
+        
+        calculateGST();
+        calculateSecondaryPrices();
+    }
 }
 
 // Trigger category change on page load if category is already selected

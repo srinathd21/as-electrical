@@ -481,18 +481,7 @@ include 'includes/head.php';
                                 </thead>
                                 <tbody>
                                     <?php if (empty($products)): ?>
-                                    <tr>
-                                        <td colspan="7" class="text-center">
-                                            <div class="text-center py-5">
-                                                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
-                                                <h4>No Products Found</h4>
-                                                <p class="text-muted">There are no active products for this business.</p>
-                                                <a href="products.php" class="btn btn-primary">
-                                                    <i class="fas fa-plus me-1"></i> Add Products
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    
                                     <?php else: ?>
                                     <?php $row_num = 1; ?>
                                     <?php foreach ($products as $p): ?>

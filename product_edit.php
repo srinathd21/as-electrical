@@ -19,28 +19,26 @@ if (!$current_business_id || !$current_shop_id) {
     exit();
 }
 
-if (!in_array($_SESSION['role'], ['admin', 'warehouse_manager', 'stock_manager','shop_manager'])) {
+if (!in_array($_SESSION['role'], ['admin', 'warehouse_manager','stock_manager', 'shop_manager'])) {
     set_flash_message('error', 'You do not have permission to edit products');
     header('Location: dashboard.php');
     exit();
 }
 
-// Get product ID from URL
+// Get product ID
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if (!$product_id) {
-    set_flash_message('error', 'Product ID is required');
+    set_flash_message('error', 'Invalid product ID');
     header('Location: products.php');
     exit();
 }
 
 $success = $error = '';
 $categories = $gst_rates = [];
-$product = null;
-$current_stock = 0;
 
 // Image upload configuration
-$upload_dir = '../uploads/products/';
+$upload_dir = 'uploads/products/';
 $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 $max_file_size = 2 * 1024 * 1024; // 2MB
 
@@ -48,8 +46,28 @@ if (!file_exists($upload_dir)) {
     mkdir($upload_dir, 0755, true);
 }
 
-// Fetch categories & GST rates
+// Fetch product data
 try {
+    // Get product details
+    $product_stmt = $pdo->prepare("
+        SELECT p.*, 
+               ps.id as stock_id,
+               ps.quantity as current_stock,
+               ps.total_secondary_units
+        FROM products p
+        LEFT JOIN product_stocks ps ON p.id = ps.product_id AND ps.shop_id = ?
+        WHERE p.id = ? AND p.business_id = ?
+    ");
+    $product_stmt->execute([$current_shop_id, $product_id, $current_business_id]);
+    $product = $product_stmt->fetch();
+
+    if (!$product) {
+        set_flash_message('error', 'Product not found');
+        header('Location: products.php');
+        exit();
+    }
+
+    // Fetch categories
     $categories = $pdo->prepare("
         SELECT id, category_name 
         FROM categories 
@@ -59,9 +77,24 @@ try {
     $categories->execute([$current_business_id]);
     $categories = $categories->fetchAll();
 
+    // Fetch subcategories if category is selected
+    $subcategories = [];
+    if ($product['category_id']) {
+        $subcat_stmt = $pdo->prepare("
+            SELECT id, subcategory_name 
+            FROM subcategories 
+            WHERE category_id = ? AND status = 'active' 
+            ORDER BY subcategory_name
+        ");
+        $subcat_stmt->execute([$product['category_id']]);
+        $subcategories = $subcat_stmt->fetchAll();
+    }
+
+    // Fetch GST rates
     $gst_rates = $pdo->prepare("
         SELECT id, hsn_code, cgst_rate, sgst_rate, igst_rate,
-               CONCAT(hsn_code, ' (', cgst_rate + sgst_rate + igst_rate, '%)') as display_label
+               CONCAT(hsn_code, ' (', cgst_rate + sgst_rate + igst_rate, '%)') as display_label,
+               (cgst_rate + sgst_rate + igst_rate) as total_gst_rate
         FROM gst_rates 
         WHERE business_id = ? AND status = 'active' 
         ORDER BY hsn_code
@@ -69,41 +102,11 @@ try {
     $gst_rates->execute([$current_business_id]);
     $gst_rates = $gst_rates->fetchAll();
 
-    // Fetch product data
-    $product_stmt = $pdo->prepare("
-        SELECT p.*, 
-               c.category_name,
-               sc.category_name as subcategory_name,
-               g.hsn_code as gst_hsn_code
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        LEFT JOIN categories sc ON p.subcategory_id = sc.id
-        LEFT JOIN gst_rates g ON p.gst_id = g.id
-        WHERE p.id = ? AND p.business_id = ?
-    ");
-    $product_stmt->execute([$product_id, $current_business_id]);
-    $product = $product_stmt->fetch();
-
-    if (!$product) {
-        set_flash_message('error', 'Product not found or you do not have permission to edit it');
-        header('Location: products.php');
-        exit();
-    }
-
-    // Get current stock for this shop
-    $stock_stmt = $pdo->prepare("
-        SELECT quantity FROM product_stocks 
-        WHERE product_id = ? AND shop_id = ?
-    ");
-    $stock_stmt->execute([$product_id, $current_shop_id]);
-    $stock_row = $stock_stmt->fetch();
-    $current_stock = $stock_row ? $stock_row['quantity'] : 0;
-
 } catch (Exception $e) {
     $error = "Failed to load data: " . $e->getMessage();
 }
 
-// Thumbnail function
+// Thumbnail function (same as add page)
 function createThumbnail($source_path, $dest_path, $max_width = 200, $max_height = 200) {
     try {
         $image_info = getimagesize($source_path);
@@ -159,6 +162,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subcategory_id = !empty($_POST['subcategory_id']) ? (int)$_POST['subcategory_id'] : null;
         $description = trim($_POST['description'] ?? '');
         $unit = $_POST['unit'] ?? 'pcs';
+        
+        // GST fields
+        $gst_type = $_POST['gst_type'] ?? 'inclusive';
+        $gst_id = !empty($_POST['gst_id']) ? (int)$_POST['gst_id'] : null;
 
         // Secondary unit fields
         $secondary_unit = !empty($_POST['secondary_unit']) ? trim($_POST['secondary_unit']) : null;
@@ -166,7 +173,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sec_unit_price_type = $_POST['sec_unit_price_type'] ?? 'fixed';
         $sec_unit_extra_charge = !empty($_POST['sec_unit_extra_charge']) ? (float)$_POST['sec_unit_extra_charge'] : 0.00;
 
-        $mrp = (float)($_POST['mrp'] ?? 0);
+        // MRP and GST Calculation
+        $mrp_input = (float)($_POST['mrp_input'] ?? 0);
+        $mrp = 0;
+        
+        // Fetch GST rates if selected
+        $gst_rate_percentage = 0;
+        $gst_amount = 0;
+        $hsn_code = '';
+        
+        if ($gst_id) {
+            $gst_stmt = $pdo->prepare("SELECT hsn_code, cgst_rate, sgst_rate, igst_rate FROM gst_rates WHERE id = ? AND business_id = ?");
+            $gst_stmt->execute([$gst_id, $current_business_id]);
+            $gst_row = $gst_stmt->fetch();
+            if ($gst_row) {
+                $hsn_code = $gst_row['hsn_code'] ?? '';
+                $gst_rate_percentage = $gst_row['cgst_rate'] + $gst_row['sgst_rate'] + $gst_row['igst_rate'];
+                
+                if ($mrp_input > 0) {
+                    if ($gst_type === 'exclusive') {
+                        $gst_amount = $mrp_input * ($gst_rate_percentage / 100);
+                        $mrp = $mrp_input + $gst_amount;
+                    } else {
+                        $mrp = $mrp_input;
+                        $gst_amount = ($mrp * $gst_rate_percentage) / (100 + $gst_rate_percentage);
+                    }
+                }
+            }
+        } else {
+            $mrp = $mrp_input;
+        }
         
         // Combined discount field handling
         $discount_input = trim($_POST['discount'] ?? '');
@@ -193,54 +229,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $wholesale_price = (float)($_POST['wholesale_price'] ?? 0);
         
         $min_stock_level = (int)($_POST['min_stock_level'] ?? 10);
-        $gst_id = !empty($_POST['gst_id']) ? (int)$_POST['gst_id'] : null;
         $image_alt_text = trim($_POST['image_alt_text'] ?? '');
         $referral_enabled = isset($_POST['referral_enabled']) ? 1 : 0;
         $referral_type = $_POST['referral_type'] ?? 'percentage';
         $referral_value = (float)($_POST['referral_value'] ?? 0);
         
-        // Get is_active value from POST or default to 1
-        $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+        // Stock adjustment
+        $stock_adjustment = (float)($_POST['stock_adjustment'] ?? 0);
+        $stock_adjustment_type = $_POST['stock_adjustment_type'] ?? 'add';
+        $adjust_in_secondary = isset($_POST['adjust_in_secondary']) ? 1 : 0;
 
-        // Calculate stock price from MRP and discount (only if not manually entered)
-        if ($mrp > 0 && $discount_value > 0 && $stock_price == 0) {
-            $calculated_stock_price = $discount_type === 'percentage' 
-                ? $mrp - ($mrp * $discount_value / 100)
-                : $mrp - $discount_value;
-            
-            $stock_price = $calculated_stock_price;
-        } elseif ($mrp > 0 && $stock_price == 0) {
-            $stock_price = $mrp;
-        }
-
-        // Calculate retail price (only if not manually entered)
-        if ($stock_price > 0 && $retail_price_value > 0 && $retail_price == 0) {
-            $retail_markup_amount = $retail_price_type === 'percentage' 
-                ? $stock_price * $retail_price_value / 100
-                : $retail_price_value;
-            $retail_price = $stock_price + $retail_markup_amount;
-        } elseif ($stock_price > 0 && $retail_price == 0) {
-            $retail_price = $stock_price;
-        }
-
-        // Calculate wholesale price (only if not manually entered)
-        if ($stock_price > 0 && $wholesale_price_value > 0 && $wholesale_price == 0) {
-            $wholesale_markup_amount = $wholesale_price_type === 'percentage' 
-                ? $stock_price * $wholesale_price_value / 100
-                : $wholesale_price_value;
-            $wholesale_price = $stock_price + $wholesale_markup_amount;
-        } elseif ($stock_price > 0 && $wholesale_price == 0) {
-            $wholesale_price = $stock_price;
-        }
-
-        // Fetch HSN code
-        $hsn_code = '';
-        if ($gst_id) {
-            $gst_stmt = $pdo->prepare("SELECT hsn_code FROM gst_rates WHERE id = ? AND business_id = ?");
-            $gst_stmt->execute([$gst_id, $current_business_id]);
-            $gst_row = $gst_stmt->fetch();
-            $hsn_code = $gst_row['hsn_code'] ?? '';
-        }
+        // Delete image flag
+        $delete_image = isset($_POST['delete_image']) ? true : false;
 
         $image_path = $product['image_path'];
         $image_thumbnail_path = $product['image_thumbnail_path'];
@@ -265,24 +265,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (empty($errors)) {
+                // Delete old images
+                if ($product['image_path']) {
+                    @unlink('../' . $product['image_path']);
+                }
+                if ($product['image_thumbnail_path']) {
+                    @unlink('../' . $product['image_thumbnail_path']);
+                }
+
                 $unique_name = uniqid('prod_', true) . '_' . time() . '.' . $file_ext;
-                $new_image_path = $upload_dir . $unique_name;
+                $image_path = $upload_dir . $unique_name;
 
-                if (move_uploaded_file($file_tmp, $new_image_path)) {
-                    // Delete old images if they exist
-                    if ($image_path && file_exists('../' . $image_path)) {
-                        @unlink('../' . $image_path);
-                    }
-                    if ($image_thumbnail_path && file_exists('../' . $image_thumbnail_path)) {
-                        @unlink('../' . $image_thumbnail_path);
-                    }
-
+                if (move_uploaded_file($file_tmp, $image_path)) {
                     $thumbnail_name = 'thumb_' . $unique_name;
                     $thumbnail_path = $upload_dir . $thumbnail_name;
-                    if (createThumbnail($new_image_path, $thumbnail_path)) {
+                    if (createThumbnail($image_path, $thumbnail_path)) {
                         $image_thumbnail_path = $thumbnail_path;
                     }
-                    $image_path = str_replace('../', '', $new_image_path);
+                    $image_path = str_replace('../', '', $image_path);
                     $image_thumbnail_path = $image_thumbnail_path ? str_replace('../', '', $image_thumbnail_path) : null;
                 } else {
                     $errors[] = "Upload failed.";
@@ -291,15 +291,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($errors)) {
                 $error = implode("<br>", $errors);
             }
-        }
-
-        // Handle image removal
-        if (isset($_POST['remove_image']) && $_POST['remove_image'] == '1') {
-            if ($image_path && file_exists('../' . $image_path)) {
-                @unlink('../' . $image_path);
+        } elseif ($delete_image) {
+            // Delete image if requested
+            if ($product['image_path']) {
+                @unlink('../' . $product['image_path']);
             }
-            if ($image_thumbnail_path && file_exists('../' . $image_thumbnail_path)) {
-                @unlink('../' . $image_thumbnail_path);
+            if ($product['image_thumbnail_path']) {
+                @unlink('../' . $product['image_thumbnail_path']);
             }
             $image_path = null;
             $image_thumbnail_path = null;
@@ -308,10 +306,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($error)) {
             $errors = [];
             if (empty($product_name)) $errors[] = "Product name required.";
+            if ($mrp_input <= 0) $errors[] = "MRP is required and must be greater than 0.";
             if ($stock_price <= 0) $errors[] = "Stock price must be greater than 0.";
             if ($retail_price <= 0) $errors[] = "Retail price must be greater than 0.";
             if ($wholesale_price <= 0) $errors[] = "Wholesale price must be greater than 0.";
             if ($mrp < 0) $errors[] = "MRP cannot be negative.";
+            
+            // GST validation
+            if ($gst_type === 'exclusive' && !$gst_id) {
+                $errors[] = "Please select GST rate when product is GST Exclusive.";
+            }
             
             // Price hierarchy validation
             if ($stock_price > 0 && $wholesale_price > 0 && $wholesale_price < $stock_price) {
@@ -326,7 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = "Wholesale price should be less than or equal to Retail Price.";
             }
             
-            // MRP validation
             if ($mrp > 0) {
                 if ($retail_price > $mrp) $errors[] = "Retail price cannot be higher than MRP.";
                 if ($wholesale_price > $mrp) $errors[] = "Wholesale price cannot be higher than MRP.";
@@ -343,16 +346,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($referral_enabled && $referral_value <= 0) $errors[] = "Referral value must be > 0.";
             if ($referral_enabled && $referral_type === 'percentage' && $referral_value > 100) $errors[] = "Referral % cannot exceed 100.";
 
-            // Duplicate checks (excluding current product)
-            if (!empty($barcode)) {
+            // Secondary unit validation
+            if ($secondary_unit && $sec_unit_conversion <= 0) {
+                $errors[] = "If secondary unit is specified, conversion rate must be greater than 0.";
+            }
+            if (!$secondary_unit && $sec_unit_conversion > 0) {
+                $errors[] = "Please specify secondary unit name if entering conversion rate.";
+            }
+            if ($sec_unit_conversion && $sec_unit_conversion > 1000000) {
+                $errors[] = "Conversion rate is too high. Please use a reasonable value.";
+            }
+            if ($sec_unit_conversion && $sec_unit_conversion < 0.0001) {
+                $errors[] = "Conversion rate is too small. Please use a reasonable value.";
+            }
+
+            // Duplicate checks (skip if unchanged)
+            if (!empty($barcode) && $barcode != $product['barcode']) {
                 $check = $pdo->prepare("SELECT id FROM products WHERE barcode = ? AND business_id = ? AND id != ?");
                 $check->execute([$barcode, $current_business_id, $product_id]);
-                if ($check->fetch()) $errors[] = "Barcode already exists for another product.";
+                if ($check->fetch()) $errors[] = "Barcode already exists.";
             }
-            if (!empty($product_code)) {
+            if (!empty($product_code) && $product_code != $product['product_code']) {
                 $check = $pdo->prepare("SELECT id FROM products WHERE product_code = ? AND business_id = ? AND id != ?");
                 $check->execute([$product_code, $current_business_id, $product_id]);
-                if ($check->fetch()) $errors[] = "Product code already exists for another product.";
+                if ($check->fetch()) $errors[] = "Product code already exists.";
             }
 
             if (!empty($errors)) {
@@ -364,37 +381,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Update product
                     $stmt = $pdo->prepare("
                         UPDATE products SET
-                            product_name = ?,
-                            product_code = ?,
-                            barcode = ?,
-                            image_path = ?,
-                            image_thumbnail_path = ?,
-                            image_alt_text = ?,
-                            category_id = ?,
-                            subcategory_id = ?,
-                            description = ?,
-                            unit_of_measure = ?,
-                            secondary_unit = ?,
-                            sec_unit_conversion = ?,
-                            sec_unit_price_type = ?,
-                            sec_unit_extra_charge = ?,
-                            stock_price = ?,
-                            retail_price = ?,
-                            wholesale_price = ?,
-                            min_stock_level = ?,
-                            gst_id = ?,
-                            hsn_code = ?,
-                            referral_enabled = ?,
-                            referral_type = ?,
-                            referral_value = ?,
-                            mrp = ?,
-                            discount_type = ?,
-                            discount_value = ?,
-                            retail_price_type = ?,
-                            retail_price_value = ?,
-                            wholesale_price_type = ?,
-                            wholesale_price_value = ?,
-                            is_active = ?,
+                            product_name = ?, product_code = ?, barcode = ?,
+                            image_path = ?, image_thumbnail_path = ?, image_alt_text = ?,
+                            category_id = ?, subcategory_id = ?, description = ?, unit_of_measure = ?,
+                            secondary_unit = ?, sec_unit_conversion = ?, sec_unit_price_type = ?, sec_unit_extra_charge = ?,
+                            stock_price = ?, retail_price = ?, wholesale_price = ?,
+                            min_stock_level = ?, gst_id = ?, hsn_code = ?, gst_type = ?, gst_amount = ?,
+                            referral_enabled = ?, referral_type = ?, referral_value = ?,
+                            mrp = ?, discount_type = ?, discount_value = ?,
+                            retail_price_type = ?, retail_price_value = ?,
+                            wholesale_price_type = ?, wholesale_price_value = ?,
                             updated_at = NOW()
                         WHERE id = ? AND business_id = ?
                     ");
@@ -420,6 +416,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $min_stock_level,
                         $gst_id,
                         $hsn_code,
+                        $gst_type,
+                        $gst_amount,
                         $referral_enabled,
                         $referral_type,
                         $referral_value,
@@ -430,116 +428,137 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $retail_price_value,
                         $wholesale_price_type,
                         $wholesale_price_value,
-                        $is_active,
                         $product_id,
                         $current_business_id
                     ]);
 
-                    // Handle stock adjustment
-                    if (isset($_POST['stock_adjustment_type']) && isset($_POST['stock_adjustment_qty'])) {
-                        $adjustment_type = $_POST['stock_adjustment_type'];
-                        $adjustment_qty = (int)$_POST['stock_adjustment_qty'];
+                    // Update stock if adjustment is made
+                    if ($stock_adjustment != 0) {
+                        $current_quantity = $product['current_stock'] ?? 0;
+                        $old_quantity = $current_quantity;
                         
-                        if ($adjustment_qty > 0) {
-                            if ($adjustment_type === 'set') {
-                                // Set to specific quantity
-                                $check_stock = $pdo->prepare("SELECT id FROM product_stocks WHERE product_id = ? AND shop_id = ?");
-                                $check_stock->execute([$product_id, $current_shop_id]);
-                                
-                                if ($check_stock->fetch()) {
-                                    $pdo->prepare("UPDATE product_stocks SET quantity = ? WHERE product_id = ? AND shop_id = ?")
-                                        ->execute([$adjustment_qty, $product_id, $current_shop_id]);
-                                } else {
-                                    $pdo->prepare("INSERT INTO product_stocks (product_id, shop_id, business_id, quantity) VALUES (?, ?, ?, ?)")
-                                        ->execute([$product_id, $current_shop_id, $current_business_id, $adjustment_qty]);
-                                }
+                        // Calculate quantity in primary units
+                        $primary_quantity = $stock_adjustment;
+                        if ($adjust_in_secondary && $sec_unit_conversion > 0) {
+                            $primary_quantity = $stock_adjustment / $sec_unit_conversion;
+                        }
+                        
+                        $new_quantity = $stock_adjustment_type === 'add' 
+                            ? $current_quantity + $primary_quantity 
+                            : $current_quantity - $primary_quantity;
+                        
+                        if ($new_quantity < 0) $new_quantity = 0;
+
+                        // Calculate secondary units total
+                        $total_secondary_units = null;
+                        if ($sec_unit_conversion && $sec_unit_conversion > 0) {
+                            $total_secondary_units = $new_quantity * $sec_unit_conversion;
+                        }
+
+                        // Update stock
+                        $update_stmt = $pdo->prepare("
+                            UPDATE product_stocks 
+                            SET quantity = ?, total_secondary_units = ?, last_updated = NOW()
+                            WHERE product_id = ? AND shop_id = ?
+                        ");
+                        $update_stmt->execute([
+                            $new_quantity,
+                            $total_secondary_units,
+                            $product_id,
+                            $current_shop_id
+                        ]);
+
+                        // Generate unique adjustment number
+                        $date = new DateTime();
+                        $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                        
+                        // Ensure uniqueness of adjustment number
+                        $check_adj = $pdo->prepare("SELECT id FROM stock_adjustments WHERE adjustment_number = ?");
+                        $check_adj->execute([$adjustment_number]);
+                        while ($check_adj->fetch()) {
+                            $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                            $check_adj->execute([$adjustment_number]);
+                        }
+                        
+                        // Determine adjustment type
+                        $adjustment_type = $stock_adjustment_type === 'add' ? 'add' : 'remove';
+                        
+                        // Prepare reason and notes
+                        $reason = "Manual stock adjustment during product update";
+                        $notes = "Stock adjusted from $old_quantity to $new_quantity";
+                        
+                        if ($adjust_in_secondary) {
+                            $notes .= " (adjusted in secondary units: $stock_adjustment $secondary_unit)";
+                        } else {
+                            $notes .= " (adjusted in primary units: $primary_quantity $unit)";
+                        }
+                        
+                        // Calculate secondary quantity for logging
+                        $secondary_quantity_log = 0;
+                        if ($sec_unit_conversion > 0) {
+                            if ($adjust_in_secondary) {
+                                $secondary_quantity_log = $stock_adjustment;
                             } else {
-                                // Add/remove quantity
-                                $new_qty = $current_stock;
-                                if ($adjustment_type === 'add') {
-                                    $new_qty += $adjustment_qty;
-                                } elseif ($adjustment_type === 'remove') {
-                                    $new_qty -= $adjustment_qty;
-                                    if ($new_qty < 0) $new_qty = 0;
-                                }
-                                
-                                $check_stock = $pdo->prepare("SELECT id FROM product_stocks WHERE product_id = ? AND shop_id = ?");
-                                $check_stock->execute([$product_id, $current_shop_id]);
-                                
-                                if ($check_stock->fetch()) {
-                                    $pdo->prepare("UPDATE product_stocks SET quantity = ? WHERE product_id = ? AND shop_id = ?")
-                                        ->execute([$new_qty, $product_id, $current_shop_id]);
-                                } else {
-                                    $pdo->prepare("INSERT INTO product_stocks (product_id, shop_id, business_id, quantity) VALUES (?, ?, ?, ?)")
-                                        ->execute([$product_id, $current_shop_id, $current_business_id, $new_qty]);
-                                }
+                                $secondary_quantity_log = $primary_quantity * $sec_unit_conversion;
                             }
                         }
+                        
+                        if ($secondary_unit && $sec_unit_conversion > 0) {
+                            $notes .= " | Secondary unit conversion: 1 $unit = $sec_unit_conversion $secondary_unit";
+                        }
+
+                        // Record stock adjustment in stock_adjustments table
+                        $adj_stmt = $pdo->prepare("
+                            INSERT INTO stock_adjustments (
+                                adjustment_number,
+                                product_id,
+                                shop_id,
+                                adjustment_type,
+                                quantity,
+                                old_stock,
+                                new_stock,
+                                reason,
+                                reference_type,
+                                notes,
+                                adjusted_by,
+                                adjusted_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        ");
+                        
+                        $adj_stmt->execute([
+                            $adjustment_number,
+                            $product_id,
+                            $current_shop_id,
+                            $adjustment_type,
+                            $primary_quantity, // Store primary quantity in the quantity field
+                            $old_quantity,
+                            $new_quantity,
+                            $reason,
+                            'manual_adjustment',
+                            $notes,
+                            $_SESSION['user_id']
+                        ]);
                     }
 
                     $pdo->commit();
-                    set_flash_message('success', "Product '$product_name' updated successfully!");
                     
-                    // Refresh product data
-                    $product_stmt->execute([$product_id, $current_business_id]);
-                    $product = $product_stmt->fetch();
+                    $_SESSION['success_message'] = "Product '$product_name' updated successfully!";
+                    header('Location: products.php');
+                    exit();
                     
-                    // Refresh stock data
-                    $stock_stmt->execute([$product_id, $current_shop_id]);
-                    $stock_row = $stock_stmt->fetch();
-                    $current_stock = $stock_row ? $stock_row['quantity'] : 0;
-
                 } catch (Exception $e) {
                     $pdo->rollBack();
                     $error = "Database error: " . $e->getMessage();
-                    error_log("Update product error: " . $e->getMessage());
-                    error_log("SQL Error Info: " . print_r($pdo->errorInfo(), true));
+                    error_log("Edit product error: " . $e->getMessage());
                 }
             }
         }
     }
 }
-
-// If form wasn't submitted, populate with existing data
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
-    $_POST['product_name'] = $product['product_name'];
-    $_POST['product_code'] = $product['product_code'];
-    $_POST['barcode'] = $product['barcode'];
-    $_POST['category_id'] = $product['category_id'];
-    $_POST['subcategory_id'] = $product['subcategory_id'];
-    $_POST['description'] = $product['description'];
-    $_POST['unit'] = $product['unit_of_measure'];
-    $_POST['secondary_unit'] = $product['secondary_unit'];
-    $_POST['sec_unit_conversion'] = $product['sec_unit_conversion'];
-    $_POST['sec_unit_price_type'] = $product['sec_unit_price_type'];
-    $_POST['sec_unit_extra_charge'] = $product['sec_unit_extra_charge'];
-    $_POST['mrp'] = $product['mrp'];
-    $_POST['stock_price'] = $product['stock_price'];
-    $_POST['retail_price'] = $product['retail_price'];
-    $_POST['wholesale_price'] = $product['wholesale_price'];
-    $_POST['retail_price_type'] = $product['retail_price_type'];
-    $_POST['retail_price_value'] = $product['retail_price_value'];
-    $_POST['wholesale_price_type'] = $product['wholesale_price_type'];
-    $_POST['wholesale_price_value'] = $product['wholesale_price_value'];
-    $_POST['min_stock_level'] = $product['min_stock_level'];
-    $_POST['gst_id'] = $product['gst_id'];
-    $_POST['image_alt_text'] = $product['image_alt_text'];
-    $_POST['referral_enabled'] = $product['referral_enabled'];
-    $_POST['referral_type'] = $product['referral_type'];
-    $_POST['referral_value'] = $product['referral_value'];
-    $_POST['is_active'] = $product['is_active'];
-    
-    // Set discount field based on discount_type and discount_value
-    if ($product['discount_type'] === 'percentage') {
-        $_POST['discount'] = $product['discount_value'] . '%';
-    } else {
-        $_POST['discount'] = $product['discount_value'];
-    }
-}
 ?>
 <!doctype html>
 <html lang="en">
-<?php $page_title = "Edit Product"; ?>
+<?php $page_title = "Edit Product - " . htmlspecialchars($product['product_name']); ?>
 <?php include('includes/head.php'); ?>
 
 <body data-sidebar="dark">
@@ -559,7 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                     <div class="col-12">
                         <div class="page-title-box d-flex align-items-center justify-content-between">
                             <h4 class="mb-0">
-                                <i class="bx bx-edit me-2"></i> Edit Product
+                                <i class="bx bx-edit me-2"></i> Edit Product: <?= htmlspecialchars($product['product_name']) ?>
                             </h4>
                             <div>
                                 <a href="products.php" class="btn btn-outline-secondary me-2">
@@ -584,7 +603,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
 
                 <form method="POST" id="editProductForm" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?= generate_csrf_token(); ?>">
-                    <input type="hidden" name="product_id" value="<?= $product_id ?>">
                     
                     <div class="row">
                         <div class="col-lg-12">
@@ -595,7 +613,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         <small class="text-muted ms-2">
                                             Business: <?= htmlspecialchars($_SESSION['current_business_name'] ?? 'N/A') ?>
                                             | Shop: <?= htmlspecialchars($_SESSION['current_shop_name'] ?? 'N/A') ?>
-                                            | Current Stock: <span class="badge bg-success"><?= $current_stock ?></span>
                                         </small>
                                     </h5>
 
@@ -606,45 +623,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                 <option value="">-- Select Category --</option>
                                                 <?php foreach($categories as $c): ?>
                                                 <option value="<?= $c['id'] ?>" 
-                                                    <?= (isset($_POST['category_id']) && $_POST['category_id'] == $c['id']) ? 'selected' : '' ?>>
+                                                    <?= ($product['category_id'] == $c['id']) ? 'selected' : '' ?>>
                                                     <?= htmlspecialchars($c['category_name']) ?>
                                                 </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <?php if (empty($categories)): ?>
-                                            <div class="form-text text-warning">
-                                                <i class="bx bx-info-circle"></i> No categories found. 
-                                                <a href="categories.php" class="text-decoration-underline">Create one first</a>
-                                            </div>
-                                            <?php endif; ?>
                                         </div>
 
                                         <div class="col-md-4">
                                             <label class="form-label"><strong>Subcategory</strong></label>
                                             <select name="subcategory_id" id="subcategorySelect" class="form-select">
                                                 <option value="">-- Select Subcategory --</option>
-                                                <?php 
-                                                // Fetch subcategories for the selected category
-                                                if (isset($_POST['category_id']) && $_POST['category_id']) {
-                                                    $subcategories_stmt = $pdo->prepare("
-                                                        SELECT id, category_name as subcategory_name 
-                                                        FROM categories 
-                                                        WHERE parent_id = ? AND business_id = ? AND status = 'active'
-                                                        ORDER BY category_name
-                                                    ");
-                                                    $subcategories_stmt->execute([$_POST['category_id'], $current_business_id]);
-                                                    $subcategories = $subcategories_stmt->fetchAll();
-                                                    
-                                                    foreach($subcategories as $subcat): ?>
-                                                    <option value="<?= $subcat['id'] ?>" 
-                                                        <?= (isset($_POST['subcategory_id']) && $_POST['subcategory_id'] == $subcat['id']) ? 'selected' : '' ?>>
-                                                        <?= htmlspecialchars($subcat['subcategory_name']) ?>
-                                                    </option>
-                                                    <?php endforeach;
-                                                }
-                                                ?>
+                                                <?php foreach($subcategories as $sub): ?>
+                                                <option value="<?= $sub['id'] ?>" 
+                                                    <?= ($product['subcategory_id'] == $sub['id']) ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars($sub['subcategory_name']) ?>
+                                                </option>
+                                                <?php endforeach; ?>
                                             </select>
-                                            <div class="form-text">Optional - select subcategory for better organization</div>
                                             <div id="subcategoryLoading" class="form-text text-muted" style="display: none;">
                                                 <i class="bx bx-loader bx-spin"></i> Loading subcategories...
                                             </div>
@@ -653,9 +649,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         <div class="col-md-4">
                                             <label class="form-label"><strong>Product Name <span class="text-danger">*</span></strong></label>
                                             <input type="text" name="product_name" class="form-control form-control-lg" 
-                                                   value="<?= htmlspecialchars($_POST['product_name'] ?? '') ?>" 
+                                                   value="<?= htmlspecialchars($product['product_name']) ?>" 
                                                    required autofocus>
-                                            <div class="form-text">Enter the product display name</div>
                                         </div>
                                         
                                         <div class="col-md-4">
@@ -663,10 +658,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                             <div class="input-group">
                                                 <span class="input-group-text">#</span>
                                                 <input type="text" name="product_code" class="form-control" 
-                                                       value="<?= htmlspecialchars($_POST['product_code'] ?? '') ?>" 
+                                                       value="<?= htmlspecialchars($product['product_code'] ?? '') ?>" 
                                                        placeholder="e.g., PROD001">
                                             </div>
-                                            <div class="form-text">Unique product identifier (optional)</div>
                                         </div>
                                         
                                         <div class="col-md-4">
@@ -674,45 +668,44 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                             <div class="input-group">
                                                 <span class="input-group-text"><i class="bx bx-barcode"></i></span>
                                                 <input type="text" name="barcode" class="form-control" 
-                                                       value="<?= htmlspecialchars($_POST['barcode'] ?? '') ?>" 
+                                                       value="<?= htmlspecialchars($product['barcode'] ?? '') ?>" 
                                                        placeholder="Scan or type barcode">
                                                 <button type="button" class="btn btn-outline-secondary" onclick="generateBarcode()">
                                                     <i class="bx bx-refresh"></i> Generate
                                                 </button>
                                             </div>
-                                            <div class="form-text">Scan barcode or enter manually</div>
                                         </div>
 
                                         <div class="col-md-4">
                                             <label class="form-label"><strong>Unit of Measure</strong></label>
                                             <select name="unit" class="form-select">
-                                                <option value="pcs" <?= ($_POST['unit'] ?? 'pcs') == 'pcs' ? 'selected' : '' ?>>Pieces (pcs)</option>
-                                                <option value="coil" <?= ($_POST['unit'] ?? '') == 'coil' ? 'selected' : '' ?>>Coil</option>
-                                                <option value="mtr" <?= ($_POST['unit'] ?? '') == 'mtr' ? 'selected' : '' ?>>Meter (mtr)</option>
-                                                <option value="kg" <?= ($_POST['unit'] ?? '') == 'kg' ? 'selected' : '' ?>>Kilogram (kg)</option>
-                                                <option value="ltr" <?= ($_POST['unit'] ?? '') == 'ltr' ? 'selected' : '' ?>>Liter (ltr)</option>
-                                                <option value="nos" <?= ($_POST['unit'] ?? '') == 'nos' ? 'selected' : '' ?>>Number (nos)</option>
-                                                <option value="box" <?= ($_POST['unit'] ?? '') == 'box' ? 'selected' : '' ?>>Box</option>
-                                                <option value="feet" <?= ($_POST['unit'] ?? '') == 'feet' ? 'selected' : '' ?>>Feet</option>
-                                                <option value="length" <?= ($_POST['unit'] ?? '') == 'length' ? 'selected' : '' ?>>Length</option>
-                                                <option value="roll/mtr" <?= ($_POST['unit'] ?? '') == 'roll/mtr' ? 'selected' : '' ?>>Roll/Meter</option>
+                                                <option value="pcs" <?= ($product['unit_of_measure'] ?? 'pcs') == 'pcs' ? 'selected' : '' ?>>Pieces (pcs)</option>
+                                                <option value="coil" <?= ($product['unit_of_measure'] ?? '') == 'coil' ? 'selected' : '' ?>>Coil</option>
+                                                <option value="mtr" <?= ($product['unit_of_measure'] ?? '') == 'mtr' ? 'selected' : '' ?>>Meter (mtr)</option>
+                                                <option value="kg" <?= ($product['unit_of_measure'] ?? '') == 'kg' ? 'selected' : '' ?>>Kilogram (kg)</option>
+                                                <option value="ltr" <?= ($product['unit_of_measure'] ?? '') == 'ltr' ? 'selected' : '' ?>>Liter (ltr)</option>
+                                                <option value="nos" <?= ($product['unit_of_measure'] ?? '') == 'nos' ? 'selected' : '' ?>>Number (nos)</option>
+                                                <option value="box" <?= ($product['unit_of_measure'] ?? '') == 'box' ? 'selected' : '' ?>>Box</option>
+                                                <option value="feet" <?= ($product['unit_of_measure'] ?? '') == 'feet' ? 'selected' : '' ?>>Feet</option>
+                                                <option value="length" <?= ($product['unit_of_measure'] ?? '') == 'length' ? 'selected' : '' ?>>Length</option>
+                                                <option value="roll/mtr" <?= ($product['unit_of_measure'] ?? '') == 'roll/mtr' ? 'selected' : '' ?>>Roll/Meter</option>
                                             </select>
                                         </div>
 
                                         <!-- Secondary Unit Section -->
                                         <div class="col-md-12 mt-4">
                                             <h6 class="border-bottom pb-2 mb-3">
-                                                <i class="bx bx-transfer me-1"></i> Secondary Unit Conversion (Optional)
-                                                <small class="text-muted">– e.g., sell in meters when primary is coil</small>
+                                                <i class="bx bx-transfer me-1"></i> Secondary Unit Conversion
+                                                <small class="text-muted">– Sell in different units (e.g., coil → meters)</small>
                                             </h6>
                                         </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label">Secondary Unit</label>
                                             <input type="text" name="secondary_unit" class="form-control"
-                                                   value="<?= htmlspecialchars($_POST['secondary_unit'] ?? '') ?>"
-                                                   placeholder="e.g., mtr, kg">
-                                            <div class="form-text">Leave blank if not needed</div>
+                                                   value="<?= htmlspecialchars($product['secondary_unit'] ?? '') ?>"
+                                                   placeholder="e.g., mtr, kg, ft"
+                                                   onchange="calculateSecondaryPrices()">
                                         </div>
 
                                         <div class="col-md-3">
@@ -721,16 +714,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                 <span class="input-group-text">1 primary =</span>
                                                 <input type="number" step="0.0001" min="0" name="sec_unit_conversion"
                                                        class="form-control text-end" id="secUnitConversion"
-                                                       value="<?= htmlspecialchars($_POST['sec_unit_conversion'] ?? '') ?>">
-                                                <span class="input-group-text">sec units</span>
+                                                       value="<?= htmlspecialchars($product['sec_unit_conversion'] ?? '') ?>"
+                                                       onchange="calculateSecondaryPrices()"
+                                                       placeholder="e.g., 90">
+                                                <span class="input-group-text" id="secondaryUnitLabel">
+                                                    <?= htmlspecialchars($product['secondary_unit'] ?? 'units') ?>
+                                                </span>
                                             </div>
                                         </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label">Extra Charge Type</label>
-                                            <select name="sec_unit_price_type" id="secUnitPriceType" class="form-select">
-                                                <option value="fixed" <?= ($_POST['sec_unit_price_type'] ?? 'fixed') == 'fixed' ? 'selected' : '' ?>>Fixed (₹)</option>
-                                                <option value="percentage" <?= ($_POST['sec_unit_price_type'] ?? '') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
+                                            <select name="sec_unit_price_type" id="secUnitPriceType" class="form-select"
+                                                    onchange="updateSecUnitExtraUnit(); calculateSecondaryPrices()">
+                                                <option value="fixed" <?= ($product['sec_unit_price_type'] ?? 'fixed') == 'fixed' ? 'selected' : '' ?>>Fixed (₹)</option>
+                                                <option value="percentage" <?= ($product['sec_unit_price_type'] ?? '') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
                                             </select>
                                         </div>
 
@@ -739,23 +737,54 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                             <div class="input-group">
                                                 <input type="number" step="0.01" min="0" name="sec_unit_extra_charge"
                                                        class="form-control text-end" id="secUnitExtraCharge"
-                                                       value="<?= htmlspecialchars($_POST['sec_unit_extra_charge'] ?? '0') ?>">
+                                                       value="<?= htmlspecialchars($product['sec_unit_extra_charge'] ?? '0') ?>"
+                                                       onchange="calculateSecondaryPrices()"
+                                                       placeholder="0.00">
                                                 <span class="input-group-text" id="secUnitExtraUnit">₹</span>
                                             </div>
                                         </div>
 
+                                        <!-- Secondary Unit Price Preview -->
                                         <div class="col-md-12 mt-3" id="secondaryPricePreview" style="display:none;">
-                                            <div class="alert alert-info py-2">
-                                                <strong>Secondary Unit Price Preview:</strong><br>
-                                                <span id="secRetailPreview">Retail: Calculating...</span><br>
-                                                <span id="secWholesalePreview">Wholesale: Calculating...</span>
+                                            <div class="alert alert-info py-3">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-2"><i class="bx bx-store-alt me-1"></i> Retail Price (Secondary Unit)</h6>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>Price per <?= htmlspecialchars($product['secondary_unit'] ?? 'secondary unit'); ?>:</span>
+                                                            <strong id="secRetailPricePerUnit">₹0.00</strong>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>Base price (no extra):</span>
+                                                            <span id="secRetailBasePrice">₹0.00</span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between">
+                                                            <span>Extra charge:</span>
+                                                            <span id="secRetailExtraCharge">₹0.00</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-2"><i class="bx bx-building-house me-1"></i> Wholesale Price (Secondary Unit)</h6>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>Price per <?= htmlspecialchars($product['secondary_unit'] ?? 'secondary unit'); ?>:</span>
+                                                            <strong id="secWholesalePricePerUnit">₹0.00</strong>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>Base price (no extra):</span>
+                                                            <span id="secWholesaleBasePrice">₹0.00</span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between">
+                                                            <span>Extra charge:</span>
+                                                            <span id="secWholesaleExtraCharge">₹0.00</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div class="col-12">
                                             <label class="form-label">Description</label>
-                                            <textarea name="description" class="form-control" rows="3" 
-                                                      placeholder="Features, brand, specifications..."><?= htmlspecialchars($_POST['description'] ?? '') ?></textarea>
+                                            <textarea name="description" class="form-control" rows="3"><?= htmlspecialchars($product['description'] ?? '') ?></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -771,43 +800,40 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                 <label class="form-label"><strong>Product Image</strong></label>
                                                 <input type="file" name="product_image" id="productImage" class="form-control" accept="image/*">
                                                 <div class="form-text">
-                                                    Upload new product image (max 2MB). Supported formats: JPG, PNG, GIF, WEBP
+                                                    Upload new image to replace existing (max 2MB). Supported: JPG, PNG, GIF, WEBP
                                                 </div>
                                             </div>
+
+                                            <?php if ($product['image_path']): ?>
+                                            <div class="mb-3 form-check">
+                                                <input type="checkbox" name="delete_image" id="deleteImage" class="form-check-input">
+                                                <label class="form-check-label text-danger" for="deleteImage">
+                                                    Delete current image
+                                                </label>
+                                            </div>
+                                            <?php endif; ?>
 
                                             <div class="mb-3">
                                                 <label class="form-label">Image Alt Text</label>
                                                 <input type="text" name="image_alt_text" class="form-control" 
-                                                       value="<?= htmlspecialchars($_POST['image_alt_text'] ?? '') ?>" 
+                                                       value="<?= htmlspecialchars($product['image_alt_text'] ?? '') ?>" 
                                                        placeholder="Brief description of image for accessibility">
-                                                <div class="form-text">Describe the image for screen readers (optional)</div>
                                             </div>
-
-                                            <?php if ($product['image_path']): ?>
-                                            <div class="form-check mb-3">
-                                                <input class="form-check-input" type="checkbox" name="remove_image" value="1" id="removeImage">
-                                                <label class="form-check-label text-danger" for="removeImage">
-                                                    <i class="bx bx-trash me-1"></i> Remove current image
-                                                </label>
-                                            </div>
-                                            <?php endif; ?>
                                         </div>
 
                                         <div class="col-md-6">
                                             <div class="text-center">
                                                 <div id="imagePreview" class="border rounded p-3 mb-3" style="min-height: 200px; background-color: #f8f9fa;">
-                                                    <?php if ($product['image_path'] && file_exists('../' . $product['image_path'])): ?>
-                                                        <img src="../<?= htmlspecialchars($product['image_path']) ?>" 
+                                                    <?php if ($product['image_thumbnail_path']): ?>
+                                                        <img src="../<?= htmlspecialchars($product['image_thumbnail_path']) ?>" 
                                                              class="img-fluid rounded" style="max-height: 200px; object-fit: contain;">
-                                                        <p class="mt-2 mb-0">
-                                                            <small>Current image</small>
-                                                        </p>
+                                                        <p class="mt-2 mb-0"><small>Current image</small></p>
                                                     <?php else: ?>
                                                         <i class="bx bx-image fs-1 text-muted"></i>
                                                         <p class="text-muted mt-2 mb-0">No image uploaded</p>
                                                     <?php endif; ?>
                                                 </div>
-                                                <div class="form-text">Preview of current/new image</div>
+                                                <div class="form-text">Current image preview</div>
                                             </div>
                                         </div>
                                     </div>
@@ -819,17 +845,125 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                     <h5 class="card-title mb-4"><i class="bx bx-rupee me-1"></i> Pricing & Tax</h5>
                             
                                     <div class="row g-3">
+                                        <!-- GST Type and Rate Section -->
+                                        <div class="col-md-12">
+                                            <h6 class="border-bottom pb-2 mb-3">
+                                                <i class="bx bx-receipt me-1"></i> GST Configuration
+                                            </h6>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label"><strong>GST Rate</strong></label>
+                                            <select name="gst_id" id="gstSelect" class="form-select" onchange="calculateGST()">
+                                                <option value="">-- Select GST Rate --</option>
+                                                <?php foreach($gst_rates as $g): ?>
+                                                <option value="<?= $g['id'] ?>" 
+                                                    data-rate="<?= $g['total_gst_rate'] ?>"
+                                                    <?= ($product['gst_id'] == $g['id']) ? 'selected' : '' ?>>
+                                                    <?= $g['hsn_code'] ?> - Total GST: <?= $g['total_gst_rate'] ?>%
+                                                    (CGST: <?= $g['cgst_rate'] ?>%, SGST: <?= $g['sgst_rate'] ?>%, IGST: <?= $g['igst_rate'] ?>%)
+                                                </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label"><strong>GST Type</strong></label>
+                                            <div class="d-flex align-items-center">
+                                                <div class="form-check form-switch me-3">
+                                                    <input class="form-check-input" type="checkbox" id="gstTypeToggle" 
+                                                           name="gst_type" value="exclusive"
+                                                           <?= ($product['gst_type'] ?? 'inclusive') == 'exclusive' ? 'checked' : '' ?>
+                                                           onchange="updateGSTType()">
+                                                    <label class="form-check-label" for="gstTypeToggle">
+                                                        <span id="gstTypeLabel"><?= ($product['gst_type'] ?? 'inclusive') == 'exclusive' ? 'GST Exclusive' : 'GST Inclusive' ?></span>
+                                                    </label>
+                                                </div>
+                                                <div id="gstTypeHelp" class="form-text">
+                                                    <i class="bx bx-info-circle"></i>
+                                                    <span id="gstTypeDescription">
+                                                        <?= ($product['gst_type'] ?? 'inclusive') == 'exclusive' 
+                                                            ? 'GST will be added to entered price' 
+                                                            : 'GST is included in product price' ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="gst_type" id="gstTypeHidden" value="<?= $product['gst_type'] ?? 'inclusive' ?>">
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label"><strong>Enter MRP <span class="text-danger">*</span></strong></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">₹</span>
+                                                <input type="number" step="0.01" min="0" name="mrp_input" 
+                                                       class="form-control form-control-lg text-end" 
+                                                       value="<?= number_format($product['gst_type'] == 'exclusive' 
+                                                           ? ($product['mrp'] - $product['gst_amount']) 
+                                                           : $product['mrp'], 2) ?>" 
+                                                       id="mrpInput" required
+                                                       oninput="calculateGST()">
+                                            </div>
+                                            <div class="form-text" id="mrpHelpText">
+                                                <?= ($product['gst_type'] ?? 'inclusive') == 'exclusive' 
+                                                    ? 'Enter price without GST' 
+                                                    : 'Enter price including GST' ?>
+                                            </div>
+                                        </div>
+
+                                        <!-- GST Calculation Preview -->
+                                        <div class="col-md-12 mt-3" id="gstCalculationPreview" style="<?= $product['gst_id'] ? 'display:block;' : 'display:none;' ?>">
+                                            <div class="alert alert-info py-3">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-2"><i class="bx bx-calculator me-1"></i> GST Calculation</h6>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>Entered MRP:</span>
+                                                            <strong id="enteredMRP">₹0.00</strong>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>GST Rate:</span>
+                                                            <strong id="gstRateDisplay">0%</strong>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span>GST Amount:</span>
+                                                            <strong id="gstAmountDisplay">₹0.00</strong>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-2"><i class="bx bx-dollar me-1"></i> Final MRP</h6>
+                                                        <div class="d-flex justify-content-between mb-2">
+                                                            <span>Final MRP (Including GST):</span>
+                                                            <strong class="text-success" id="finalMRP">₹0.00</strong>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between">
+                                                            <small class="text-muted" id="gstCalculationDescription">
+                                                                GST calculation details will appear here
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <!-- MRP and Discount Section -->
+                                        <div class="col-md-12 mt-4">
+                                            <h6 class="border-bottom pb-2 mb-3">
+                                                <i class="bx bx-tag me-1"></i> Pricing Details
+                                            </h6>
+                                        </div>
+
                                         <div class="col-md-3">
-                                            <label class="form-label"><strong>MRP</strong></label>
+                                            <label class="form-label"><strong>Final MRP</strong></label>
                                             <div class="input-group">
                                                 <span class="input-group-text">₹</span>
                                                 <input type="number" step="0.01" min="0" name="mrp" 
                                                        class="form-control form-control-lg text-end" 
-                                                       value="<?= htmlspecialchars($_POST['mrp'] ?? '') ?>" 
-                                                       id="mrp">
+                                                       value="<?= number_format($product['mrp'], 2) ?>" 
+                                                       id="mrp" readonly>
                                             </div>
-                                            <div class="form-text">Maximum Retail Price </div>
+                                            <div class="form-text" id="finalMRPText">
+                                                Final MRP after GST calculation
+                                            </div>
                                         </div>
 
                                         <!-- Combined Discount Field -->
@@ -838,12 +972,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                             <div class="input-group">
                                                 <input type="text" name="discount" 
                                                        class="form-control text-end" 
-                                                       value="<?= htmlspecialchars($_POST['discount'] ?? '') ?>"
+                                                       value="<?= $product['discount_value'] > 0 
+                                                           ? ($product['discount_type'] == 'percentage' 
+                                                               ? $product['discount_value'] . '%' 
+                                                               : number_format($product['discount_value'], 2)) 
+                                                           : '' ?>"
                                                        id="discount"
                                                        placeholder="e.g., 10% or 50">
                                                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" 
                                                         data-bs-toggle="dropdown" aria-expanded="false">
-                                                    <span id="discountSymbol">%</span>
+                                                    <span id="discountSymbol"><?= $product['discount_type'] == 'percentage' ? '%' : '₹' ?></span>
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-end">
                                                     <li><a class="dropdown-item" href="#" onclick="setDiscountSymbol('%')">Percentage (%)</a></li>
@@ -852,64 +990,70 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                     <li><a class="dropdown-item" href="#" onclick="clearDiscount()">Clear Discount</a></li>
                                                 </ul>
                                             </div>
-                                            <div class="form-text">Enter discount as percentage (10%) or fixed amount (50)</div>
                                         </div>
 
                                         <!-- Stock Price Section -->
                                         <div class="col-md-3">
-                                            <label class="form-label"><strong>Stock Price (Cost) <span class="text-danger">*</span></strong></label>
+                                            <label class="form-label"><strong>Purchase Price (Cost) <span class="text-danger">*</span></strong></label>
                                             <div class="input-group">
                                                 <span class="input-group-text">₹</span>
                                                 <input type="number" step="0.01" min="0" name="stock_price" 
                                                        class="form-control form-control-lg text-end" 
-                                                       value="<?= htmlspecialchars($_POST['stock_price'] ?? '') ?>" 
+                                                       value="<?= number_format($product['stock_price'], 2) ?>" 
                                                        id="stockPrice" required>
                                                 <button type="button" class="btn btn-outline-secondary" onclick="clearManualStockPrice()" title="Clear manual entry">
                                                     <i class="bx bx-refresh"></i>
                                                 </button>
                                             </div>
-                                            <div class="form-text" id="stockPriceText">Calculated from MRP & Discount</div>
+                                            <div class="form-text" id="stockPriceText">
+                                                <?= $product['discount_value'] > 0 
+                                                    ? 'Calculated from Final MRP & Discount' 
+                                                    : 'Same as Final MRP (no discount)' ?>
+                                            </div>
                                         </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label"><strong>You Save</strong></label>
                                             <div class="input-group">
-                                                <input type="text" class="form-control text-end" id="youSave" readonly>
+                                                <input type="text" class="form-control text-end" id="youSave" readonly
+                                                       value="<?= number_format($product['mrp'] - $product['stock_price'], 2) ?>">
                                                 <span class="input-group-text">₹</span>
                                             </div>
                                             <div class="form-text" id="discountPercentageText">
-                                                Discount: 0%
+                                                Discount: <?= $product['mrp'] > 0 
+                                                    ? round((($product['mrp'] - $product['stock_price']) / $product['mrp']) * 100, 1) . '%' 
+                                                    : '0%' ?>
                                             </div>
                                         </div>
 
                                         <!-- Retail Price Section -->
                                         <div class="col-md-12 mt-4">
                                             <h6 class="border-bottom pb-2 mb-3">
-                                                <i class="bx bx-store-alt me-1"></i> Retail Price (For Customers)
+                                                <i class="bx bx-store-alt me-1"></i> Sale / Retail Price (For Customers)
                                             </h6>
                                         </div>
 
                                         <div class="col-md-3">
-                                            <label class="form-label"><strong>Markup Type </strong></label>
+                                            <label class="form-label"><strong>Markup Type</strong></label>
                                             <select name="retail_price_type" id="retailPriceType" class="form-select">
-                                                <option value="percentage" <?= ($_POST['retail_price_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
-                                                <option value="fixed" <?= ($_POST['retail_price_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
+                                                <option value="percentage" <?= ($product['retail_price_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
+                                                <option value="fixed" <?= ($product['retail_price_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
                                             </select>
                                         </div>
 
                                         <div class="col-md-3">
-                                            <label class="form-label"><strong>Markup Value </strong></label>
+                                            <label class="form-label"><strong>Markup Value</strong></label>
                                             <div class="input-group">
                                                 <input type="number" step="0.01" min="0" name="retail_price_value" 
                                                        class="form-control text-end" 
-                                                       value="<?= htmlspecialchars($_POST['retail_price_value'] ?? '0') ?>"
+                                                       value="<?= number_format($product['retail_price_value'] ?? 0, 2) ?>"
                                                        id="retailPriceValue">
                                                 <span class="input-group-text">
-                                                    <span id="retailPriceUnit">%</span>
+                                                    <span id="retailPriceUnit"><?= ($product['retail_price_type'] ?? 'percentage') == 'percentage' ? '%' : '₹' ?></span>
                                                 </span>
                                             </div>
                                             <div class="form-text" id="retailMarkupText">
-                                                Markup: ₹0.00
+                                                Markup: ₹<?= number_format($product['retail_price'] - $product['stock_price'], 2) ?>
                                             </div>
                                         </div>
 
@@ -919,7 +1063,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                 <span class="input-group-text">₹</span>
                                                 <input type="number" step="0.01" min="0" name="retail_price" 
                                                        class="form-control form-control-lg text-end" 
-                                                       value="<?= htmlspecialchars($_POST['retail_price'] ?? '') ?>" 
+                                                       value="<?= number_format($product['retail_price'], 2) ?>" 
                                                        id="retailPrice" required>
                                                 <button type="button" class="btn btn-outline-secondary" onclick="clearManualRetailPrice()" title="Clear manual entry">
                                                     <i class="bx bx-refresh"></i>
@@ -933,11 +1077,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         <div class="col-md-3">
                                             <label class="form-label"><strong>Profit Margin</strong></label>
                                             <div class="input-group">
-                                                <input type="text" class="form-control text-end" id="retailProfitMargin" readonly>
+                                                <input type="text" class="form-control text-end" id="retailProfitMargin" readonly
+                                                       value="<?= $product['retail_price'] > 0 
+                                                           ? round((($product['retail_price'] - $product['stock_price']) / $product['retail_price']) * 100, 2) 
+                                                           : '' ?>">
                                                 <span class="input-group-text">%</span>
                                             </div>
                                             <div class="form-text" id="retailProfitAmountText">
-                                                Profit: ₹0.00
+                                                Profit: ₹<?= number_format($product['retail_price'] - $product['stock_price'], 2) ?>
                                             </div>
                                         </div>
 
@@ -949,10 +1096,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         </div>
 
                                         <div class="col-md-3">
-                                            <label class="form-label"><strong>Markup Type </strong></label>
+                                            <label class="form-label"><strong>Markup Type</strong></label>
                                             <select name="wholesale_price_type" id="wholesalePriceType" class="form-select">
-                                                <option value="percentage" <?= ($_POST['wholesale_price_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
-                                                <option value="fixed" <?= ($_POST['wholesale_price_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
+                                                <option value="percentage" <?= ($product['wholesale_price_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
+                                                <option value="fixed" <?= ($product['wholesale_price_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
                                             </select>
                                         </div>
 
@@ -961,14 +1108,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                             <div class="input-group">
                                                 <input type="number" step="0.01" min="0" name="wholesale_price_value" 
                                                        class="form-control text-end" 
-                                                       value="<?= htmlspecialchars($_POST['wholesale_price_value'] ?? '0') ?>"
+                                                       value="<?= number_format($product['wholesale_price_value'] ?? 0, 2) ?>"
                                                        id="wholesalePriceValue">
                                                 <span class="input-group-text">
-                                                    <span id="wholesalePriceUnit">%</span>
+                                                    <span id="wholesalePriceUnit"><?= ($product['wholesale_price_type'] ?? 'percentage') == 'percentage' ? '%' : '₹' ?></span>
                                                 </span>
                                             </div>
                                             <div class="form-text" id="wholesaleMarkupText">
-                                                Markup: ₹0.00
+                                                Markup: ₹<?= number_format($product['wholesale_price'] - $product['stock_price'], 2) ?>
                                             </div>
                                         </div>
 
@@ -978,7 +1125,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                 <span class="input-group-text">₹</span>
                                                 <input type="number" step="0.01" min="0" name="wholesale_price" 
                                                        class="form-control form-control-lg text-end" 
-                                                       value="<?= htmlspecialchars($_POST['wholesale_price'] ?? '') ?>"
+                                                       value="<?= number_format($product['wholesale_price'], 2) ?>"
                                                        id="wholesalePrice" required>
                                                 <button type="button" class="btn btn-outline-secondary" onclick="clearManualWholesalePrice()" title="Clear manual entry">
                                                     <i class="bx bx-refresh"></i>
@@ -992,11 +1139,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         <div class="col-md-3">
                                             <label class="form-label"><strong>Profit Margin</strong></label>
                                             <div class="input-group">
-                                                <input type="text" class="form-control text-end" id="wholesaleProfitMargin" readonly>
+                                                <input type="text" class="form-control text-end" id="wholesaleProfitMargin" readonly
+                                                       value="<?= $product['wholesale_price'] > 0 
+                                                           ? round((($product['wholesale_price'] - $product['stock_price']) / $product['wholesale_price']) * 100, 2) 
+                                                           : '' ?>">
                                                 <span class="input-group-text">%</span>
                                             </div>
                                             <div class="form-text" id="wholesaleProfitAmountText">
-                                                Profit: ₹0.00
+                                                Profit: ₹<?= number_format($product['wholesale_price'] - $product['stock_price'], 2) ?>
                                             </div>
                                         </div>
 
@@ -1004,71 +1154,37 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                         <div class="col-md-3">
                                             <label class="form-label">Min Stock Level</label>
                                             <input type="number" name="min_stock_level" class="form-control text-end" 
-                                                   value="<?= htmlspecialchars($_POST['min_stock_level'] ?? '0') ?>">
-                                            <div class="form-text">Low stock alert level</div>
+                                                   value="<?= $product['min_stock_level'] ?? 0 ?>">
                                         </div>
 
-                                        <div class="col-md-3">
-                                            <label class="form-label">GST Rate</label>
-                                            <select name="gst_id" class="form-select">
-                                                <option value="">-- Select GST Rate --</option>
-                                                <?php foreach($gst_rates as $g): ?>
-                                                <option value="<?= $g['id'] ?>" 
-                                                    <?= (isset($_POST['gst_id']) && $_POST['gst_id'] == $g['id']) ? 'selected' : '' ?>>
-                                                    <?= $g['hsn_code'] ?> - CGST: <?= $g['cgst_rate'] ?>%, SGST: <?= $g['sgst_rate'] ?>%, IGST: <?= $g['igst_rate'] ?>%
-                                                </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <div class="form-text">Select applicable GST rate</div>
-                                            <?php if (empty($gst_rates)): ?>
-                                            <div class="form-text text-warning">
-                                                <i class="bx bx-info-circle"></i> No GST rates configured. 
-                                                <a href="gst_rates.php" class="text-decoration-underline">Add GST rates</a>
+                                        <!-- Stock Adjustment Section -->
+                                        <div class="col-md-9">
+                                            <div class="border rounded p-3 bg-light">
+                                                <h6 class="mb-3"><i class="bx bx-package me-1"></i> Stock Adjustment</h6>
+                                                <div class="row">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Current Stock</label>
+                                                        <input type="text" class="form-control" readonly 
+                                                               value="<?= $product['current_stock'] ?? 0 ?> <?= $product['unit_of_measure'] ?? 'pcs' ?>">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Adjustment Type</label>
+                                                        <select name="stock_adjustment_type" class="form-select">
+                                                            <option value="add">Add Stock</option>
+                                                            <option value="remove">Remove Stock</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Quantity</label>
+                                                        <input type="number" name="stock_adjustment" class="form-control" 
+                                                               min="0" step="1" value="0" placeholder="0">
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <label class="form-label">&nbsp;</label>
+                                                        <div class="form-text">Leave 0 for no change</div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Stock Management Section -->
-                            <div class="card mt-3">
-                                <div class="card-body">
-                                    <h5 class="card-title mb-4">
-                                        <i class="bx bx-package me-1"></i> Stock Management
-                                        <span class="badge bg-primary ms-2">Current Stock: <?= $current_stock ?></span>
-                                    </h5>
-
-                                    <div class="row g-3">
-                                        <div class="col-md-4">
-                                            <label class="form-label"><strong>Stock Adjustment Type</strong></label>
-                                            <select name="stock_adjustment_type" class="form-select" id="stockAdjustmentType">
-                                                <option value="">-- No Adjustment --</option>
-                                                <option value="add">Add Stock</option>
-                                                <option value="remove">Remove Stock</option>
-                                                <option value="set">Set to Specific Quantity</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <label class="form-label"><strong>Adjustment Quantity</strong></label>
-                                            <div class="input-group">
-                                                <input type="number" name="stock_adjustment_qty" class="form-control text-end" 
-                                                       value="0" min="0" id="stockAdjustmentQty" disabled>
-                                                <span class="input-group-text">units</span>
-                                            </div>
-                                            <div class="form-text" id="stockAdjustmentInfo">
-                                                Select adjustment type first
-                                            </div>
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <label class="form-label"><strong>Resulting Stock</strong></label>
-                                            <div class="input-group">
-                                                <input type="text" class="form-control text-end" id="resultingStock" readonly>
-                                                <span class="input-group-text">units</span>
-                                            </div>
-                                            <div class="form-text">Stock after adjustment</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1082,20 +1198,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
 
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" id="referralEnabled" 
-                                               name="referral_enabled"
-                                               <?= (isset($_POST['referral_enabled']) && $_POST['referral_enabled']) ? 'checked' : '' ?>>
+                                               name="referral_enabled" <?= $product['referral_enabled'] ? 'checked' : '' ?>>
                                         <label class="form-check-label fw-bold" for="referralEnabled">
                                             Enable referral commission for this product
                                         </label>
                                     </div>
 
-                                    <div id="referralBox" style="<?= (isset($_POST['referral_enabled']) && $_POST['referral_enabled']) ? 'display:block' : 'display:none' ?>;">
+                                    <div id="referralBox" style="<?= $product['referral_enabled'] ? 'display:block;' : 'display:none;' ?>">
                                         <div class="row g-3">
                                             <div class="col-md-6">
                                                 <label class="form-label">Commission Type</label>
                                                 <select name="referral_type" class="form-select">
-                                                    <option value="percentage" <?= ($_POST['referral_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
-                                                    <option value="fixed" <?= ($_POST['referral_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
+                                                    <option value="percentage" <?= ($product['referral_type'] ?? 'percentage') == 'percentage' ? 'selected' : '' ?>>Percentage (%)</option>
+                                                    <option value="fixed" <?= ($product['referral_type'] ?? '') == 'fixed' ? 'selected' : '' ?>>Fixed Amount (₹)</option>
                                                 </select>
                                             </div>
 
@@ -1105,59 +1220,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                                     <input type="number" step="0.01" min="0"
                                                            name="referral_value"
                                                            class="form-control text-end"
-                                                           value="<?= htmlspecialchars($_POST['referral_value'] ?? '') ?>"
+                                                           value="<?= number_format($product['referral_value'] ?? 0, 2) ?>"
                                                            placeholder="Enter value">
                                                     <span class="input-group-text">
-                                                        <span id="commissionUnit">%</span>
+                                                        <span id="commissionUnit"><?= ($product['referral_type'] ?? 'percentage') == 'percentage' ? '%' : '₹' ?></span>
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div class="form-text mt-2">
-                                            <i class="bx bx-info-circle me-1"></i>
-                                            This commission will be credited to referrers when sales are completed.
-                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Product Status Section -->
+                            <!-- Form Actions -->
                             <div class="card mt-3">
                                 <div class="card-body">
-                                    <h5 class="card-title mb-4">
-                                        <i class="bx bx-cog me-1"></i> Product Status
-                                    </h5>
-                                    
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="isActive" 
-                                                       name="is_active" value="1"
-                                                       <?= (isset($_POST['is_active']) && $_POST['is_active'] == 1) ? 'checked' : '' ?>>
-                                                <label class="form-check-label fw-bold" for="isActive">
-                                                    Product is Active
-                                                </label>
-                                            </div>
-                                            <div class="form-text">
-                                                <i class="bx bx-info-circle me-1"></i>
-                                                Inactive products won't appear in sales or listings
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Quick Actions -->
-                            <div class="card mt-3">
-                                <div class="card-body">
-                                    <h5 class="card-title mb-4">Quick Actions</h5>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-start">
-                                        <button type="submit" name="submit" value="save" class="btn btn-success btn-lg px-4">
+                                        <button type="submit" class="btn btn-success btn-lg px-4">
                                             <i class="bx bx-save me-2"></i> Update Product
-                                        </button>
-                                        <button type="button" class="btn btn-warning px-4" onclick="resetForm()">
-                                            <i class="bx bx-reset me-1"></i> Reset Changes
                                         </button>
                                         <a href="products.php" class="btn btn-outline-secondary px-4">
                                             <i class="bx bx-x me-1"></i> Cancel
@@ -1175,46 +1255,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
                                 </div>
                             </div>
                             
-                            <!-- Product Information -->
+                            <!-- Quick Tips -->
                             <div class="card mt-3">
                                 <div class="card-body">
-                                    <h6 class="card-title mb-3"><i class="bx bx-info-circle me-1"></i> Product Information</h6>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <td><strong>Created:</strong></td>
-                                                    <td><?= date('d M Y, h:i A', strtotime($product['created_at'])) ?></td>
-                                                </tr>
-                                                <tr>
-                                                    <td><strong>Last Updated:</strong></td>
-                                                    <td><?= $product['updated_at'] ? date('d M Y, h:i A', strtotime($product['updated_at'])) : 'Never' ?></td>
-                                                </tr>
-                                                <tr>
-                                                    <td><strong>Product ID:</strong></td>
-                                                    <td><code>#<?= $product['id'] ?></code></td>
-                                                </tr>
-                                            </table>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <td><strong>Current Status:</strong></td>
-                                                    <td>
-                                                        <?php if ($product['is_active'] == 1): ?>
-                                                            <span class="badge bg-success">Active</span>
-                                                        <?php else: ?>
-                                                            <span class="badge bg-danger">Inactive</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td><strong>HSN Code:</strong></td>
-                                                    <td><?= htmlspecialchars($product['hsn_code'] ?: 'Not set') ?></td>
-                                                </tr>
-                                            </table>
-                                        </div>
-                                    </div>
+                                    <h6 class="card-title mb-3"><i class="bx bx-info-circle me-1"></i> Quick Tips</h6>
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2"><i class="bx bx-check text-success me-1"></i> <strong>Bidirectional Calculation:</strong> Enter discount/markup OR price - the other field auto-calculates</li>
+                                        <li class="mb-2"><i class="bx bx-check text-success me-1"></i> <strong>Manual Entry:</strong> Click refresh buttons (⟳) to switch between auto and manual modes</li>
+                                        <li class="mb-2"><i class="bx bx-check text-success me-1"></i> <strong>Price Hierarchy:</strong> Stock Price ≤ Wholesale Price ≤ Retail Price ≤ MRP</li>
+                                        <li class="mb-2"><i class="bx bx-check text-success me-1"></i> <strong>Profit Margin:</strong> ((Selling Price - Cost Price) / Selling Price) × 100</li>
+                                        <li><i class="bx bx-check text-success me-1"></i> <strong>Stock Adjustment:</strong> Add or remove stock without affecting pricing</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
@@ -1235,8 +1286,43 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $product) {
 let manualStockPrice = false;
 let manualRetailPrice = false;
 let manualWholesalePrice = false;
-let discountSymbol = '<?= strpos($_POST['discount'] ?? '', '%') !== false ? '%' : '₹' ?>'; // Set based on existing value
-const currentStock = <?= $current_stock ?>;
+let discountSymbol = '<?= $product['discount_type'] == 'percentage' ? '%' : '₹' ?>';
+
+// Track calculation modes
+let stockPriceCalculationMode = '<?= $product['discount_value'] > 0 ? 'auto' : 'manual' ?>';
+let retailPriceCalculationMode = '<?= ($product['retail_price_value'] ?? 0) > 0 ? 'auto' : 'manual' ?>';
+let wholesalePriceCalculationMode = '<?= ($product['wholesale_price_value'] ?? 0) > 0 ? 'auto' : 'manual' ?>';
+
+// GST Calculation Variables
+let gstRate = <?= $product['gst_id'] ? ($gst_rate_percentage ?? 0) : 0 ?>;
+let gstType = '<?= $product['gst_type'] ?? 'inclusive' ?>';
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set manual flags based on existing data
+    if (parseFloat(document.getElementById('stockPrice').value) > 0 && <?= $product['discount_value'] ?? 0 ?> == 0) {
+        manualStockPrice = true;
+        stockPriceCalculationMode = 'manual';
+    }
+    
+    if (parseFloat(document.getElementById('retailPrice').value) > 0 && <?= $product['retail_price_value'] ?? 0 ?> == 0) {
+        manualRetailPrice = true;
+        retailPriceCalculationMode = 'manual';
+    }
+    
+    if (parseFloat(document.getElementById('wholesalePrice').value) > 0 && <?= $product['wholesale_price_value'] ?? 0 ?> == 0) {
+        manualWholesalePrice = true;
+        wholesalePriceCalculationMode = 'manual';
+    }
+    
+    // Set discount symbol
+    document.getElementById('discountSymbol').textContent = discountSymbol;
+    
+    // Calculate GST and prices
+    calculateGST();
+    calculateSecondaryPrices();
+    validatePriceHierarchy();
+});
 
 function setDiscountSymbol(symbol) {
     discountSymbol = symbol;
@@ -1251,11 +1337,100 @@ function clearDiscount() {
     calculateStockPrice();
 }
 
+// Update GST Type based on toggle
+function updateGSTType() {
+    const gstToggle = document.getElementById('gstTypeToggle');
+    const gstTypeLabel = document.getElementById('gstTypeLabel');
+    const gstTypeDescription = document.getElementById('gstTypeDescription');
+    const gstTypeHidden = document.getElementById('gstTypeHidden');
+    const mrpHelpText = document.getElementById('mrpHelpText');
+    
+    if (gstToggle.checked) {
+        gstType = 'exclusive';
+        gstTypeLabel.textContent = 'GST Exclusive';
+        gstTypeDescription.textContent = 'GST will be added to entered price';
+        gstTypeHidden.value = 'exclusive';
+        mrpHelpText.textContent = 'Enter price without GST';
+    } else {
+        gstType = 'inclusive';
+        gstTypeLabel.textContent = 'GST Inclusive';
+        gstTypeDescription.textContent = 'GST is included in product price';
+        gstTypeHidden.value = 'inclusive';
+        mrpHelpText.textContent = 'Enter price including GST';
+    }
+    
+    calculateGST();
+}
+
+// Calculate GST based on selected rate and type
+function calculateGST() {
+    const gstSelect = document.getElementById('gstSelect');
+    const selectedOption = gstSelect.options[gstSelect.selectedIndex];
+    const mrpInput = parseFloat(document.getElementById('mrpInput').value) || 0;
+    const gstPreview = document.getElementById('gstCalculationPreview');
+    const finalMRPInput = document.getElementById('mrp');
+    const finalMRPText = document.getElementById('finalMRPText');
+    
+    gstRate = 0;
+    
+    if (selectedOption && selectedOption.value && mrpInput > 0) {
+        gstRate = parseFloat(selectedOption.getAttribute('data-rate')) || 0;
+        
+        gstPreview.style.display = 'block';
+        
+        document.getElementById('enteredMRP').textContent = '₹' + mrpInput.toFixed(2);
+        document.getElementById('gstRateDisplay').textContent = gstRate.toFixed(2) + '%';
+        
+        let gstAmount = 0;
+        let finalMRP = mrpInput;
+        
+        if (gstType === 'exclusive') {
+            gstAmount = mrpInput * (gstRate / 100);
+            finalMRP = mrpInput + gstAmount;
+            
+            document.getElementById('gstAmountDisplay').textContent = '₹' + gstAmount.toFixed(2);
+            document.getElementById('finalMRP').textContent = '₹' + finalMRP.toFixed(2);
+            document.getElementById('gstCalculationDescription').innerHTML = 
+                'Entered MRP (₹' + mrpInput.toFixed(2) + ') + GST (₹' + gstAmount.toFixed(2) + ') = Final MRP (₹' + finalMRP.toFixed(2) + ')';
+            
+            finalMRPText.innerHTML = `Final MRP (Including GST ₹${gstAmount.toFixed(2)})`;
+            finalMRPText.style.color = '#0d6efd';
+        } else {
+            gstAmount = (mrpInput * gstRate) / (100 + gstRate);
+            
+            document.getElementById('gstAmountDisplay').textContent = '₹' + gstAmount.toFixed(2);
+            document.getElementById('finalMRP').textContent = '₹' + mrpInput.toFixed(2);
+            document.getElementById('gstCalculationDescription').innerHTML = 
+                'Entered MRP (₹' + mrpInput.toFixed(2) + ') includes GST of ₹' + gstAmount.toFixed(2) + ' (' + gstRate.toFixed(2) + '%)';
+            
+            finalMRPText.innerHTML = `MRP includes GST ₹${gstAmount.toFixed(2)}`;
+            finalMRPText.style.color = '#198754';
+        }
+        
+        finalMRPInput.value = finalMRP.toFixed(2);
+        
+    } else {
+        gstPreview.style.display = 'none';
+        finalMRPInput.value = mrpInput.toFixed(2);
+        
+        if ((!selectedOption || !selectedOption.value) && mrpInput > 0) {
+            finalMRPText.innerHTML = 'No GST applied';
+            finalMRPText.style.color = '#6c757d';
+        } else if (mrpInput <= 0) {
+            finalMRPText.innerHTML = 'Enter MRP to see calculation';
+            finalMRPText.style.color = '#6c757d';
+        }
+    }
+    
+    calculateStockPrice();
+}
+
 // Clear manual stock price entry
 function clearManualStockPrice() {
     manualStockPrice = false;
+    stockPriceCalculationMode = 'auto';
     document.getElementById('stockPrice').value = '';
-    document.getElementById('stockPriceText').innerHTML = 'Will be calculated from MRP & Discount';
+    document.getElementById('stockPriceText').innerHTML = 'Will be calculated from Final MRP & Discount';
     document.getElementById('stockPriceText').style.color = '#6c757d';
     calculateStockPrice();
 }
@@ -1263,6 +1438,7 @@ function clearManualStockPrice() {
 // Clear manual retail price entry
 function clearManualRetailPrice() {
     manualRetailPrice = false;
+    retailPriceCalculationMode = 'auto';
     document.getElementById('retailPrice').value = '';
     calculateRetailPrice();
 }
@@ -1270,11 +1446,12 @@ function clearManualRetailPrice() {
 // Clear manual wholesale price entry
 function clearManualWholesalePrice() {
     manualWholesalePrice = false;
+    wholesalePriceCalculationMode = 'auto';
     document.getElementById('wholesalePrice').value = '';
     calculateWholesalePrice();
 }
 
-// Calculate Stock Price from MRP and discount
+// Calculate Stock Price from Final MRP and discount
 function calculateStockPrice() {
     const mrp = parseFloat(document.getElementById('mrp').value) || 0;
     const discountInput = document.getElementById('discount').value.trim();
@@ -1284,16 +1461,12 @@ function calculateStockPrice() {
     const stockPriceText = document.getElementById('stockPriceText');
     
     let discountValue = 0;
-    let discountType = 'percentage';
     let discountAmount = 0;
-    let currentStockPrice = parseFloat(stockPriceInput.value) || 0;
     let calculatedStockPrice = 0;
     
-    // If MRP is provided, calculate stock price
-    if (mrp > 0) {
+    if (mrp > 0 && !manualStockPrice) {
         if (discountInput) {
             if (discountSymbol === '%') {
-                discountType = 'percentage';
                 discountValue = parseFloat(discountInput.replace('%', '')) || 0;
                 
                 if (discountValue > 100) {
@@ -1305,7 +1478,6 @@ function calculateStockPrice() {
                 discountAmount = mrp * discountValue / 100;
                 calculatedStockPrice = mrp - discountAmount;
             } else {
-                discountType = 'fixed';
                 discountValue = parseFloat(discountInput) || 0;
                 
                 if (discountValue > mrp) {
@@ -1318,44 +1490,43 @@ function calculateStockPrice() {
                 calculatedStockPrice = mrp - discountValue;
             }
         } else {
-            // No discount, stock price equals MRP
             calculatedStockPrice = mrp;
         }
         
-        // Ensure calculated stock price is not negative
-        if (calculatedStockPrice < 0) {
-            calculatedStockPrice = 0;
-        }
+        if (calculatedStockPrice < 0) calculatedStockPrice = 0;
         
-        // If user hasn't manually entered stock price, use calculated value
-        if (!manualStockPrice) {
-            stockPriceInput.value = calculatedStockPrice.toFixed(2);
-            if (discountAmount > 0) {
-                stockPriceText.innerHTML = `Calculated from MRP (₹${mrp.toFixed(2)}) - Discount`;
-                stockPriceText.style.color = '#198754';
-            } else {
-                stockPriceText.innerHTML = `Same as MRP (no discount)`;
-                stockPriceText.style.color = '#6c757d';
-            }
+        stockPriceInput.value = calculatedStockPrice.toFixed(2);
+        
+        if (discountAmount > 0) {
+            stockPriceText.innerHTML = `Calculated from Final MRP (₹${mrp.toFixed(2)}) - Discount`;
+            stockPriceText.style.color = '#198754';
         } else {
-            stockPriceText.innerHTML = `Manually entered`;
-            stockPriceText.style.color = '#0d6efd';
-        }
-    } else {
-        // No MRP provided
-        if (currentStockPrice > 0) {
-            stockPriceText.innerHTML = `Manually entered`;
-            stockPriceText.style.color = '#0d6efd';
-        } else {
-            stockPriceText.innerHTML = `Enter cost price manually`;
+            stockPriceText.innerHTML = `Same as Final MRP (no discount)`;
             stockPriceText.style.color = '#6c757d';
         }
+        
+        stockPriceCalculationMode = 'auto';
+    } else if (mrp > 0 && manualStockPrice) {
+        const currentStockPrice = parseFloat(stockPriceInput.value) || 0;
+        discountAmount = mrp - currentStockPrice;
+        
+        if (discountAmount > 0) {
+            if (discountSymbol === '%') {
+                discountValue = (discountAmount / mrp) * 100;
+                document.getElementById('discount').value = discountValue.toFixed(2) + '%';
+            } else {
+                document.getElementById('discount').value = discountAmount.toFixed(2);
+            }
+        } else {
+            document.getElementById('discount').value = '';
+        }
+        
+        stockPriceText.innerHTML = `Manually entered - Discount calculated`;
+        stockPriceText.style.color = '#0d6efd';
     }
     
-    // Update "You Save" field
     youSaveInput.value = discountAmount.toFixed(2);
     
-    // Update discount percentage text
     if (mrp > 0 && discountAmount > 0) {
         const discountPercentage = (discountAmount / mrp) * 100;
         discountPercentageText.innerHTML = `Discount: ${discountPercentage.toFixed(1)}%`;
@@ -1365,7 +1536,6 @@ function calculateStockPrice() {
         discountPercentageText.style.color = '#6c757d';
     }
     
-    // Trigger other calculations
     calculateRetailPrice();
     calculateWholesalePrice();
     calculateProfitMargins();
@@ -1383,43 +1553,53 @@ function calculateRetailPrice() {
     const retailPriceText = document.getElementById('retailPriceText');
     
     let markupAmount = 0;
-    let currentRetailPrice = parseFloat(retailPriceInput.value) || 0;
     let calculatedRetailPrice = stockPrice;
     
-    // Calculate markup amount and retail price
-    if (stockPrice > 0 && retailPriceValue > 0) {
-        if (retailPriceType === 'percentage') {
-            markupAmount = stockPrice * retailPriceValue / 100;
-            calculatedRetailPrice = stockPrice + markupAmount;
-        } else {
-            markupAmount = retailPriceValue;
-            calculatedRetailPrice = stockPrice + retailPriceValue;
-        }
-        
-        // Only update if retail price is not manually set
-        if (!manualRetailPrice) {
+    if (stockPrice > 0 && !manualRetailPrice) {
+        if (retailPriceValue > 0) {
+            if (retailPriceType === 'percentage') {
+                markupAmount = stockPrice * retailPriceValue / 100;
+                calculatedRetailPrice = stockPrice + markupAmount;
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${retailPriceValue}%)`;
+            } else {
+                markupAmount = retailPriceValue;
+                calculatedRetailPrice = stockPrice + retailPriceValue;
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+            
             retailPriceInput.value = calculatedRetailPrice.toFixed(2);
-            retailPriceText.innerHTML = `Based on stock price + ${retailPriceValue}${retailPriceType === 'percentage' ? '%' : '₹'} markup`;
+            retailPriceText.innerHTML = `Based on stock price + markup`;
             retailPriceText.style.color = '#198754';
+            retailPriceCalculationMode = 'auto';
         } else {
-            retailPriceText.innerHTML = `Manually entered`;
-            retailPriceText.style.color = '#0d6efd';
-        }
-    } else if (stockPrice > 0) {
-        if (!manualRetailPrice) {
             retailPriceInput.value = stockPrice.toFixed(2);
+            retailMarkupText.innerHTML = `Markup: ₹0.00`;
             retailPriceText.innerHTML = `Same as stock price (no markup)`;
             retailPriceText.style.color = '#6c757d';
-        } else {
-            retailPriceText.innerHTML = `Manually entered`;
-            retailPriceText.style.color = '#0d6efd';
         }
+    } else if (stockPrice > 0 && manualRetailPrice) {
+        const currentRetailPrice = parseFloat(retailPriceInput.value) || 0;
+        
+        if (currentRetailPrice > stockPrice) {
+            markupAmount = currentRetailPrice - stockPrice;
+            
+            if (retailPriceType === 'percentage') {
+                const calculatedPercentage = (markupAmount / stockPrice) * 100;
+                document.getElementById('retailPriceValue').value = calculatedPercentage.toFixed(2);
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${calculatedPercentage.toFixed(2)}%)`;
+            } else {
+                document.getElementById('retailPriceValue').value = markupAmount.toFixed(2);
+                retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+        } else {
+            document.getElementById('retailPriceValue').value = '0';
+            retailMarkupText.innerHTML = `Markup: ₹0.00`;
+        }
+        
+        retailPriceText.innerHTML = `Manually entered - Markup calculated`;
+        retailPriceText.style.color = '#0d6efd';
     }
     
-    // Update markup amount display
-    retailMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)}`;
-    
-    // Calculate profit margin
     calculateProfitMargins();
     calculateSecondaryPrices();
     validatePriceHierarchy();
@@ -1435,49 +1615,64 @@ function calculateWholesalePrice() {
     const wholesalePriceText = document.getElementById('wholesalePriceText');
     
     let markupAmount = 0;
-    let currentWholesalePrice = parseFloat(wholesalePriceInput.value) || 0;
     let calculatedWholesalePrice = stockPrice;
     
-    // Calculate markup amount and wholesale price
-    if (stockPrice > 0 && wholesalePriceValue > 0) {
-        if (wholesalePriceType === 'percentage') {
-            markupAmount = stockPrice * wholesalePriceValue / 100;
-            calculatedWholesalePrice = stockPrice + markupAmount;
-        } else {
-            markupAmount = wholesalePriceValue;
-            calculatedWholesalePrice = stockPrice + wholesalePriceValue;
-        }
-        
-        // Only update if wholesale price is not manually set
-        if (!manualWholesalePrice) {
+    if (stockPrice > 0 && !manualWholesalePrice) {
+        if (wholesalePriceValue > 0) {
+            if (wholesalePriceType === 'percentage') {
+                markupAmount = stockPrice * wholesalePriceValue / 100;
+                calculatedWholesalePrice = stockPrice + markupAmount;
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${wholesalePriceValue.toFixed(2)}%)`;
+            } else {
+                markupAmount = wholesalePriceValue;
+                calculatedWholesalePrice = stockPrice + wholesalePriceValue;
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+            
             wholesalePriceInput.value = calculatedWholesalePrice.toFixed(2);
-            wholesalePriceText.innerHTML = `Based on stock price + ${wholesalePriceValue}${wholesalePriceType === 'percentage' ? '%' : '₹'} markup`;
+            wholesalePriceText.innerHTML = `Based on stock price + markup`;
             wholesalePriceText.style.color = '#0d6efd';
+            wholesalePriceCalculationMode = 'auto';
         } else {
-            wholesalePriceText.innerHTML = `Manually entered`;
-            wholesalePriceText.style.color = '#0d6efd';
-        }
-    } else if (stockPrice > 0) {
-        if (!manualWholesalePrice) {
             wholesalePriceInput.value = stockPrice.toFixed(2);
+            wholesaleMarkupText.innerHTML = `Markup: ₹0.00 (0%)`;
             wholesalePriceText.innerHTML = `Same as stock price (no markup)`;
             wholesalePriceText.style.color = '#6c757d';
-        } else {
-            wholesalePriceText.innerHTML = `Manually entered`;
-            wholesalePriceText.style.color = '#0d6efd';
         }
+    } else if (stockPrice > 0 && manualWholesalePrice) {
+        const currentWholesalePrice = parseFloat(wholesalePriceInput.value) || 0;
+        
+        if (currentWholesalePrice > stockPrice) {
+            markupAmount = currentWholesalePrice - stockPrice;
+            
+            if (wholesalePriceType === 'percentage') {
+                const calculatedPercentage = (markupAmount / stockPrice) * 100;
+                document.getElementById('wholesalePriceValue').value = calculatedPercentage.toFixed(2);
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (${calculatedPercentage.toFixed(2)}%)`;
+            } else {
+                document.getElementById('wholesalePriceValue').value = markupAmount.toFixed(2);
+                wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)} (fixed)`;
+            }
+        } else if (currentWholesalePrice === stockPrice) {
+            document.getElementById('wholesalePriceValue').value = '0';
+            wholesaleMarkupText.innerHTML = `Markup: ₹0.00 (0%)`;
+        } else {
+            document.getElementById('wholesalePriceValue').value = '0';
+            wholesaleMarkupText.innerHTML = `Markup: ₹0.00 (0%)`;
+            wholesalePriceInput.value = stockPrice.toFixed(2);
+            manualWholesalePrice = false;
+        }
+        
+        wholesalePriceText.innerHTML = `Manually entered - Markup calculated`;
+        wholesalePriceText.style.color = '#0d6efd';
     }
     
-    // Update markup amount display
-    wholesaleMarkupText.innerHTML = `Markup: ₹${markupAmount.toFixed(2)}`;
-    
-    // Calculate profit margin
     calculateProfitMargins();
     calculateSecondaryPrices();
     validatePriceHierarchy();
 }
 
-// Calculate Profit Margins based on selling prices
+// Calculate Profit Margins
 function calculateProfitMargins() {
     const stockPrice = parseFloat(document.getElementById('stockPrice').value) || 0;
     const retailPrice = parseFloat(document.getElementById('retailPrice').value) || 0;
@@ -1487,7 +1682,6 @@ function calculateProfitMargins() {
     const wholesaleProfitMarginInput = document.getElementById('wholesaleProfitMargin');
     const wholesaleProfitAmountText = document.getElementById('wholesaleProfitAmountText');
     
-    // Calculate Retail Profit Margin: ((Retail Price - Stock Price) / Retail Price) × 100
     if (stockPrice > 0 && retailPrice > 0) {
         const retailProfit = retailPrice - stockPrice;
         const retailProfitMargin = retailPrice > 0 ? (retailProfit / retailPrice) * 100 : 0;
@@ -1495,7 +1689,6 @@ function calculateProfitMargins() {
         retailProfitMarginInput.value = retailProfitMargin.toFixed(2);
         retailProfitAmountText.innerHTML = `Profit: ₹${retailProfit.toFixed(2)}`;
         
-        // Color code based on profit margin
         if (retailProfitMargin > 20) {
             retailProfitMarginInput.style.color = '#198754';
             retailProfitAmountText.style.color = '#198754';
@@ -1512,11 +1705,8 @@ function calculateProfitMargins() {
     } else {
         retailProfitMarginInput.value = '';
         retailProfitAmountText.innerHTML = 'Profit: ₹0.00';
-        retailProfitMarginInput.style.color = '';
-        retailProfitAmountText.style.color = '';
     }
     
-    // Calculate Wholesale Profit Margin: ((Wholesale Price - Stock Price) / Wholesale Price) × 100
     if (stockPrice > 0 && wholesalePrice > 0) {
         const wholesaleProfit = wholesalePrice - stockPrice;
         const wholesaleProfitMargin = wholesalePrice > 0 ? (wholesaleProfit / wholesalePrice) * 100 : 0;
@@ -1524,7 +1714,6 @@ function calculateProfitMargins() {
         wholesaleProfitMarginInput.value = wholesaleProfitMargin.toFixed(2);
         wholesaleProfitAmountText.innerHTML = `Profit: ₹${wholesaleProfit.toFixed(2)}`;
         
-        // Color code based on profit margin
         if (wholesaleProfitMargin > 15) {
             wholesaleProfitMarginInput.style.color = '#198754';
             wholesaleProfitAmountText.style.color = '#198754';
@@ -1541,8 +1730,6 @@ function calculateProfitMargins() {
     } else {
         wholesaleProfitMarginInput.value = '';
         wholesaleProfitAmountText.innerHTML = 'Profit: ₹0.00';
-        wholesaleProfitMarginInput.style.color = '';
-        wholesaleProfitAmountText.style.color = '';
     }
 }
 
@@ -1556,91 +1743,74 @@ function calculateSecondaryPrices() {
     const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value) || 0;
 
     const previewBox = document.getElementById('secondaryPricePreview');
+    const secondaryUnitLabel = document.getElementById('secondaryUnitLabel');
+    const extraChargeHelp = document.getElementById('extraChargeHelp');
 
-    if (secondaryUnit && conversion > 0 && (retailPrice > 0 || wholesalePrice > 0)) {
+    secondaryUnitLabel.textContent = secondaryUnit || 'units';
+    extraChargeHelp.innerHTML = extraType === 'fixed' 
+        ? `Extra charge per ${secondaryUnit || 'secondary unit'}` 
+        : `Extra charge percentage per ${secondaryUnit || 'secondary unit'}`;
+
+    if (secondaryUnit && conversion > 0 && conversion < 1000000) {
         previewBox.style.display = 'block';
 
-        let retailPerUnit = retailPrice / conversion;
-        let wholesalePerUnit = wholesalePrice / conversion;
+        let retailBasePricePerUnit = retailPrice / conversion;
+        let wholesaleBasePricePerUnit = wholesalePrice / conversion;
+
+        let retailExtraPerUnit = 0;
+        let wholesaleExtraPerUnit = 0;
 
         if (extraType === 'fixed') {
-            retailPerUnit += extraCharge;
-            wholesalePerUnit += extraCharge;
+            retailExtraPerUnit = extraCharge;
+            wholesaleExtraPerUnit = extraCharge;
         } else {
-            retailPerUnit += retailPerUnit * (extraCharge / 100);
-            wholesalePerUnit += wholesalePerUnit * (extraCharge / 100);
+            retailExtraPerUnit = retailBasePricePerUnit * (extraCharge / 100);
+            wholesaleExtraPerUnit = wholesaleBasePricePerUnit * (extraCharge / 100);
         }
 
-        document.getElementById('secRetailPreview').innerHTML = 
-            `<strong>Retail:</strong> ₹${retailPerUnit.toFixed(2)} per ${secondaryUnit}`;
-        document.getElementById('secWholesalePreview').innerHTML = 
-            `<strong>Wholesale:</strong> ₹${wholesalePerUnit.toFixed(2)} per ${secondaryUnit}`;
+        let retailPerUnit = retailBasePricePerUnit + retailExtraPerUnit;
+        let wholesalePerUnit = wholesaleBasePricePerUnit + wholesaleExtraPerUnit;
+
+        document.getElementById('secRetailPricePerUnit').textContent = `₹${retailPerUnit.toFixed(2)}`;
+        document.getElementById('secRetailBasePrice').textContent = `₹${retailBasePricePerUnit.toFixed(2)}`;
+        document.getElementById('secRetailExtraCharge').textContent = extraType === 'fixed' 
+            ? `₹${retailExtraPerUnit.toFixed(2)} (fixed)` 
+            : `₹${retailExtraPerUnit.toFixed(2)} (${extraCharge}%)`;
+
+        document.getElementById('secWholesalePricePerUnit').textContent = `₹${wholesalePerUnit.toFixed(2)}`;
+        document.getElementById('secWholesaleBasePrice').textContent = `₹${wholesaleBasePricePerUnit.toFixed(2)}`;
+        document.getElementById('secWholesaleExtraCharge').textContent = extraType === 'fixed' 
+            ? `₹${wholesaleExtraPerUnit.toFixed(2)} (fixed)` 
+            : `₹${wholesaleExtraPerUnit.toFixed(2)} (${extraCharge}%)`;
+
+        if (conversion === 0) {
+            alert('Conversion rate cannot be 0');
+            document.getElementById('secUnitConversion').value = '';
+            previewBox.style.display = 'none';
+        }
+        
+        if (conversion > 10000) {
+            document.getElementById('secUnitConversion').style.borderColor = '#ffc107';
+        } else {
+            document.getElementById('secUnitConversion').style.borderColor = '';
+        }
     } else {
         previewBox.style.display = 'none';
     }
 }
 
-// Calculate stock adjustment
-function calculateStockAdjustment() {
-    const adjustmentType = document.getElementById('stockAdjustmentType').value;
-    const adjustmentQty = parseFloat(document.getElementById('stockAdjustmentQty').value) || 0;
-    const resultingStockInput = document.getElementById('resultingStock');
-    const adjustmentInfo = document.getElementById('stockAdjustmentInfo');
-    
-    let resultingStock = currentStock;
-    let infoText = 'Select adjustment type first';
-    
-    if (adjustmentType) {
-        document.getElementById('stockAdjustmentQty').disabled = false;
-        
-        switch(adjustmentType) {
-            case 'add':
-                resultingStock = currentStock + adjustmentQty;
-                infoText = `Add ${adjustmentQty} units to current stock (${currentStock})`;
-                break;
-            case 'remove':
-                resultingStock = currentStock - adjustmentQty;
-                if (resultingStock < 0) resultingStock = 0;
-                infoText = `Remove ${adjustmentQty} units from current stock (${currentStock})`;
-                break;
-            case 'set':
-                resultingStock = adjustmentQty;
-                infoText = `Set stock to ${adjustmentQty} units (replaces current ${currentStock})`;
-                break;
-        }
-    } else {
-        document.getElementById('stockAdjustmentQty').disabled = true;
-        document.getElementById('stockAdjustmentQty').value = 0;
-    }
-    
-    resultingStockInput.value = resultingStock;
-    adjustmentInfo.innerHTML = infoText;
-    
-    // Color code based on stock level
-    const minStockLevel = parseFloat(document.querySelector('input[name="min_stock_level"]').value) || 0;
-    if (resultingStock === 0) {
-        resultingStockInput.style.color = '#dc3545';
-    } else if (resultingStock <= minStockLevel) {
-        resultingStockInput.style.color = '#fd7e14';
-    } else {
-        resultingStockInput.style.color = '#198754';
-    }
-}
-
-// Validate price hierarchy: Stock Price ≤ Wholesale Price ≤ Retail Price ≤ MRP
+// Validate price hierarchy
 function validatePriceHierarchy() {
     const stockPrice = parseFloat(document.getElementById('stockPrice').value) || 0;
     const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value) || 0;
     const retailPrice = parseFloat(document.getElementById('retailPrice').value) || 0;
     const mrp = parseFloat(document.getElementById('mrp').value) || 0;
     
-    // Clear previous warnings
     document.getElementById('stockPriceText').style.color = '';
     document.getElementById('wholesalePriceText').style.color = '';
     document.getElementById('retailPriceText').style.color = '';
     
     if (stockPrice > 0 && wholesalePrice > 0 && retailPrice > 0) {
-        // Check hierarchy
         if (wholesalePrice < stockPrice) {
             document.getElementById('wholesalePriceText').innerHTML = '<span class="text-danger">Error: Must be ≥ Stock Price</span>';
             document.getElementById('wholesalePriceText').style.color = '#dc3545';
@@ -1656,7 +1826,6 @@ function validatePriceHierarchy() {
             document.getElementById('wholesalePriceText').style.color = '#dc3545';
         }
         
-        // Check MRP constraints
         if (mrp > 0) {
             if (retailPrice > mrp) {
                 document.getElementById('retailPriceText').innerHTML = '<span class="text-danger">Error: Must be ≤ MRP</span>';
@@ -1702,8 +1871,11 @@ document.getElementById('stockPrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualStockPrice = true;
-        document.getElementById('stockPriceText').innerHTML = 'Manually entered';
+        stockPriceCalculationMode = 'manual';
+        document.getElementById('stockPriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('stockPriceText').style.color = '#0d6efd';
+        
+        calculateStockPrice();
     }
     calculateRetailPrice();
     calculateWholesalePrice();
@@ -1716,8 +1888,11 @@ document.getElementById('retailPrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualRetailPrice = true;
-        document.getElementById('retailPriceText').innerHTML = 'Manually entered';
+        retailPriceCalculationMode = 'manual';
+        document.getElementById('retailPriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('retailPriceText').style.color = '#0d6efd';
+        
+        calculateRetailPrice();
     }
     calculateProfitMargins();
     calculateSecondaryPrices();
@@ -1728,46 +1903,53 @@ document.getElementById('wholesalePrice').addEventListener('input', function() {
     const value = parseFloat(this.value) || 0;
     if (value > 0) {
         manualWholesalePrice = true;
-        document.getElementById('wholesalePriceText').innerHTML = 'Manually entered';
+        wholesalePriceCalculationMode = 'manual';
+        document.getElementById('wholesalePriceText').innerHTML = 'Manually entered - Press refresh to auto-calculate';
         document.getElementById('wholesalePriceText').style.color = '#0d6efd';
+        
+        calculateWholesalePrice();
     }
     calculateProfitMargins();
     calculateSecondaryPrices();
     validatePriceHierarchy();
 });
 
-// Stock adjustment event listeners
-document.getElementById('stockAdjustmentType').addEventListener('change', calculateStockAdjustment);
-document.getElementById('stockAdjustmentQty').addEventListener('input', calculateStockAdjustment);
-
-// Validate prices before submission
+// Form validation
 document.getElementById('editProductForm').addEventListener('submit', function(e) {
     const stockPrice = parseFloat(document.getElementById('stockPrice').value) || 0;
     const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value) || 0;
     const retailPrice = parseFloat(document.getElementById('retailPrice').value) || 0;
     const mrp = parseFloat(document.getElementById('mrp').value) || 0;
+    const mrpInput = parseFloat(document.getElementById('mrpInput').value) || 0;
     const discountInput = document.getElementById('discount').value.trim();
-    const adjustmentType = document.getElementById('stockAdjustmentType').value;
-    const adjustmentQty = parseFloat(document.getElementById('stockAdjustmentQty').value) || 0;
+    const secondaryUnit = document.querySelector('input[name="secondary_unit"]').value.trim();
+    const conversion = parseFloat(document.getElementById('secUnitConversion').value) || 0;
+    const gstSelect = document.getElementById('gstSelect');
+    const gstToggle = document.getElementById('gstTypeToggle');
+    const gstType = gstToggle.checked ? 'exclusive' : 'inclusive';
     
     let errors = [];
     
-    // Check if stock price is valid
+    if (mrpInput <= 0) {
+        errors.push('MRP is required and must be greater than 0.');
+    }
+    
     if (stockPrice <= 0) {
         errors.push('Stock price is required and must be greater than 0.');
     }
     
-    // Check if wholesale price is valid
     if (wholesalePrice <= 0) {
         errors.push('Wholesale price is required and must be greater than 0.');
     }
     
-    // Check if retail price is valid
     if (retailPrice <= 0) {
         errors.push('Retail price is required and must be greater than 0.');
     }
     
-    // Check price hierarchy
+    if (gstType === 'exclusive' && gstSelect.value === '') {
+        errors.push('Please select GST rate when product is GST Exclusive.');
+    }
+    
     if (stockPrice > 0 && wholesalePrice > 0 && retailPrice > 0) {
         if (wholesalePrice < stockPrice) {
             errors.push('Wholesale price must be equal to or greater than Stock Price.');
@@ -1781,7 +1963,6 @@ document.getElementById('editProductForm').addEventListener('submit', function(e
             errors.push('Wholesale price should be less than or equal to Retail Price.');
         }
         
-        // Check MRP constraints
         if (mrp > 0) {
             if (retailPrice > mrp) {
                 errors.push('Retail price cannot be higher than MRP.');
@@ -1797,7 +1978,6 @@ document.getElementById('editProductForm').addEventListener('submit', function(e
         }
     }
     
-    // Check discount if MRP provided
     if (mrp > 0 && discountInput) {
         if (discountSymbol === '%') {
             const discountValue = parseFloat(discountInput.replace('%', '')) || 0;
@@ -1812,47 +1992,33 @@ document.getElementById('editProductForm').addEventListener('submit', function(e
         }
     }
     
-    // Check stock adjustment
-    if (adjustmentType && adjustmentQty > 0) {
-        if (adjustmentType === 'remove' && adjustmentQty > currentStock) {
-            if (!confirm(`You are trying to remove ${adjustmentQty} units, but current stock is only ${currentStock}. This will result in 0 stock. Continue?`)) {
-                e.preventDefault();
-                document.getElementById('stockAdjustmentQty').focus();
-                return;
-            }
+    if (secondaryUnit && conversion <= 0) {
+        errors.push('If secondary unit is specified, conversion rate must be greater than 0.');
+    }
+    
+    if (!secondaryUnit && conversion > 0) {
+        errors.push('Please specify a secondary unit name if entering conversion rate.');
+    }
+    
+    if (conversion > 0) {
+        if (conversion > 1000000) {
+            errors.push('Conversion rate is too high. Please use a reasonable value.');
+        }
+        if (conversion < 0.0001) {
+            errors.push('Conversion rate is too small. Please use a reasonable value.');
         }
     }
     
-    // Check if retail price is less than stock price
-    if (retailPrice > 0 && stockPrice > 0 && retailPrice < stockPrice) {
-        if (!confirm('Retail price is less than stock price. This will result in a loss. Continue anyway?')) {
-            e.preventDefault();
-            document.getElementById('retailPrice').focus();
-            return;
-        }
-    }
-    
-    // Check if wholesale price is less than stock price
-    if (wholesalePrice > 0 && stockPrice > 0 && wholesalePrice < stockPrice) {
-        if (!confirm('Wholesale price is less than stock price. This will result in a loss. Continue anyway?')) {
-            e.preventDefault();
-            document.getElementById('wholesalePrice').focus();
-            return;
-        }
-    }
-    
-    // Show errors if any
     if (errors.length > 0) {
         e.preventDefault();
         alert('Please fix the following errors:\n\n' + errors.join('\n'));
         return;
     }
     
-    // Validate file size (client-side)
     const fileInput = document.getElementById('productImage');
     if (fileInput.files.length > 0) {
         const fileSize = fileInput.files[0].size;
-        const maxSize = 2 * 1024 * 1024; // 2MB
+        const maxSize = 2 * 1024 * 1024;
         if (fileSize > maxSize) {
             e.preventDefault();
             alert('File size exceeds 2MB limit. Please choose a smaller image.');
@@ -1863,33 +2029,29 @@ document.getElementById('editProductForm').addEventListener('submit', function(e
 
 // Generate random barcode
 function generateBarcode() {
-    const prefix = '89'; // Country code for India
+    const prefix = '89';
     const random = Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
     const barcode = prefix + random;
     document.querySelector('input[name="barcode"]').value = barcode;
 }
 
-// AJAX: Load subcategories when category changes
+// Load subcategories when category changes
 document.getElementById('categorySelect').addEventListener('change', function() {
     const categoryId = this.value;
     const subcategorySelect = document.getElementById('subcategorySelect');
     const loadingDiv = document.getElementById('subcategoryLoading');
     
     if (!categoryId) {
-        // Clear subcategories
         subcategorySelect.innerHTML = '<option value="">-- Select Subcategory --</option>';
         return;
     }
     
-    // Show loading
     loadingDiv.style.display = 'block';
     subcategorySelect.disabled = true;
     
-    // Make AJAX request
     fetch(`ajax/get_subcategories.php?category_id=${categoryId}&business_id=<?= $current_business_id ?>`)
         .then(response => response.json())
         .then(data => {
-            // Clear existing options except first
             subcategorySelect.innerHTML = '<option value="">-- Select Subcategory --</option>';
             
             if (data.success && data.subcategories.length > 0) {
@@ -1899,17 +2061,6 @@ document.getElementById('categorySelect').addEventListener('change', function() 
                     option.textContent = subcat.subcategory_name;
                     subcategorySelect.appendChild(option);
                 });
-            } else {
-                const option = document.createElement('option');
-                option.textContent = 'No subcategories available';
-                option.disabled = true;
-                subcategorySelect.appendChild(option);
-            }
-            
-            // Preselect if previously selected
-            const currentSubcategoryId = <?= $_POST['subcategory_id'] ?? 'null' ?>;
-            if (currentSubcategoryId) {
-                subcategorySelect.value = currentSubcategoryId;
             }
         })
         .catch(error => {
@@ -1950,93 +2101,91 @@ document.getElementById('productImage').addEventListener('change', function(e) {
         reader.onload = function(e) {
             preview.innerHTML = `
                 <img src="${e.target.result}" class="img-fluid rounded" style="max-height: 200px; object-fit: contain;">
-                <p class="mt-2 mb-0"><small>${file.name} (${(file.size / 1024).toFixed(1)} KB)</small></p>
+                <p class="mt-2 mb-0"><small>${file.name} (${(file.size / 1024).toFixed(1)} KB) - New image</small></p>
             `;
         };
         
         reader.readAsDataURL(file);
-    } else {
-        // Show current image if exists
-        <?php if ($product['image_path']): ?>
-        preview.innerHTML = `
-            <img src="../<?= htmlspecialchars($product['image_path']) ?>" 
-                 class="img-fluid rounded" style="max-height: 200px; object-fit: contain;">
-            <p class="mt-2 mb-0"><small>Current image</small></p>
-        `;
-        <?php else: ?>
-        preview.innerHTML = `
-            <i class="bx bx-image fs-1 text-muted"></i>
-            <p class="text-muted mt-2 mb-0">No image uploaded</p>
-        `;
-        <?php endif; ?>
     }
 });
 
-// Smart discount input handling
+// Discount input handling
 document.getElementById('discount').addEventListener('input', function(e) {
     let value = this.value.trim();
     
-    // Auto-detect percentage symbol
     if (value.includes('%')) {
         discountSymbol = '%';
         document.getElementById('discountSymbol').textContent = '%';
-        // Remove any extra % symbols
         value = value.replace(/[%]/g, '');
-        // Keep only one % at the end
         this.value = value + '%';
     }
     
-    // Calculate stock price on input
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    
     calculateStockPrice();
 });
 
-// Event listeners for price calculations
-document.getElementById('mrp').addEventListener('input', calculateStockPrice);
-document.getElementById('retailPriceValue').addEventListener('input', calculateRetailPrice);
-document.getElementById('retailPriceType').addEventListener('change', updateRetailPriceUnit);
-document.getElementById('wholesalePriceValue').addEventListener('input', calculateWholesalePrice);
-document.getElementById('wholesalePriceType').addEventListener('change', updateWholesalePriceUnit);
+// Event listeners
+document.getElementById('mrpInput').addEventListener('input', function() {
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    calculateGST();
+});
 
-// Secondary unit event listeners
+document.getElementById('gstSelect').addEventListener('change', function() {
+    if (manualStockPrice) {
+        manualStockPrice = false;
+        stockPriceCalculationMode = 'auto';
+    }
+    calculateGST();
+});
+
+document.getElementById('retailPriceValue').addEventListener('input', function() {
+    if (manualRetailPrice) {
+        manualRetailPrice = false;
+        retailPriceCalculationMode = 'auto';
+    }
+    calculateRetailPrice();
+});
+
+document.getElementById('retailPriceType').addEventListener('change', function() {
+    if (manualRetailPrice) {
+        manualRetailPrice = false;
+        retailPriceCalculationMode = 'auto';
+    }
+    updateRetailPriceUnit();
+});
+
+document.getElementById('wholesalePriceValue').addEventListener('input', function() {
+    if (manualWholesalePrice) {
+        manualWholesalePrice = false;
+        wholesalePriceCalculationMode = 'auto';
+    }
+    calculateWholesalePrice();
+});
+
+document.getElementById('wholesalePriceType').addEventListener('change', function() {
+    if (manualWholesalePrice) {
+        manualWholesalePrice = false;
+        wholesalePriceCalculationMode = 'auto';
+    }
+    updateWholesalePriceUnit();
+});
+
 document.getElementById('secUnitPriceType').addEventListener('change', updateSecUnitExtraUnit);
 document.getElementById('secUnitConversion').addEventListener('input', calculateSecondaryPrices);
 document.getElementById('secUnitExtraCharge').addEventListener('input', calculateSecondaryPrices);
-document.querySelector('input[name="secondary_unit"]').addEventListener('input', calculateSecondaryPrices);
-
-// Reset form to original values
-function resetForm() {
-    if (confirm('Are you sure you want to reset all changes? This will reload the page.')) {
-        window.location.reload();
-    }
-}
-
-// Initialize on page load
-toggleReferralBox();
-updateCommissionUnit();
-updateRetailPriceUnit();
-updateWholesalePriceUnit();
-updateSecUnitExtraUnit();
-
-// Set initial discount symbol
-document.getElementById('discountSymbol').textContent = discountSymbol;
-
-// Check if prices were manually entered on page load
-document.addEventListener('DOMContentLoaded', function() {
-    const stockPrice = parseFloat(document.getElementById('stockPrice').value) || 0;
-    const retailPrice = parseFloat(document.getElementById('retailPrice').value) || 0;
-    const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value) || 0;
-    
-    if (stockPrice > 0) manualStockPrice = true;
-    if (retailPrice > 0) manualRetailPrice = true;
-    if (wholesalePrice > 0) manualWholesalePrice = true;
-    
-    // Calculate prices on page load
-    calculateStockPrice();
+document.querySelector('input[name="secondary_unit"]').addEventListener('input', function() {
     calculateSecondaryPrices();
-    calculateStockAdjustment();
+    document.getElementById('secondaryUnitLabel').textContent = this.value || 'units';
 });
 
-// Quick add category function
+// Quick add category
 function quickAddCategory() {
     const categoryName = prompt('Enter new category name:');
     if (categoryName && categoryName.trim()) {
@@ -2050,7 +2199,6 @@ function quickAddCategory() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Add new option to category select
                 const categorySelect = document.getElementById('categorySelect');
                 const newOption = document.createElement('option');
                 newOption.value = data.category_id;
@@ -2058,9 +2206,6 @@ function quickAddCategory() {
                 categorySelect.appendChild(newOption);
                 categorySelect.value = data.category_id;
                 alert('Category added successfully!');
-                
-                // Trigger change event to load subcategories
-                categorySelect.dispatchEvent(new Event('change'));
             } else {
                 alert('Error: ' + data.message);
             }
@@ -2072,7 +2217,7 @@ function quickAddCategory() {
     }
 }
 
-// Quick add subcategory function
+// Quick add subcategory
 function quickAddSubcategory() {
     const categorySelect = document.getElementById('categorySelect');
     if (!categorySelect.value) {
@@ -2092,7 +2237,6 @@ function quickAddSubcategory() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Add new option to subcategory select
                 const subcategorySelect = document.getElementById('subcategorySelect');
                 const newOption = document.createElement('option');
                 newOption.value = data.subcategory_id;
@@ -2110,13 +2254,6 @@ function quickAddSubcategory() {
         });
     }
 }
-
-// Trigger category change on page load if category is already selected
-<?php if (isset($_POST['category_id']) && $_POST['category_id']): ?>
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('categorySelect').dispatchEvent(new Event('change'));
-});
-<?php endif; ?>
 </script>
 
 <style>
@@ -2186,7 +2323,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .border-bottom {
     border-color: #dee2e6 !important;
 }
-#youSave, #retailProfitMargin, #wholesaleProfitMargin, #resultingStock {
+#youSave, #retailProfitMargin, #wholesaleProfitMargin {
     background-color: #f8f9fa;
     cursor: not-allowed;
 }
@@ -2195,6 +2332,46 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 .btn-outline-secondary {
     border-color: #dee2e6;
+}
+#secondaryPricePreview .alert-info {
+    background-color: #f0f9ff;
+    border: 1px solid #b6e0fe;
+}
+#secondaryPricePreview h6 {
+    color: #0d6efd;
+    font-size: 0.9rem;
+}
+#secRetailPricePerUnit, #secWholesalePricePerUnit {
+    color: #198754;
+    font-size: 1.1rem;
+}
+#gstCalculationPreview .alert-info {
+    background-color: #f0f9ff;
+    border: 1px solid #b6e0fe;
+}
+#gstCalculationPreview h6 {
+    color: #0d6efd;
+    font-size: 0.9rem;
+}
+#finalMRP {
+    color: #198754;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+.form-check.form-switch .form-check-input {
+    width: 3.5em;
+    height: 1.8em;
+}
+.form-check.form-switch .form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+#gstTypeLabel {
+    font-weight: 600;
+    font-size: 1rem;
+}
+.bg-light {
+    background-color: #f8f9fa !important;
 }
 </style>
 </body>

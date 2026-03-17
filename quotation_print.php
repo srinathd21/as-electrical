@@ -778,14 +778,6 @@ if (!empty($settings['invoice_footer'])) {
 }
 
 // ========== Output PDF ==========
-// ========== Output PDF ==========
 while (ob_get_level()) ob_end_clean();
-
-// Set headers for download
-header('Content-Type: application/pdf');
-header('Content-Disposition: inline; filename="Quotation_' . $quotation['quotation_number'] . '.pdf"');
-header('Cache-Control: private, max-age=0, must-revalidate');
-header('Pragma: public');
-
 $pdf->Output('I', 'Quotation_' . $quotation['quotation_number'] . '.pdf');
 exit;

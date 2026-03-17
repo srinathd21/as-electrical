@@ -360,26 +360,7 @@ $type_stats = $type_stats_stmt->fetch();
                                 </thead>
                                 <tbody>
                                     <?php if (empty($customers)): ?>
-                                    <tr>
-                                        <td colspan="7" class="text-center py-5">
-                                            <div class="empty-state">
-                                                <i class="bx bx-user-x fs-1 text-muted mb-3"></i>
-                                                <h5 class="text-muted">No customers found</h5>
-                                                <p class="text-muted mb-0">
-                                                    <?php if ($search || $customer_type): ?>
-                                                    Try adjusting your search or filters
-                                                    <?php else: ?>
-                                                    Get started by adding your first customer
-                                                    <?php endif; ?>
-                                                </p>
-                                                <?php if (!$search && !$customer_type): ?>
-                                                <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
-                                                    <i class="bx bx-plus-circle me-1"></i> Add First Customer
-                                                </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    
                                     <?php else: ?>
                                     <?php foreach ($customers as $c): 
                                         // Calculate total outstanding (manual + invoice)
@@ -547,7 +528,7 @@ $type_stats = $type_stats_stmt->fetch();
                                                         data-bs-toggle="tooltip" title="Edit">
                                                     <i class="bx bx-edit"></i>
                                                 </button>
-                                                <a href="pos3.php?customer_id=<?= $c['id'] ?>"
+                                                <a href="pos.php?customer_id=<?= $c['id'] ?>"
                                                    class="btn btn-outline-success"
                                                    data-bs-toggle="tooltip" title="New Sale">
                                                     <i class="bx bx-plus"></i>

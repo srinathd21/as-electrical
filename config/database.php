@@ -2,7 +2,7 @@
 // config/database.php
 // Indian Standard Time (IST) + Proper PDO Connection
 
-$host     = 'localhost';
+$host     = 'srv1740.hstgr.io';
 $dbname   = 'u966043993_electrical_grp';  // Change only if different
 $username = 'u966043993_electrical_grp';                        // Change for live server
 $password = 'Electricalgrp@2026';                            // Change for live server

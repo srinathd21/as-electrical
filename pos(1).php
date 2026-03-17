@@ -7,9 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <!-- SweetAlert2 CSS and JS -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         * {
             padding: 0px;
@@ -141,7 +138,7 @@
         /* Toast notifications */
         #toastContainer {
             position: fixed;
-            bottom: 70px;
+            top: 70px;
             right: 10px;
             z-index: 9999;
         }
@@ -220,7 +217,7 @@
             cursor: pointer;
         }
         .action-buttons button:nth-child(1) {
-            background-color: #8b5cf6 ;
+            background-color: #f59e0b;
             color: white;
         }
 
@@ -235,11 +232,14 @@
         }
         
         .action-buttons button:nth-child(4) {
-            background-color: #f59e0b;
+            background-color: #ef4444;
             color: white;
         }
         
-       
+        .action-buttons button:nth-child(5) {
+            background-color: #8b5cf6;
+            color: white;
+        }
 
         .action-buttons button:hover {
             transform: translateY(-2px);
@@ -264,8 +264,23 @@
         .center-section{
             padding: 5px;
         }
-      
+        .product-select-section{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
         
+        .product-select-section div{
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        @media (max-width: 768px) {
+            .product-select-section div {
+                min-width: 120px;
+            }
+        }
         
         #search-product{
             width: 100%;
@@ -438,7 +453,6 @@
         .additional-discount{
           display: flex;
           margin-bottom: 5px;
-          width: 20vw;
         }
         
         /* Payment Methods Styling - UPDATED */
@@ -963,22 +977,11 @@
             border-top: 2px solid #0d6efd;
         }
         /* Add to your existing CSS */
-.customer-credit-info {
-    font-size: 11px;
-    padding: 8px 12px;
-    margin-top: 5px;
-    border-radius: 4px;
-    background-color: #e7f3ff;
-    border: 1px solid #b3d7ff;
-}
 
-.customer-credit-info small {
-    font-size: 10px;
-}
 /* Improved product selection section alignment */
 .product-select-section {
-    display: flex;
-    justify-content: start;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     align-items: end;
     padding: 10px;
@@ -1119,68 +1122,15 @@
     align-items: center;
     justify-content: center;
 }
-#btnClose{
-    display: inline-block;
-    text-decoration: none;
-    position: fixed;
-    right: 3px;
-    top: 3px;
-    z-index: 100;
-}
-#btnClose button{
-    border: none;
-    border-radius: 3px;
-    padding: 5px 20px;
-    background: red;
-    color: white;
-}.stock-badge {
-    font-size: 0.75em;
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-weight: 600;
-    margin-left: 5px;
-    white-space: nowrap;
-}
-
-.shop-stock {
-    background-color: #28a745 !important;
-    color: white !important;
-}
-
-.low-stock {
-    background-color: #fd7e14 !important;
-    color: white !important;
-}
-
-.out-of-stock {
-    background-color: #dc3545 !important;
-    color: white !important;
-}
-
-/* For Select2 dropdown items */
-.select2-results__option .stock-badge {
-    font-size: 0.7em;
-    vertical-align: middle;
-    display: inline-block;
-}
-.out-of-stock{
-    color: red !important;
-}
-#required-star{
-    color: red;
-    font-size: 18px;
-    position: absolute;
-    margin-top: -5px;
-}
     </style>
 </head>
 
 <body>
     <!-- Toast Container -->
-    <div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999; margin-top: 70px;">
+    <div id="toastContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999; margin-top: 70px;">
         <!-- Toasts will be added here dynamically -->
     </div>
-      <a id="btnClose" href="invoices.php"><button><i class="fas fa-x"></i> Close</button></a>
+    
     <div class="main-border">
         <div class="top-section">
             <div class="left-container">
@@ -1217,13 +1167,13 @@
                 <div class="customer-section">
                     <div>
                         <label for="customer-name"><i class="fas fa-user"></i>
-                            Customer name <span id="required-star">*</span></label>
+                            Customer name</label>
                         <input type="text" id="customer-name" name="customer-name" value="Walk-in Customer" required>
                     </div>
                     <div>
                         <label for="customer-contact"><i class="fas fa-phone"></i>
-                            Customer contact <span id="required-star">*</span></label>
-                        <select id="customer-contact" name="customer-contact" required>
+                            Customer contact</label>
+                        <select id="customer-contact" name="customer-contact">
                             <option value="">-- Select phone --</option>
                         </select>
                     </div>
@@ -1240,23 +1190,19 @@
                 </div>
             </div>
             <div class="right-container">
-                
+                <div class="action-buttons">
+                    <button id="btnHoldList"><i class="fas fa-list me-1"></i> Hold List</button>
+                    <button id="btnHold"><i class="fas fa-pause me-1"></i> Hold</button>
+                    <button id="btnQuotation"><i class="fas fa-file-contract me-1"></i> Quotation</button>
+                    <button id="btnClearCart"><i class="fas fa-trash me-1"></i> Clear</button>
+                    <button id="btnApplyToAll"><i class="fas fa-check-circle me-1"></i> Apply All</button>
+                </div>
                 <div>
                     <label for="referral"><i class="fas fa-user-friends"></i>
                         Referral</label>
                     <select id="referral" name="referral">
                         <option value="">-- No referral --</option>
                     </select>
-                </div>
-                
-                
-                <div class="action-buttons mt-2">
-                    <button id="btnHoldList"><i class="fas fa-list me-1"></i> H L</button>
-                    <button id="btnHold"><i class="fas fa-pause me-1"></i> H</button>
-                    <button id="btnQuotationList"><i class="fas fa-list-check me-1"></i> Q L</button>
-                    <button id="btnQuotation"><i class="fas fa-file-contract me-1"></i> Q</button>
-                    <button id="btnClearCart" class="bg-danger text-white"><i class="fas fa-trash me-1"></i> Clear</button>
-                  
                 </div>
                 <div class="loyalty-point">
                     <span id="customerPointsDisplay">0</span>
@@ -1267,7 +1213,7 @@
         <div class="center-section">
             <h6>Add Product</h6>
             <div class="product-select-section">
-                <div style="width:24vw;">
+                <div>
                     <label for="search-product">Search Product</label>
                     <select name="search-product" id="search-product">
                         <option value="">-- Search product --</option>
@@ -1282,19 +1228,22 @@
                 <div>
                     <label for="qty">Quantity</label>
                     <div id="qty">
-                        <input type="number" id="qty-input" name="qty" min="0.1" step="0.1" value="1">
+                        <input type="number" id="qty-input" name="qty" min="0.01" step="0.01" value="1">
                         <span id="qty-unit">PCS</span>
                     </div>
                 </div>
                 <div>
-                   
+                    <label for="unit-convert">Convert</label><br>
                     <button id="unit-convert" disabled><i class="fas fa-exchange-alt me-1"></i></button>
                 </div>
-                
+                <div>
+                    <label for="batch">Batch</label>
+                    <input type="text" id="batch" name="value" placeholder="Batch No.">
+                </div>
                 <div>
     <label for="discount">Discount</label>
     <div class="d-flex align-items-center gap-1">
-        <input type="number" id="discount" name="discount" value="0" min="0" step="0.1" class="form-control" style="flex: 2;">
+        <input type="number" id="discount" name="discount" value="0" min="0" step="0.01" class="form-control" style="flex: 2;">
         <select id="discount-type" class="form-select" style="flex: 1;">
             <option value="percentage">%</option>
             <option value="fixed">₹</option>
@@ -1345,14 +1294,13 @@
             <div class="bottom-left-section" style="width: 100%;">
                 <div>
                     <h6>Additional Discount</h6>
-<div class="additional-discount">
-    <input type="number" name="additional-dis" id="additional-dis" value="0" min="0" step="0.01">
-    <!-- Make sure this has id="overall-discount-type" -->
-    <select name="overall-discount-type" id="overall-discount-type">
-        <option value="rupees">₹</option>
-        <option value="percentage">%</option>
-    </select>
-</div>
+                    <div class="additional-discount">
+                        <input type="number" name="additional-dis" id="additional-dis" value="0" min="0" step="0.01">
+                        <select name="discount-type" id="discount-type">
+                            <option value="percentage">%</option>
+                            <option value="rupees">₹</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <h6>Payment Methods</h6>
@@ -1443,10 +1391,6 @@
                             <span class="summary-label">Points Discount:</span>
                             <span class="summary-value" id="points-discount-display">₹ 0.00</span>
                         </div>
-                        <div class="summary-row" id="taxable-row" style="display: none;">
-    <span class="summary-label">Taxable Value:</span>
-    <span class="summary-value" id="taxable-display">₹ 0.00</span>
-</div>
                         <div class="summary-row" id="cgst-row" style="display: none;">
                             <span class="summary-label">CGST:</span>
                             <span class="summary-value" id="cgst-display">₹ 0.00</span>

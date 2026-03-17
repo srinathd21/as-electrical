@@ -33,18 +33,32 @@ $warehouse_name = $warehouse['shop_name'] ?? 'Warehouse';
 
 $success = $error = '';
 
+/**
+ * Generate a unique purchase number for the current business
+ */
+function generatePurchaseNumber($pdo, $business_id) {
+    $year = date('Y');
+    $month = date('m');
+    
+    // Get the count of purchases for THIS SPECIFIC BUSINESS in the current month
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM purchases 
+        WHERE business_id = ?
+       
+    ");
+    $stmt->execute([$business_id]);
+    $count = $stmt->fetchColumn();
+    
+    // Generate the next number in sequence (count + 1)
+    $next_number = $count + 1;
+    $purchase_number = "PO{$year}{$month}-" . str_pad($next_number, 4, '0', STR_PAD_LEFT);
+    
+    return $purchase_number;
+}
+
 // Generate Unique Purchase Number for current business
-$year = date('Y');
-$month = date('m');
-$stmt = $pdo->prepare("
-    SELECT COUNT(*) 
-    FROM purchases 
-    WHERE YEAR(purchase_date) = ? 
-      AND MONTH(purchase_date) = ?
-      AND business_id = ?
-");
-$stmt->execute([$year, $month, $current_business_id]);
-$purchase_number = "PO{$year}{$month}-" . str_pad($stmt->fetchColumn() + 1, 4, '0', STR_PAD_LEFT);
+$purchase_number = generatePurchaseNumber($pdo, $current_business_id);
 
 // Fetch Data - Only from current business
 $manufacturers = $pdo->prepare("
@@ -69,7 +83,7 @@ $shops->execute([$current_business_id]);
 $shops = $shops->fetchAll();
 
 // Bill image upload configuration
-$upload_dir = '../uploads/purchase_bills/';
+$upload_dir = 'uploads/purchase_bills/';
 $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
 $max_file_size = 10 * 1024 * 1024; // 10MB
 
@@ -84,27 +98,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $reference       = trim($_POST['reference'] ?? '');
     $purchase_invoice_no = trim($_POST['purchase_invoice_no'] ?? '');
     $notes           = trim($_POST['notes'] ?? '');
+    $shop_id         = (int)($_POST['shop_id'] ?? 0);
     $items           = $_POST['items'] ?? [];
 
-    if ($manufacturer_id <= 0 || empty($items)) {
-        $error = "Please select supplier and add at least one product.";
+    if ($manufacturer_id <= 0 || $shop_id <= 0 || empty($items)) {
+        $error = "Please select supplier, receiving shop and add at least one product.";
     } else {
         try {
             $pdo->beginTransaction();
 
-            // Debug logging function
-            if (!function_exists('debug_log')) {
-                function debug_log($message, $data = null) {
-                    $log_file = __DIR__ . '/purchase_add_debug.log';
-                    $timestamp = date('Y-m-d H:i:s');
-                    $log_message = "[$timestamp] $message";
-                    if ($data !== null) {
-                        $log_message .= " - " . print_r($data, true);
-                    }
-                    $log_message .= PHP_EOL;
-                    file_put_contents($log_file, $log_message, FILE_APPEND);
-                }
-            }
+            // Generate a new purchase number for this submission (in case of any race conditions)
+            $purchase_number = generatePurchaseNumber($pdo, $current_business_id);
 
             // Handle bill image upload
             $bill_image_path = null;
@@ -137,19 +141,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Insert Purchase Record with business_id - REMOVED shop_id from the insert
+            // Insert Purchase Record with business_id
             $stmt = $pdo->prepare("
                 INSERT INTO purchases 
-                (purchase_number, manufacturer_id, purchase_date, reference,
+                (purchase_number, manufacturer_id, purchase_date, reference, shop_id,
                  purchase_invoice_no, bill_image, notes, 
                  total_amount, total_gst, payment_status, created_by, created_at, business_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'unpaid', ?, NOW(), ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'unpaid', ?, NOW(), ?)
             ");
             $stmt->execute([
                 $purchase_number, 
                 $manufacturer_id, 
                 $purchase_date, 
                 $reference,
+                $shop_id,
                 $purchase_invoice_no ?: null,
                 $bill_image_path,
                 $notes, 
@@ -219,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $cgst_amt = $taxable_amount * $cgst / 100;
                     $sgst_amt = $taxable_amount * $sgst / 100;
                     $igst_amt = $taxable_amount * $igst / 100;
-                    $total_with_tax = $qty * $purchase_price; // This is the GST inclusive total
+                    $total_with_tax = $qty * $purchase_price;
 
                     // Get HSN code for product
                     $hsn_stmt = $pdo->prepare("SELECT hsn_code FROM products WHERE id = ? AND business_id = ?");
@@ -241,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $qty, 
                         $mrp,
                         $discount_input,
-                        'percentage', // Default discount type
+                        'percentage',
                         (float)str_replace('%', '', $discount_input) ?: 0,
                         $purchase_price,
                         $retail_price,
@@ -302,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $current_quantity = $stock_record['quantity'];
                     }
 
-                    // Get previous batch prices for comparison (including retail and wholesale)
+                    // Get previous batch prices for comparison
                     $prev_batch_stmt = $pdo->prepare("
                         SELECT purchase_price, selling_price, retail_price, wholesale_price,
                                old_retail_price, old_wholesale_price
@@ -345,13 +350,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $batch_number,
                         $purchase_price,
                         $old_purchase_price,
-                        $retail_price, // selling_price
+                        $retail_price,
                         $old_selling_price,
-                        $product['mrp'], // Old MRP
-                        $mrp, // New MRP
-                        $retail_price, // retail_price
+                        $product['mrp'],
+                        $mrp,
+                        $retail_price,
                         $old_retail_price,
-                        $wholesale_price, // wholesale_price
+                        $wholesale_price,
                         $old_wholesale_price,
                         $qty,
                         $qty,
@@ -371,36 +376,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $total_secondary_units = $qty * $product['sec_unit_conversion'];
                     }
 
-                    // ==============================================
-                    // IMPROVED ZERO STOCK DETECTION
-                    // ==============================================
-                    
-                    // Log detailed stock information for debugging
-                    error_log("========== ZERO STOCK CHECK FOR PRODUCT ID: $pid ==========");
-                    error_log("Product Name: {$product['product_name']}");
-                    error_log("Stock record exists: " . ($stock_record ? 'YES' : 'NO'));
-                    
-                    if ($stock_record) {
-                        error_log("Current quantity before purchase: $current_quantity");
-                        error_log("Old qty before purchase: {$stock_record['old_qty']}");
-                        error_log("Stock record ID: {$stock_record['id']}");
-                    } else {
-                        error_log("No existing stock record found for this product in shop ID: $shop_id");
-                    }
-                    
-                    error_log("New quantity being added: $qty");
-                    error_log("New batch MRP: $mrp");
-                    error_log("Current product MRP in products table: {$product['mrp']}");
-                    error_log("New retail price: $retail_price");
-                    error_log("Current retail price: {$product['retail_price']}");
-                    error_log("New wholesale price: $wholesale_price");
-                    error_log("Current wholesale price: {$product['wholesale_price']}");
-
                     // Determine if this is the first stock for this product in this shop
                     $is_first_stock = (!$stock_record || $current_quantity == 0);
-                    
-                    error_log("Is first stock? " . ($is_first_stock ? 'YES' : 'NO'));
-                    error_log("Reason: " . (!$stock_record ? 'No stock record exists' : ($current_quantity == 0 ? 'Current quantity is zero' : 'Existing stock found')));
 
                     if ($stock_record) {
                         // Update existing stock
@@ -411,8 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_secondary_units = ($new_secondary_units ?? 0) + $total_secondary_units;
                         }
                         
-                        // Determine if batch tracking should be enabled
-                        $use_batch_tracking = 1; // Always use batch tracking now
+                        $use_batch_tracking = 1;
                         
                         $update_query = "
                             UPDATE product_stocks 
@@ -436,13 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $current_business_id
                         ]);
                         
-                        error_log("Existing stock updated - New quantity: $new_quantity, New old_qty: $old_qty");
-                        
-                        // Check if this is first stock (current quantity is 0)
                         if ($is_first_stock) {
-                            error_log("*** FIRST STOCK DETECTED (Existing record but quantity was 0) ***");
-                            error_log("Updating product prices from batch - MRP: $mrp, Retail: $retail_price, Wholesale: $wholesale_price");
-                            
                             // Update product prices directly from batch when stock was 0
                             $update_product_first_stock = $pdo->prepare("
                                 UPDATE products 
@@ -453,24 +423,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 WHERE id = ? AND business_id = ?
                             ");
                             
-                            $update_result = $update_product_first_stock->execute([
+                            $update_product_first_stock->execute([
                                 $mrp,
                                 $retail_price,
                                 $wholesale_price,
                                 $pid,
                                 $current_business_id
                             ]);
-                            
-                            error_log("Price update result: " . ($update_result ? 'SUCCESS' : 'FAILED'));
-                            error_log("Rows affected: " . $update_product_first_stock->rowCount());
-                            
-                            // Verify the update
-                            $verify_stmt = $pdo->prepare("SELECT mrp, retail_price, wholesale_price FROM products WHERE id = ?");
-                            $verify_stmt->execute([$pid]);
-                            $updated_prices = $verify_stmt->fetch();
-                            error_log("Verified prices after update - MRP: {$updated_prices['mrp']}, Retail: {$updated_prices['retail_price']}, Wholesale: {$updated_prices['wholesale_price']}");
-                            
-                            error_log("Product $pid prices updated from batch (zero stock case with existing record)");
                         }
                     } else {
                         // Insert new stock record
@@ -489,19 +448,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $qty,
                             0,
                             $total_secondary_units,
-                            1, // use_batch_tracking
+                            1,
                             $batch_id
                         ]);
                         
-                        $new_stock_id = $pdo->lastInsertId();
-                        
-                        error_log("New stock record created with ID: $new_stock_id");
-                        
-                        // For new stock record (first time product is being added to this shop)
                         // Update product prices directly from batch
-                        error_log("*** NEW STOCK RECORD CREATED (First time in this shop) ***");
-                        error_log("Updating product prices from batch - MRP: $mrp, Retail: $retail_price, Wholesale: $wholesale_price");
-                        
                         $update_product_new_stock = $pdo->prepare("
                             UPDATE products 
                             SET mrp = ?,
@@ -511,45 +462,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             WHERE id = ? AND business_id = ?
                         ");
                         
-                        $update_result = $update_product_new_stock->execute([
+                        $update_product_new_stock->execute([
                             $mrp,
                             $retail_price,
                             $wholesale_price,
                             $pid,
                             $current_business_id
                         ]);
-                        
-                        error_log("Price update result: " . ($update_result ? 'SUCCESS' : 'FAILED'));
-                        error_log("Rows affected: " . $update_product_new_stock->rowCount());
-                        
-                        // Verify the update
-                        $verify_stmt = $pdo->prepare("SELECT mrp, retail_price, wholesale_price FROM products WHERE id = ?");
-                        $verify_stmt->execute([$pid]);
-                        $updated_prices = $verify_stmt->fetch();
-                        error_log("Verified prices after update - MRP: {$updated_prices['mrp']}, Retail: {$updated_prices['retail_price']}, Wholesale: {$updated_prices['wholesale_price']}");
-                        
-                        error_log("Product $pid prices updated from batch (new stock record)");
                     }
 
-                    // Update product retail and wholesale prices ONLY if price increased
-                    // NEVER update stock_price (cost price) in products table
-                    if ($is_increase || $mrp_changed) {
+                    // Update product retail and wholesale prices if price changed (increase OR decrease)
+                    if ($price_changed || $mrp_changed) {
                         $update_fields = [];
                         $update_params = [];
                         
+                        // Always update MRP if changed (whether increase or decrease)
                         if ($mrp_changed) {
                             $update_fields[] = "mrp = ?";
                             $update_params[] = $mrp;
                         }
                         
-                        // Update retail price if changed AND price increased
-                        if ($retail_changed && $is_increase) {
+                        // Update retail price if changed (whether increase or decrease)
+                        if ($retail_changed) {
                             $update_fields[] = "retail_price = ?";
                             $update_params[] = $retail_price;
                         }
                         
-                        // Update wholesale price if changed AND price increased
-                        if ($wholesale_changed && $is_increase) {
+                        // Update wholesale price if changed (whether increase or decrease)
+                        if ($wholesale_changed) {
                             $update_fields[] = "wholesale_price = ?";
                             $update_params[] = $wholesale_price;
                         }
@@ -560,20 +500,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $update_params[] = $pid;
                             $update_params[] = $current_business_id;
                             
-                            error_log("Price increase detected - Updating with conditional fields: " . implode(", ", $update_fields));
-                            
                             $pdo->prepare($update_query)->execute($update_params);
                             
-                            error_log("Product $pid prices updated from batch (price increase) - MRP: $mrp, Retail: $retail_price, Wholesale: $wholesale_price");
+                            // Log the price change (optional - for debugging)
+                            error_log("Product ID $pid prices updated - MRP: $mrp, Retail: $retail_price, Wholesale: $wholesale_price");
                         }
-                    } else {
-                        error_log("No price increase detected for product $pid");
                     }
-                    
-                    // Note: stock_price is NEVER updated in the products table
-                    // It remains as the original cost price from manufacturer
-                    
-                    error_log("========== END STOCK CHECK FOR PRODUCT ID: $pid ==========");
                 }
             }
 
@@ -603,8 +535,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
             
-            error_log("Purchase completed successfully - ID: $purchase_id, Number: $purchase_number");
-            
             header("Location: purchases.php?success=1&po=" . urlencode($purchase_number));
             exit();
         } catch (Exception $e) {
@@ -613,9 +543,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @unlink($bill_image_path);
             }
             $error = "Failed to save purchase: " . $e->getMessage();
-            
-            error_log("Purchase failed: " . $e->getMessage());
-            error_log("Stack trace: " . $e->getTraceAsString());
         }
     }
 }
@@ -799,6 +726,8 @@ foreach ($prodRes as $p) {
 <!doctype html>
 <html lang="en">
 <?php $page_title = "New Purchase Order"; include 'includes/head.php'; ?>
+<!-- Add SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- Add Select2 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <!-- Add flatpickr for date picker -->
@@ -1078,6 +1007,52 @@ foreach ($prodRes as $p) {
     border-left-width: 4px !important;
     border-left-color: #0056b3 !important;
 }
+
+/* Quick Add Modal */
+.quick-add-modal .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+.quick-add-modal .modal-title i {
+    color: #0d6efd;
+}
+.quick-add-modal .form-label {
+    font-weight: 500;
+    color: #495057;
+}
+.quick-add-modal .form-text {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* SweetAlert2 small toast styling */
+.swal-toast-small {
+    font-size: 0.875rem !important;
+}
+.swal-toast-small .swal2-popup {
+    font-size: 0.875rem !important;
+    padding: 0.5rem !important;
+    width: auto !important;
+    min-width: 250px !important;
+}
+.swal-toast-small .swal2-title {
+    font-size: 1rem !important;
+    margin: 0 !important;
+    padding: 0 0 0.25rem 0 !important;
+}
+.swal-toast-small .swal2-html-container {
+    font-size: 0.875rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.swal-toast-small .swal2-actions {
+    margin: 0.25rem 0 0 0 !important;
+}
+.swal-toast-small .swal2-confirm,
+.swal-toast-small .swal2-cancel {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+}
 </style>
 </head>
 <body data-sidebar="dark">
@@ -1163,6 +1138,19 @@ foreach ($prodRes as $p) {
                                     </div>
 
                                     <div class="mb-3">
+                                        <label class="form-label fw-bold">Receive Stock At <span class="text-danger">*</span></label>
+                                        <select name="shop_id" class="form-select select2-shop" required>
+                                            <option value="">-- Select Location --</option>
+                                            <?php foreach ($shops as $shop): ?>
+                                            <option value="<?= $shop['id'] ?>">
+                                                <?= htmlspecialchars($shop['shop_name']) ?>
+                                                <?= $shop['is_warehouse'] ? ' (Warehouse)' : '' ?>
+                                            </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
                                         <label class="form-label fw-bold">Purchase Invoice No.</label>
                                         <input type="text" name="purchase_invoice_no" class="form-control" placeholder="Supplier's invoice number">
                                     </div>
@@ -1205,7 +1193,12 @@ foreach ($prodRes as $p) {
                                 <div class="card-body purchase-items-container">
                                     <!-- Product Search Section -->
                                     <div class="product-search-section">
-                                        <h5><i class="bx bx-search me-2"></i> Add Products</h5>
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h5><i class="bx bx-search me-2"></i> Add Products</h5>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="openQuickAddProductModal()">
+                                                <i class="bx bx-plus me-1"></i> Quick Add Product
+                                            </button>
+                                        </div>
                                         
                                         <div class="row g-3">
                                             <div class="col-md-12">
@@ -1438,6 +1431,194 @@ foreach ($prodRes as $p) {
     </div>
 </div>
 
+<!-- Quick Add Product Modal -->
+<div class="modal fade quick-add-modal" id="quickAddProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bx bx-plus-circle me-2 text-primary"></i> Quick Add Product
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickAddProductForm">
+                    <div class="row g-3">
+                        <!-- Category Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label">Category <span class="text-danger">*</span></label>
+                            <select id="quickCategory" class="form-select" required>
+                                <option value="">Select Category</option>
+                                <?php
+                                $categories = $pdo->prepare("SELECT id, category_name FROM categories WHERE business_id = ? AND status = 'active' AND parent_id IS NULL ORDER BY category_name");
+                                $categories->execute([$current_business_id]);
+                                $categories = $categories->fetchAll();
+                                foreach ($categories as $cat):
+                                ?>
+                                <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['category_name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <!-- Subcategory (optional) -->
+                        <div class="col-md-6">
+                            <label class="form-label">Subcategory (Optional)</label>
+                            <select id="quickSubcategory" class="form-select">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Product Name -->
+                        <div class="col-md-12">
+                            <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                            <input type="text" id="quickProductName" class="form-control" required>
+                        </div>
+                        
+                        <!-- Product Code & Barcode -->
+                        <div class="col-md-6">
+                            <label class="form-label">Product Code</label>
+                            <input type="text" id="quickProductCode" class="form-control" placeholder="Auto-generated">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Barcode</label>
+                            <div class="input-group">
+                                <input type="text" id="quickBarcode" class="form-control" placeholder="Optional">
+                                <button type="button" class="btn btn-outline-secondary" onclick="generateQuickBarcode()">
+                                    <i class="bx bx-refresh"></i> Generate
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Unit of Measure -->
+                        <div class="col-md-4">
+                            <label class="form-label">Unit of Measure <span class="text-danger">*</span></label>
+                            <select id="quickUnit" class="form-select">
+                                <option value="pcs">Pieces (pcs)</option>
+                                <option value="coil">Coil</option>
+                                <option value="mtr">Meter (mtr)</option>
+                                <option value="kg">Kilogram (kg)</option>
+                                <option value="ltr">Liter (ltr)</option>
+                                <option value="nos">Number (nos)</option>
+                                <option value="box">Box</option>
+                                <option value="feet">Feet</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Secondary Unit -->
+                        <div class="col-md-4">
+                            <label class="form-label">Secondary Unit</label>
+                            <input type="text" id="quickSecondaryUnit" class="form-control" placeholder="e.g., mtr, kg">
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Conversion Rate</label>
+                            <input type="number" step="0.0001" min="0" id="quickConversion" class="form-control" placeholder="e.g., 90">
+                        </div>
+                        
+                        <!-- Pricing -->
+                        <div class="col-md-4">
+                            <label class="form-label">MRP <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" min="0" id="quickMRP" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Purchase Price <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" min="0" id="quickPurchasePrice" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">GST Rate</label>
+                            <select id="quickGST" class="form-select">
+                                <option value="">No GST</option>
+                                <?php
+                                $gst_rates_quick = $pdo->prepare("SELECT id, hsn_code, cgst_rate, sgst_rate, igst_rate FROM gst_rates WHERE business_id = ? AND status = 'active' ORDER BY hsn_code");
+                                $gst_rates_quick->execute([$current_business_id]);
+                                $gst_rates_quick = $gst_rates_quick->fetchAll();
+                                foreach ($gst_rates_quick as $g):
+                                $total_gst = $g['cgst_rate'] + $g['sgst_rate'] + $g['igst_rate'];
+                                ?>
+                                <option value="<?= $g['id'] ?>" 
+                                    data-cgst="<?= $g['cgst_rate'] ?>" 
+                                    data-sgst="<?= $g['sgst_rate'] ?>" 
+                                    data-igst="<?= $g['igst_rate'] ?>"
+                                    data-hsn="<?= $g['hsn_code'] ?>">
+                                    <?= $g['hsn_code'] ?> - <?= $total_gst ?>%
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <!-- Retail Price Markup -->
+                        <div class="col-md-6">
+                            <label class="form-label">Retail Price Markup</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <select id="quickRetailType" class="form-select">
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed (₹)</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" step="0.01" min="0" id="quickRetailValue" class="form-control" placeholder="Value">
+                                </div>
+                            </div>
+                            <div class="form-text">Markup on purchase price</div>
+                        </div>
+                        
+                        <!-- Wholesale Price Markup -->
+                        <div class="col-md-6">
+                            <label class="form-label">Wholesale Price Markup</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <select id="quickWholesaleType" class="form-select">
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed (₹)</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" step="0.01" min="0" id="quickWholesaleValue" class="form-control" placeholder="Value">
+                                </div>
+                            </div>
+                            <div class="form-text">Markup on purchase price</div>
+                        </div>
+                        
+                        <!-- HSN Code -->
+                        <div class="col-md-6">
+                            <label class="form-label">HSN Code</label>
+                            <input type="text" id="quickHSN" class="form-control" placeholder="HSN Code">
+                        </div>
+                        
+                        <!-- Min Stock Level -->
+                        <div class="col-md-3">
+                            <label class="form-label">Min Stock Level</label>
+                            <input type="number" id="quickMinStock" class="form-control" value="10">
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea id="quickDescription" class="form-control" rows="3" placeholder="Product description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveQuickProduct()">
+                    <i class="bx bx-save me-2"></i> Save Product
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include 'includes/scripts.php'; ?>
 <!-- Add Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -1450,7 +1631,36 @@ const BARCODE_MAP = <?php echo json_encode($barcodeMap, JSON_UNESCAPED_UNICODE|J
 let selectedProducts = new Map();
 let itemCounter = 0;
 let currentProductId = null;
-let manualPriceUpdate = false;
+let manualPriceUpdate = false; // Flag to track manual price entry mode
+
+// SweetAlert2 Toast configuration
+const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer)
+        toast.addEventListener('mouseleave', Swal.resumeTimer)
+    }
+});
+
+// Confirmation Toast with buttons
+const ConfirmToast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: true,
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Yes',
+    cancelButtonText: 'No',
+    timer: null,
+    customClass: {
+        container: 'swal-toast-small'
+    }
+});
 
 // Helper functions
 function findProductById(id) {
@@ -1471,14 +1681,20 @@ function calculatePurchasePriceFromDiscount(mrp, discountInput) {
         if (discount.includes('%')) {
             const discountPercent = parseFloat(discount.replace('%', '')) || 0;
             if (discountPercent > 100) {
-                alert('Discount percentage cannot exceed 100%');
+                Toast.fire({
+                    icon: 'warning',
+                    title: 'Discount percentage cannot exceed 100%'
+                });
                 return mrp;
             }
             purchasePrice = mrp - (mrp * discountPercent / 100);
         } else {
             const discountAmount = parseFloat(discount) || 0;
             if (discountAmount > mrp) {
-                alert('Discount amount cannot exceed MRP');
+                Toast.fire({
+                    icon: 'warning',
+                    title: 'Discount amount cannot exceed MRP'
+                });
                 return mrp;
             }
             purchasePrice = mrp - discountAmount;
@@ -1506,7 +1722,6 @@ function calculateSellingPrices(purchasePrice, product) {
     if (product.retail_markup_percent > 0) {
         retailPrice = purchasePrice + (purchasePrice * product.retail_markup_percent / 100);
     } else if (product.retail_price_value > 0) {
-        // If markup percent isn't pre-calculated, calculate from product's retail_price_value
         if (product.retail_price_type === 'percentage') {
             retailPrice = purchasePrice + (purchasePrice * product.retail_price_value / 100);
         } else {
@@ -1525,24 +1740,18 @@ function calculateSellingPrices(purchasePrice, product) {
         }
     }
     
-    // Calculate actual markup percentages based on purchase price
-    const retailMarkupPercent = purchasePrice > 0 ? ((retailPrice - purchasePrice) / purchasePrice) * 100 : 0;
-    const wholesaleMarkupPercent = purchasePrice > 0 ? ((wholesalePrice - purchasePrice) / purchasePrice) * 100 : 0;
-    
     return {
         retailPrice: retailPrice,
         wholesalePrice: wholesalePrice,
-        retailMarkupPercent: retailMarkupPercent,
-        wholesaleMarkupPercent: wholesaleMarkupPercent
+        retailMarkupPercent: purchasePrice > 0 ? ((retailPrice - purchasePrice) / purchasePrice) * 100 : 0,
+        wholesaleMarkupPercent: purchasePrice > 0 ? ((wholesalePrice - purchasePrice) / purchasePrice) * 100 : 0
     };
 }
 
-// Calculate total for an item with GST (inclusive - prices already include GST)
+// Calculate total for an item with GST
 function calculateItemTotal(price, quantity, cgst, sgst, igst) {
     const total = price * quantity;
     
-    // For inclusive GST, we just use the total price (GST is already included)
-    // But we still need to track GST credit for purchases (input credit)
     const taxable = total / (1 + (cgst + sgst + igst) / 100);
     const cgstAmt = taxable * cgst / 100;
     const sgstAmt = taxable * sgst / 100;
@@ -1553,9 +1762,74 @@ function calculateItemTotal(price, quantity, cgst, sgst, igst) {
         cgst: cgstAmt,
         sgst: sgstAmt,
         igst: igstAmt,
-        total: total, // Total is just price * quantity (GST inclusive)
-        gstCredit: cgstAmt + sgstAmt // Input tax credit available
+        total: total,
+        gstCredit: cgstAmt + sgstAmt
     };
+}
+
+// Update price calculations
+function updatePriceCalculations() {
+    if (!currentProductId) return;
+    
+    const product = findProductById(currentProductId);
+    if (!product) return;
+    
+    const mrp = parseFloat($('#mrp').val()) || 0;
+    const discount = $('#discount').val().trim();
+    const manualPurchasePrice = parseFloat($('#purchasePrice').val()) || 0;
+    const quantity = parseInt($('#quantity').val()) || 1;
+    const cgst = parseFloat($('#cgstRate').val()) || 0;
+    const sgst = parseFloat($('#sgstRate').val()) || 0;
+    const igst = parseFloat($('#igstRate').val()) || 0;
+    
+    let purchasePrice;
+    
+    if (manualPriceUpdate) {
+        // Use manually entered purchase price directly
+        purchasePrice = manualPurchasePrice;
+        
+        // Calculate discount based on manual purchase price (for display only)
+        if (mrp > 0 && purchasePrice < mrp) {
+            const discountPercent = ((mrp - purchasePrice) / mrp) * 100;
+            $('#discount').val(discountPercent.toFixed(1) + '%');
+        } else if (purchasePrice >= mrp) {
+            $('#discount').val('');
+        }
+    } else {
+        // Calculate purchase price from discount
+        if (discount) {
+            purchasePrice = calculatePurchasePriceFromDiscount(mrp, discount);
+        } else {
+            purchasePrice = mrp;
+        }
+        $('#purchasePrice').val(purchasePrice.toFixed(2));
+    }
+    
+    // Calculate selling prices using constant markups
+    const sellingPrices = calculateSellingPrices(purchasePrice, product);
+    
+    // Calculate totals (with inclusive GST handling)
+    const totals = calculateItemTotal(purchasePrice, quantity, cgst, sgst, igst);
+    
+    // Update display
+    $('#calculatedPurchasePrice').val(purchasePrice.toFixed(2));
+    $('#retailPrice').val(sellingPrices.retailPrice.toFixed(2));
+    $('#wholesalePrice').val(sellingPrices.wholesalePrice.toFixed(2));
+    
+    // Update markup badges to show constant percentages
+    $('#retailMarkupBadge').html(`<span class="markup-badge">+${product.retail_markup_percent.toFixed(1)}%</span>`);
+    $('#wholesaleMarkupBadge').html(`<span class="markup-badge">+${product.wholesale_markup_percent.toFixed(1)}%</span>`);
+    
+    // Update markup displays
+    $('#retailMarkupDisplay').text(product.retail_markup_percent.toFixed(1) + '%');
+    $('#wholesaleMarkupDisplay').text(product.wholesale_markup_percent.toFixed(1) + '%');
+    
+    // Show price calculation section
+    $('#priceCalculation').show();
+    $('#priceDetails').show();
+    
+    // Check for price changes
+    checkPriceChange(purchasePrice, product);
 }
 
 // Update product details when selected
@@ -1563,7 +1837,7 @@ function updateProductDetails(productId) {
     const product = findProductById(productId);
     if (product) {
         currentProductId = productId;
-        manualPriceUpdate = false;
+        manualPriceUpdate = false; // Start in auto mode
         
         $('#stockDisplay').val(product.total_stock);
         $('#mrp').val(product.mrp || 0);
@@ -1572,11 +1846,14 @@ function updateProductDetails(productId) {
         if (product.mrp > 0 && product.stock_price > 0 && product.mrp > product.stock_price) {
             const discountPercent = ((product.mrp - product.stock_price) / product.mrp) * 100;
             $('#discount').val(discountPercent.toFixed(1) + '%');
+            // Calculate purchase price from discount
+            const purchasePrice = calculatePurchasePriceFromDiscount(product.mrp, discountPercent.toFixed(1) + '%');
+            $('#purchasePrice').val(purchasePrice.toFixed(2));
         } else {
             $('#discount').val('');
+            $('#purchasePrice').val(product.stock_price.toFixed(2));
         }
         
-        $('#purchasePrice').val(product.stock_price.toFixed(2));
         $('#quantity').val(1);
         $('#cgstRate').val(product.cgst);
         $('#sgstRate').val(product.sgst);
@@ -1655,67 +1932,6 @@ function updateProductDetails(productId) {
     }
 }
 
-// Update price calculations
-function updatePriceCalculations() {
-    if (!currentProductId) return;
-    
-    const product = findProductById(currentProductId);
-    if (!product) return;
-    
-    const mrp = parseFloat($('#mrp').val()) || 0;
-    const discount = $('#discount').val().trim();
-    const manualPurchasePrice = parseFloat($('#purchasePrice').val()) || 0;
-    const quantity = parseInt($('#quantity').val()) || 1;
-    const cgst = parseFloat($('#cgstRate').val()) || 0;
-    const sgst = parseFloat($('#sgstRate').val()) || 0;
-    const igst = parseFloat($('#igstRate').val()) || 0;
-    
-    let purchasePrice;
-    
-    if (manualPriceUpdate) {
-        // Use manually entered purchase price
-        purchasePrice = manualPurchasePrice;
-        
-        // Calculate discount based on manual purchase price
-        const calculatedDiscount = calculateDiscountFromPrice(mrp, purchasePrice);
-        if (calculatedDiscount) {
-            $('#discount').val(calculatedDiscount);
-        } else {
-            $('#discount').val('');
-        }
-    } else {
-        // Calculate purchase price from discount
-        purchasePrice = calculatePurchasePriceFromDiscount(mrp, discount);
-        $('#purchasePrice').val(purchasePrice.toFixed(2));
-    }
-    
-    // Calculate selling prices using constant markups
-    const sellingPrices = calculateSellingPrices(purchasePrice, product);
-    
-    // Calculate totals (with inclusive GST handling)
-    const totals = calculateItemTotal(purchasePrice, quantity, cgst, sgst, igst);
-    
-    // Update display
-    $('#calculatedPurchasePrice').val(purchasePrice.toFixed(2));
-    $('#retailPrice').val(sellingPrices.retailPrice.toFixed(2));
-    $('#wholesalePrice').val(sellingPrices.wholesalePrice.toFixed(2));
-    
-    // Update markup badges to show constant percentages
-    $('#retailMarkupBadge').html(`<span class="markup-badge">+${product.retail_markup_percent.toFixed(1)}%</span>`);
-    $('#wholesaleMarkupBadge').html(`<span class="markup-badge">+${product.wholesale_markup_percent.toFixed(1)}%</span>`);
-    
-    // Update markup displays
-    $('#retailMarkupDisplay').text(product.retail_markup_percent.toFixed(1) + '%');
-    $('#wholesaleMarkupDisplay').text(product.wholesale_markup_percent.toFixed(1) + '%');
-    
-    // Show price calculation section
-    $('#priceCalculation').show();
-    $('#priceDetails').show();
-    
-    // Check for price changes
-    checkPriceChange(purchasePrice, product);
-}
-
 // Check if price has changed from current stock price
 function checkPriceChange(newPurchasePrice, product) {
     const warningDiv = $('#priceChangeWarning');
@@ -1754,14 +1970,20 @@ function addProductToCart() {
     const productId = select.val();
     
     if (!productId) {
-        alert('Please select a product first');
+        Toast.fire({
+            icon: 'warning',
+            title: 'Please select a product first'
+        });
         select.focus();
         return;
     }
 
     const product = findProductById(productId);
     if (!product) {
-        alert('Product not found');
+        Toast.fire({
+            icon: 'error',
+            title: 'Product not found'
+        });
         return;
     }
 
@@ -1786,79 +2008,111 @@ function addProductToCart() {
     const expiry_date = $('#expiryDate').val() || '';
 
     if (mrp <= 0) {
-        alert('MRP must be greater than 0');
+        Toast.fire({
+            icon: 'warning',
+            title: 'MRP must be greater than 0'
+        });
         $('#mrp').focus();
         return;
     }
 
     if (purchasePrice <= 0) {
-        alert('Purchase price must be greater than 0');
+        Toast.fire({
+            icon: 'warning',
+            title: 'Purchase price must be greater than 0'
+        });
         $('#purchasePrice').focus();
         return;
     }
 
     if (quantity <= 0) {
-        alert('Quantity must be greater than 0');
+        Toast.fire({
+            icon: 'warning',
+            title: 'Quantity must be greater than 0'
+        });
         $('#quantity').focus();
         return;
     }
 
     if (purchasePrice > mrp) {
-        if (!confirm('Purchase price (₹' + purchasePrice.toFixed(2) + ') is greater than MRP (₹' + mrp.toFixed(2) + '). Continue anyway?')) {
-            return;
-        }
+        ConfirmToast.fire({
+            icon: 'question',
+            title: 'Purchase Price > MRP',
+            html: `Purchase price (₹${purchasePrice.toFixed(2)}) is greater than MRP (₹${mrp.toFixed(2)}). Continue anyway?`,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, continue',
+            cancelButtonText: 'No, cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                proceedWithAddProduct(product, {
+                    productId, productName, productCode, shop_stock, warehouse_stock, total_stock,
+                    secondary_unit, sec_unit_conversion, mrp, discount, purchasePrice, quantity,
+                    cgst, sgst, igst, total_gst, hsn, batch_number, manufacture_date, expiry_date
+                });
+            }
+        });
+        return;
     }
 
+    proceedWithAddProduct(product, {
+        productId, productName, productCode, shop_stock, warehouse_stock, total_stock,
+        secondary_unit, sec_unit_conversion, mrp, discount, purchasePrice, quantity,
+        cgst, sgst, igst, total_gst, hsn, batch_number, manufacture_date, expiry_date
+    });
+}
+
+function proceedWithAddProduct(product, data) {
     // Calculate selling prices and markups using constant percentages
-    const sellingPrices = calculateSellingPrices(purchasePrice, product);
+    const sellingPrices = calculateSellingPrices(data.purchasePrice, product);
     
     // Calculate totals (with inclusive GST handling)
-    const totals = calculateItemTotal(purchasePrice, quantity, cgst, sgst, igst);
+    const totals = calculateItemTotal(data.purchasePrice, data.quantity, data.cgst, data.sgst, data.igst);
     
     // Determine if price increased or decreased
-    const isIncrease = purchasePrice > product.stock_price;
-    const isDecrease = purchasePrice < product.stock_price;
+    const isIncrease = data.purchasePrice > product.stock_price;
+    const isDecrease = data.purchasePrice < product.stock_price;
     
     const itemId = ++itemCounter;
 
     // Add to selected products map with all batch fields
     selectedProducts.set(itemId, {
-        id: productId,
+        id: data.productId,
         itemId: itemId,
-        name: productName,
-        code: productCode,
-        shop_stock: shop_stock,
-        warehouse_stock: warehouse_stock,
-        total_stock: total_stock,
-        secondary_unit: secondary_unit,
-        sec_unit_conversion: sec_unit_conversion,
-        mrp: mrp,
+        name: data.productName,
+        code: data.productCode,
+        shop_stock: data.shop_stock,
+        warehouse_stock: data.warehouse_stock,
+        total_stock: data.total_stock,
+        secondary_unit: data.secondary_unit,
+        sec_unit_conversion: data.sec_unit_conversion,
+        mrp: data.mrp,
         old_mrp: product.mrp,
-        discount: discount,
-        purchase_price: purchasePrice,
+        discount: data.discount,
+        purchase_price: data.purchasePrice,
         old_purchase_price: product.stock_price,
         retail_price: sellingPrices.retailPrice,
         old_retail_price: product.retail_price,
         wholesale_price: sellingPrices.wholesalePrice,
         old_wholesale_price: product.wholesale_price,
-        retail_markup_percent: product.retail_markup_percent, // Use constant markup from product
-        wholesale_markup_percent: product.wholesale_markup_percent, // Use constant markup from product
-        quantity: quantity,
-        cgst: cgst,
-        sgst: sgst,
-        igst: igst,
-        total_gst: total_gst,
-        hsn: hsn,
-        batch_number: batch_number,
-        manufacture_date: manufacture_date,
-        expiry_date: expiry_date,
+        retail_markup_percent: product.retail_markup_percent,
+        wholesale_markup_percent: product.wholesale_markup_percent,
+        quantity: data.quantity,
+        cgst: data.cgst,
+        sgst: data.sgst,
+        igst: data.igst,
+        total_gst: data.total_gst,
+        hsn: data.hsn,
+        batch_number: data.batch_number,
+        manufacture_date: data.manufacture_date,
+        expiry_date: data.expiry_date,
         is_increase: isIncrease ? 1 : 0,
         is_decrease: isDecrease ? 1 : 0,
         taxable: totals.taxable,
         cgst_amount: totals.cgst,
         sgst_amount: totals.sgst,
         igst_amount: totals.igst,
-        total: totals.total, // This is the GST-inclusive total
+        total: totals.total,
         gst_credit: totals.gstCredit
     });
 
@@ -1867,9 +2121,19 @@ function addProductToCart() {
     updateSummary();
 
     // Reset fields
+    resetProductFields();
+
+    Toast.fire({
+        icon: 'success',
+        title: 'Product added to purchase list'
+    });
+}
+
+function resetProductFields() {
+    const select = $('#productSelect');
     select.val(null).trigger('change');
     currentProductId = null;
-    manualPriceUpdate = false;
+    manualPriceUpdate = false; // Reset manual mode flag
     $('#stockDisplay').val('0');
     $('#mrp').val('0');
     $('#discount').val('');
@@ -2008,11 +2272,24 @@ function updateProductsTable() {
 
 // Delete product from cart
 function deleteProduct(itemId) {
-    if (confirm('Are you sure you want to remove this item from the purchase?')) {
-        selectedProducts.delete(itemId);
-        updateProductsTable();
-        updateSummary();
-    }
+    ConfirmToast.fire({
+        icon: 'warning',
+        title: 'Remove Product?',
+        html: 'Are you sure you want to remove this item from the purchase?',
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Yes, remove it',
+        cancelButtonText: 'No, keep it'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            selectedProducts.delete(itemId);
+            updateProductsTable();
+            updateSummary();
+            Toast.fire({
+                icon: 'success',
+                title: 'Product removed from purchase'
+            });
+        }
+    });
 }
 
 // Update purchase summary
@@ -2148,6 +2425,11 @@ function handleBarcodeScan(barcode) {
         $('#productSelect').val(productId).trigger('change');
         updateProductDetails(productId);
         setTimeout(() => $('#mrp').focus(), 100);
+    } else {
+        Toast.fire({
+            icon: 'info',
+            title: 'Product not found for barcode: ' + barcode
+        });
     }
 }
 
@@ -2184,6 +2466,13 @@ function initializeSelect2() {
         width: '100%'
     });
 
+    // Shop select
+    $('.select2-shop').select2({
+        placeholder: '-- Select Location --',
+        allowClear: false,
+        width: '100%'
+    });
+
     // Prepare product data for Select2
     const productOptions = [];
     Object.keys(PRODUCTS).forEach(productId => {
@@ -2204,7 +2493,7 @@ function initializeSelect2() {
     });
 
     // Product select with custom template
-    $('.select2-products').select2({
+    $('#productSelect').select2({
         placeholder: '-- Type to search product --',
         allowClear: true,
         width: '100%',
@@ -2327,14 +2616,30 @@ function setupFormValidation() {
     $('#purchaseForm').on('submit', function(e) {
         if (selectedProducts.size === 0) {
             e.preventDefault();
-            alert('Please add at least one product to the purchase.');
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please add at least one product to the purchase.'
+            });
             return false;
         }
         
         if (!$('select[name="manufacturer_id"]').val()) {
             e.preventDefault();
-            alert('Please select a supplier.');
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please select a supplier.'
+            });
             $('select[name="manufacturer_id"]').focus();
+            return false;
+        }
+        
+        if (!$('select[name="shop_id"]').val()) {
+            e.preventDefault();
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please select a location to receive stock.'
+            });
+            $('select[name="shop_id"]').focus();
             return false;
         }
         
@@ -2342,6 +2647,268 @@ function setupFormValidation() {
         return true;
     });
 }
+
+// ==============================================
+// QUICK ADD PRODUCT FUNCTIONS
+// ==============================================
+
+// Open Quick Add Product Modal
+function openQuickAddProductModal() {
+    // Reset form
+    $('#quickAddProductForm')[0].reset();
+    $('#quickSubcategory').html('<option value="">None</option>');
+    $('#quickProductCode').val('');
+    $('#quickBarcode').val('');
+    $('#quickMRP').val('');
+    $('#quickPurchasePrice').val('');
+    $('#quickRetailValue').val('');
+    $('#quickWholesaleValue').val('');
+    $('#quickHSN').val('');
+    
+    // Show modal
+    $('#quickAddProductModal').modal('show');
+}
+
+// Load subcategories when category changes
+$('#quickCategory').on('change', function() {
+    const categoryId = $(this).val();
+    const subcategorySelect = $('#quickSubcategory');
+    
+    if (!categoryId) {
+        subcategorySelect.html('<option value="">None</option>');
+        return;
+    }
+    
+    // Fetch subcategories
+    $.ajax({
+        url: 'ajax/get_subcategories.php',
+        method: 'GET',
+        data: { category_id: categoryId, business_id: '<?= $current_business_id ?>' },
+        dataType: 'json',
+        success: function(response) {
+            let options = '<option value="">None</option>';
+            if (response.success && response.subcategories && response.subcategories.length > 0) {
+                response.subcategories.forEach(function(subcat) {
+                    options += `<option value="${subcat.id}">${subcat.subcategory_name}</option>`;
+                });
+            }
+            subcategorySelect.html(options);
+        },
+        error: function() {
+            subcategorySelect.html('<option value="">None</option>');
+        }
+    });
+});
+
+// Update HSN when GST is selected
+$('#quickGST').on('change', function() {
+    const selected = $(this).find(':selected');
+    const hsn = selected.data('hsn');
+    if (hsn) {
+        $('#quickHSN').val(hsn);
+    }
+});
+
+// Generate barcode for quick add
+function generateQuickBarcode() {
+    const prefix = '89';
+    const random = Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
+    const barcode = prefix + random;
+    $('#quickBarcode').val(barcode);
+    Toast.fire({
+        icon: 'success',
+        title: 'Barcode generated'
+    });
+}
+
+// Auto-generate product code if empty
+function generateQuickProductCode(name) {
+    if (!name) return '';
+    const prefix = name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return prefix + random;
+}
+
+// Save quick product via AJAX
+function saveQuickProduct() {
+    // Validate required fields
+    const categoryId = $('#quickCategory').val();
+    const productName = $('#quickProductName').val().trim();
+    const mrp = parseFloat($('#quickMRP').val()) || 0;
+    const purchasePrice = parseFloat($('#quickPurchasePrice').val()) || 0;
+    
+    if (!categoryId) {
+        Toast.fire({
+            icon: 'warning',
+            title: 'Please select a category'
+        });
+        return;
+    }
+    
+    if (!productName) {
+        Toast.fire({
+            icon: 'warning',
+            title: 'Please enter product name'
+        });
+        $('#quickProductName').focus();
+        return;
+    }
+    
+    if (mrp <= 0) {
+        Toast.fire({
+            icon: 'warning',
+            title: 'MRP must be greater than 0'
+        });
+        $('#quickMRP').focus();
+        return;
+    }
+    
+    if (purchasePrice <= 0) {
+        Toast.fire({
+            icon: 'warning',
+            title: 'Purchase price must be greater than 0'
+        });
+        $('#quickPurchasePrice').focus();
+        return;
+    }
+    
+    // Auto-generate product code if empty
+    let productCode = $('#quickProductCode').val().trim();
+    if (!productCode) {
+        productCode = generateQuickProductCode(productName);
+        $('#quickProductCode').val(productCode);
+    }
+    
+    // Prepare data
+    const gstId = $('#quickGST').val();
+    const gstData = gstId ? $('#quickGST').find(':selected') : null;
+    
+    const formData = {
+        category_id: categoryId,
+        subcategory_id: $('#quickSubcategory').val() || null,
+        product_name: productName,
+        product_code: productCode,
+        barcode: $('#quickBarcode').val().trim() || null,
+        unit: $('#quickUnit').val(),
+        secondary_unit: $('#quickSecondaryUnit').val().trim() || null,
+        sec_unit_conversion: parseFloat($('#quickConversion').val()) || null,
+        mrp: mrp,
+        stock_price: purchasePrice,
+        gst_id: gstId || null,
+        hsn_code: $('#quickHSN').val().trim() || null,
+        retail_price_type: $('#quickRetailType').val(),
+        retail_price_value: parseFloat($('#quickRetailValue').val()) || 0,
+        wholesale_price_type: $('#quickWholesaleType').val(),
+        wholesale_price_value: parseFloat($('#quickWholesaleValue').val()) || 0,
+        min_stock_level: parseInt($('#quickMinStock').val()) || 10,
+        description: $('#quickDescription').val().trim() || null,
+        business_id: '<?= $current_business_id ?>',
+        user_id: '<?= $user_id ?>'
+    };
+    
+    // Add GST rates if selected
+    if (gstData && gstData.length) {
+        formData.cgst_rate = parseFloat(gstData.data('cgst')) || 0;
+        formData.sgst_rate = parseFloat(gstData.data('sgst')) || 0;
+        formData.igst_rate = parseFloat(gstData.data('igst')) || 0;
+    } else {
+        formData.cgst_rate = 0;
+        formData.sgst_rate = 0;
+        formData.igst_rate = 0;
+    }
+    
+    // Show loading
+    const saveBtn = $(event.target);
+    const originalText = saveBtn.html();
+    saveBtn.html('<i class="bx bx-loader bx-spin me-2"></i> Saving...').prop('disabled', true);
+    
+    // Send AJAX request
+    $.ajax({
+        url: 'ajax/quick_add_product.php',
+        method: 'POST',
+        data: formData,
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                // Close modal
+                $('#quickAddProductModal').modal('hide');
+                
+                // Add new product to PRODUCTS object
+                const newProduct = response.product;
+                PRODUCTS[newProduct.id] = newProduct;
+                
+                // Add to barcode map if barcode exists
+                if (newProduct.barcode) {
+                    BARCODE_MAP[newProduct.barcode] = newProduct.id;
+                }
+                BARCODE_MAP[newProduct.code] = newProduct.id;
+                
+                // Update Select2 with new product
+                updateSelect2WithNewProduct(newProduct);
+                
+                // Select the new product in dropdown
+                $('#productSelect').val(newProduct.id).trigger('change');
+                
+                // Show success message
+                Toast.fire({
+                    icon: 'success',
+                    title: 'Product added successfully!'
+                });
+            } else {
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Error: ' + (response.message || 'Failed to add product')
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            Toast.fire({
+                icon: 'error',
+                title: 'Error: ' + error
+            });
+            console.error('Quick add error:', xhr.responseText);
+        },
+        complete: function() {
+            saveBtn.html(originalText).prop('disabled', false);
+        }
+    });
+}
+
+// Update Select2 dropdown with new product
+function updateSelect2WithNewProduct(product) {
+    const select = $('#productSelect');
+    
+    // Create new option for Select2
+    const newOption = new Option(`${product.name} (${product.code})`, product.id, true, true);
+    
+    // Append to select
+    select.append(newOption);
+    
+    // Refresh Select2
+    select.trigger('change');
+    
+    // Re-initialize Select2 with updated data
+    select.select2('destroy');
+    initializeSelect2();
+    
+    // Select the new product
+    select.val(product.id).trigger('change');
+}
+
+// Show success/error messages
+<?php if (isset($_GET['success'])): ?>
+Toast.fire({
+    icon: 'success',
+    title: 'Purchase <strong><?= htmlspecialchars($_GET['po'] ?? 'Order') ?></strong> created successfully!'
+});
+<?php endif; ?>
+
+<?php if ($error): ?>
+Toast.fire({
+    icon: 'error',
+    title: '<?= addslashes($error) ?>'
+});
+<?php endif; ?>
 
 // Initialize everything when document is ready
 $(document).ready(function() {
@@ -2362,15 +2929,26 @@ $(document).ready(function() {
     // Add product button click
     $('#addProductBtn').on('click', addProductToCart);
     
+    // Set default shop
+    $('select[name="shop_id"]').val('<?= $shop_id ?>').trigger('change');
+    
     // Auto-focus on product search
     setTimeout(() => {
         $('.select2-products').select2('open');
     }, 500);
     
-    // Listen for price calculations
-    $('#mrp, #discount, #quantity, #cgstRate, #sgstRate, #igstRate').on('input', function() {
+    // Discount input handling
+    $('#discount').on('input', function() {
         if (currentProductId) {
+            // When discount is changed manually, switch to auto mode
             manualPriceUpdate = false;
+            updatePriceCalculations();
+        }
+    });
+    
+    // MRP and other fields input handling
+    $('#mrp, #quantity, #cgstRate, #sgstRate, #igstRate').on('input', function() {
+        if (currentProductId && !manualPriceUpdate) {
             updatePriceCalculations();
         }
     });
@@ -2378,6 +2956,7 @@ $(document).ready(function() {
     // Manual purchase price input
     $('#purchasePrice').on('input', function() {
         if (currentProductId) {
+            // When purchase price is changed manually, switch to manual mode
             manualPriceUpdate = true;
             updatePriceCalculations();
         }
@@ -2421,6 +3000,12 @@ $(document).ready(function() {
         if (e.altKey && e.key === 'a') {
             e.preventDefault();
             addProductToCart();
+        }
+        
+        // Alt+Q to open quick add modal
+        if (e.altKey && e.key === 'q') {
+            e.preventDefault();
+            openQuickAddProductModal();
         }
     });
     

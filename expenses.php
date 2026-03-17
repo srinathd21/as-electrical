@@ -191,11 +191,9 @@ if ($current_shop_id) {
                                 </small>
                             </h4>
                             <div class="d-flex gap-2">
-                                <a href="expenses_export.php?<?= htmlspecialchars($_SERVER['QUERY_STRING'] ?? '') ?>" 
-                                   class="btn btn-outline-secondary" 
-                                   id="exportBtn">
+                                <button class="btn btn-outline-secondary" onclick="exportExpenses()">
                                     <i class="bx bx-download me-1"></i> Export Excel
-                                </a>
+                                </button>
                                 <a href="expense_add.php" class="btn btn-primary">
                                     <i class="bx bx-plus-circle me-1"></i> Add Expense
                                 </a>
@@ -376,18 +374,7 @@ if ($current_shop_id) {
                                 </thead>
                                 <tbody>
                                     <?php if (empty($expenses)): ?>
-                                    <tr>
-                                        <td colspan="<?= ($user_role === 'admin') ? '6' : '5' ?>" class="text-center py-5">
-                                            <div class="empty-state">
-                                                <i class="bx bx-data fs-1 text-muted"></i>
-                                                <h5 class="mt-3">No expenses found</h5>
-                                                <p class="text-muted">Try adjusting your filters or add a new expense</p>
-                                                <a href="expense_add.php" class="btn btn-primary mt-2">
-                                                    <i class="bx bx-plus-circle me-1"></i> Add Expense
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    
                                     <?php else: 
                                         $total = 0;
                                         foreach ($expenses as $e): 
@@ -575,111 +562,32 @@ if ($current_shop_id) {
     </div>
 </div>
 
-<!-- View Modal -->
-<div class="modal fade" id="viewExpenseModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bx bx-credit-card me-2"></i>
-                    Expense Details
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="expenseDetails">
-                <div class="text-center py-4">
-                    <i class="bx bx-loader bx-spin fs-1 text-muted"></i>
-                    <p class="mt-2">Loading expense details...</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bx bx-x me-1"></i>Close
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <?php include 'includes/rightbar.php'; ?>
 <?php include 'includes/scripts.php'; ?>
 
 <script>
-// Global functions - defined outside document.ready
-function viewExpense(id) {
-    const modalElement = document.getElementById('viewExpenseModal');
-    if (!modalElement) {
-        console.error('View modal not found');
-        return;
-    }
-    
-    // Show modal with loading state
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
-    
-    // Fetch expense details
-    fetch('ajax_get_expense.php?id=' + id)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.text();
-        })
-        .then(html => {
-            document.getElementById('expenseDetails').innerHTML = html;
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById('expenseDetails').innerHTML = 
-                '<div class="alert alert-danger m-3">Failed to load expense details. Please try again.</div>';
-        });
-}
-
-function confirmDelete(id, desc, amount) {
-    // Check if modal elements exist
-    const deleteId = document.getElementById('deleteExpenseId');
-    const deleteDesc = document.getElementById('deleteDesc');
-    const deleteAmount = document.getElementById('deleteAmount');
-    const modalElement = document.getElementById('deleteExpenseModal');
-    
-    if (!deleteId || !deleteDesc || !deleteAmount || !modalElement) {
-        console.error('Delete modal elements not found');
-        alert('Error: Could not open delete modal');
-        return;
-    }
-    
-    deleteId.value = id;
-    deleteDesc.textContent = desc;
-    deleteAmount.textContent = parseFloat(amount).toFixed(2);
-    
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
-}
-
 $(document).ready(function() {
-    // Initialize DataTables if table exists and has data
-    if ($('#expensesTable').length && $('#expensesTable tbody tr').length > 1) {
-        $('#expensesTable').DataTable({
-            responsive: true,
-            pageLength: 25,
-            order: [[0, 'desc']],
-            dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
-                 "<'row'<'col-sm-12'tr>>" +
-                 "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-            language: {
-                search: "Search in table:",
-                lengthMenu: "Show _MENU_ entries",
-                info: "Showing _START_ to _END_ of _TOTAL_ expenses",
-                infoFiltered: "(filtered from <?= $stats['total_expenses'] ?> total expenses)",
-                paginate: {
-                    previous: "<i class='bx bx-chevron-left'></i>",
-                    next: "<i class='bx bx-chevron-right'></i>"
-                }
+    // Initialize DataTables
+    $('#expensesTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        order: [[0, 'desc']],
+        dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+             "<'row'<'col-sm-12'tr>>" +
+             "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+        language: {
+            search: "Search in table:",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ expenses",
+            infoFiltered: "(filtered from <?= $stats['total_expenses'] ?> total expenses)",
+            paginate: {
+                previous: "<i class='bx bx-chevron-left'></i>",
+                next: "<i class='bx bx-chevron-right'></i>"
             }
-        });
-    }
+        }
+    });
 
-    // Initialize tooltips
+    // Tooltips
     $('[data-bs-toggle="tooltip"]').tooltip();
 
     // Real-time search debounce
@@ -700,30 +608,47 @@ $(document).ready(function() {
         function() { $(this).removeClass('bg-light'); }
     );
 
+    // Export function
+    window.exportExpenses = function() {
+        const btn = event.target.closest('button');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i> Exporting...';
+        btn.disabled = true;
+        
+        // Build export URL with current search parameters
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = 'expenses_export.php' + (params.toString() ? '?' + params.toString() : '');
+        
+        window.location = exportUrl;
+        
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }, 3000);
+    };
+
     // Auto-close alerts after 5 seconds
     setTimeout(() => {
         $('.alert').alert('close');
     }, 5000);
-
-    // Export button loading state
-    $('#exportBtn').on('click', function(e) {
-        const $btn = $(this);
-        const originalText = $btn.html();
-        
-        // Show loading state
-        $btn.html('<i class="bx bx-loader bx-spin me-1"></i> Exporting...');
-        $btn.addClass('disabled');
-        
-        // Reset after 2 seconds (download will have started)
-        setTimeout(() => {
-            $btn.html(originalText);
-            $btn.removeClass('disabled');
-        }, 2000);
-        
-        // Let the link work normally
-        return true;
-    });
 });
+
+function confirmDelete(id, desc, amount) {
+    document.getElementById('deleteExpenseId').value = id;
+    document.getElementById('deleteDesc').textContent = desc;
+    document.getElementById('deleteAmount').textContent = parseFloat(amount).toFixed(2);
+    new bootstrap.Modal(document.getElementById('deleteExpenseModal')).show();
+}
+
+function viewExpense(id) {
+    fetch(`ajax_get_expense.php?id=${id}`)
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('expenseDetails').innerHTML = html;
+            new bootstrap.Modal(document.getElementById('viewExpenseModal')).show();
+        });
+}
 </script>
 
 <style>
@@ -782,6 +707,27 @@ $(document).ready(function() {
     }
 }
 </style>
+
+<!-- View Modal -->
+<div class="modal fade" id="viewExpenseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bx bx-credit-card me-2"></i>
+                    Expense Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="expenseDetails"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bx bx-x me-1"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

@@ -27,11 +27,6 @@ $ecommerLogoUrl = $baseUrl . "billing/ecom.png";
 function sendWelcomeEmail($to, $username, $plainPassword, $fullName, $role, $shopName, $businessName) {
     global $baseUrl, $ecommerLogoUrl;
     
-    // Don't send email if no email address provided
-    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
-    
     $subject = "Welcome to Ecommer - Your Account is Ready!";
     
     $roleDisplay = ucfirst(str_replace('_', ' ', $role));
@@ -98,11 +93,6 @@ function sendWelcomeEmail($to, $username, $plainPassword, $fullName, $role, $sho
 
 function sendAccountUpdateEmail($to, $username, $fullName, $role, $shopName, $businessName, $isActive, $passwordUpdated = false) {
     global $baseUrl, $ecommerLogoUrl;
-    
-    // Don't send email if no email address provided
-    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
     
     $subject = "Ecommer Account Updated";
     $statusText = $isActive ? "activated" : "deactivated";
@@ -203,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 case 'add':
                     // Validate and add new user
                     $username = trim($_POST['username']);
-                    $email = !empty($_POST['email']) ? trim($_POST['email']) : null;
+                    $email = trim($_POST['email']);
                     $full_name = trim($_POST['full_name']);
                     $role = $_POST['role'];
                     $phone = trim($_POST['phone']);
@@ -211,20 +201,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $plainPassword = $_POST['password'];
                     
                     // Validate inputs
-                    if (empty($username) || empty($full_name) || empty($phone) || empty($plainPassword)) {
-                        $error = "Username, Full Name, Phone Number, and Password are required!";
+                    if (empty($username) || empty($email) || empty($full_name) || empty($plainPassword)) {
+                        $error = "All required fields must be filled!";
                         break;
                     }
                     
-                    // Validate email if provided
-                    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $error = "Invalid email format!";
-                        break;
-                    }
-                    
-                    // Validate phone (basic validation - adjust as needed)
-                    if (strlen($phone) < 10) {
-                        $error = "Phone number must be at least 10 digits!";
                         break;
                     }
                     
@@ -241,21 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         break;
                     }
                     
-                    // Check if email exists in same business (only if email is provided)
-                    if (!empty($email)) {
-                        $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ? AND business_id = ?");
-                        $checkEmail->execute([$email, $business_id]);
-                        if ($checkEmail->fetch()) {
-                            $error = "Email already exists! Please use a different email.";
-                            break;
-                        }
-                    }
-                    
-                    // Check if phone exists in same business
-                    $checkPhone = $pdo->prepare("SELECT id FROM users WHERE phone = ? AND business_id = ?");
-                    $checkPhone->execute([$phone, $business_id]);
-                    if ($checkPhone->fetch()) {
-                        $error = "Phone number already exists! Please use a different phone number.";
+                    // Check if email exists in same business
+                    $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ? AND business_id = ?");
+                    $checkEmail->execute([$email, $business_id]);
+                    if ($checkEmail->fetch()) {
+                        $error = "Email already exists! Please use a different email.";
                         break;
                     }
                     
@@ -290,20 +263,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $accessStmt->execute([$new_user_id, $shop_id]);
                     }
                     
-                    // Send welcome email only if email is provided
-                    $emailSent = false;
-                    if (!empty($email)) {
-                        $emailSent = sendWelcomeEmail($email, $username, $plainPassword, $full_name, $role, $shopName, $businessName);
-                    }
+                    // Send welcome email
+                    $emailSent = sendWelcomeEmail($email, $username, $plainPassword, $full_name, $role, $shopName, $businessName);
                     
-                    $success = "User added successfully!" . ($emailSent ? " Welcome email sent to user." : ($email ? " (Note: Email could not be sent)" : ""));
+                    $success = "User added successfully!" . ($emailSent ? " Welcome email sent to user." : " (Note: Email could not be sent)");
                     break;
                     
                 case 'edit':
                     // Update existing user
                     $id = (int)$_POST['user_id'];
                     $username = trim($_POST['username']);
-                    $email = !empty($_POST['email']) ? trim($_POST['email']) : null;
+                    $email = trim($_POST['email']);
                     $full_name = trim($_POST['full_name']);
                     $role = $_POST['role'];
                     $phone = trim($_POST['phone']);
@@ -312,20 +282,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $passwordUpdated = !empty($_POST['password']);
                     
                     // Validate inputs
-                    if (empty($username) || empty($full_name) || empty($phone)) {
-                        $error = "Username, Full Name, and Phone Number are required!";
+                    if (empty($username) || empty($email) || empty($full_name)) {
+                        $error = "All required fields must be filled!";
                         break;
                     }
                     
-                    // Validate email if provided
-                    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $error = "Invalid email format!";
-                        break;
-                    }
-                    
-                    // Validate phone (basic validation - adjust as needed)
-                    if (strlen($phone) < 10) {
-                        $error = "Phone number must be at least 10 digits!";
                         break;
                     }
                     
@@ -337,26 +300,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         break;
                     }
                     
-                    // Check if email exists for other users in same business (only if email is provided)
-                    if (!empty($email)) {
-                        $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND business_id = ?");
-                        $checkEmail->execute([$email, $id, $business_id]);
-                        if ($checkEmail->fetch()) {
-                            $error = "Email already exists! Please use a different email.";
-                            break;
-                        }
-                    }
-                    
-                    // Check if phone exists for other users in same business
-                    $checkPhone = $pdo->prepare("SELECT id FROM users WHERE phone = ? AND id != ? AND business_id = ?");
-                    $checkPhone->execute([$phone, $id, $business_id]);
-                    if ($checkPhone->fetch()) {
-                        $error = "Phone number already exists! Please use a different phone number.";
+                    // Check if email exists for other users in same business
+                    $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND business_id = ?");
+                    $checkEmail->execute([$email, $id, $business_id]);
+                    if ($checkEmail->fetch()) {
+                        $error = "Email already exists! Please use a different email.";
                         break;
                     }
                     
                     // Get current user data before update (for email)
-                    $currentStmt = $pdo->prepare("SELECT username, email, full_name, role, shop_id, is_active, phone FROM users WHERE id = ? AND business_id = ?");
+                    $currentStmt = $pdo->prepare("SELECT username, email, full_name, role, shop_id, is_active FROM users WHERE id = ? AND business_id = ?");
                     $currentStmt->execute([$id, $business_id]);
                     $currentUser = $currentStmt->fetch();
                     
@@ -406,15 +359,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $accessStmt->execute([$id, $shop_id]);
                     }
                     
-                    // Send update notification email if something changed and email exists
-                    if (!empty($email) && 
-                        ($currentUser['username'] != $username || 
+                    // Send update notification email if something changed
+                    if ($currentUser['username'] != $username || 
                         $currentUser['email'] != $email || 
                         $currentUser['full_name'] != $full_name || 
                         $currentUser['role'] != $role || 
                         $currentUser['shop_id'] != $shop_id || 
                         $currentUser['is_active'] != $is_active ||
-                        $passwordUpdated)) {
+                        $passwordUpdated) {
                         
                         $emailSent = sendAccountUpdateEmail($email, $username, $full_name, $role, $shopName, $businessName, $is_active, $passwordUpdated);
                         $emailNote = $emailSent ? " Update notification sent to user." : " (Note: Email could not be sent)";
@@ -455,8 +407,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ? AND business_id = ?");
                     $stmt->execute([$id, $business_id]);
                     
-                    // Send deactivation email only if email exists
-                    if ($userData && !empty($userData['email'])) {
+                    // Send deactivation email
+                    if ($userData) {
                         $emailSent = sendAccountUpdateEmail($userData['email'], $userData['username'], $userData['full_name'], $userData['role'], $shopName, $businessName, false);
                         $emailNote = $emailSent ? " Deactivation notification sent to user." : " (Note: Email could not be sent)";
                     } else {
@@ -490,8 +442,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("UPDATE users SET is_active = 1 WHERE id = ? AND business_id = ?");
                     $stmt->execute([$id, $business_id]);
                     
-                    // Send activation email only if email exists
-                    if ($userData && !empty($userData['email'])) {
+                    // Send activation email
+                    if ($userData) {
                         $emailSent = sendAccountUpdateEmail($userData['email'], $userData['username'], $userData['full_name'], $userData['role'], $shopName, $businessName, true);
                         $emailNote = $emailSent ? " Activation notification sent to user." : " (Note: Email could not be sent)";
                     } else {
@@ -661,6 +613,8 @@ $stats = $stats_stmt->fetch();
 <html lang="en">
 <?php $page_title = "Users Management"; ?>
 <?php include 'includes/head.php'; ?>
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
 <body data-sidebar="dark">
 <div id="layout-wrapper">
@@ -695,14 +649,14 @@ $stats = $stats_stmt->fetch();
 
                 <!-- Messages -->
                 <?php if ($success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="bx bx-check-circle me-2"></i><?= $success ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php endif; ?>
                 
                 <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="bx bx-error-circle me-2"></i><?= $error ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
@@ -965,7 +919,7 @@ $stats = $stats_stmt->fetch();
                                                         data-id="<?= $u['id'] ?>"
                                                         data-full_name="<?= htmlspecialchars($u['full_name']) ?>"
                                                         data-username="<?= htmlspecialchars($u['username']) ?>"
-                                                        data-email="<?= htmlspecialchars($u['email'] ?? '') ?>"
+                                                        data-email="<?= htmlspecialchars($u['email']) ?>"
                                                         data-phone="<?= htmlspecialchars($u['phone'] ?? '') ?>"
                                                         data-role="<?= htmlspecialchars($u['role']) ?>"
                                                         data-shop_id="<?= $u['shop_id'] ?? '' ?>"
@@ -975,22 +929,24 @@ $stats = $stats_stmt->fetch();
                                                     <i class="bx bx-edit"></i>
                                                 </button>
                                                 <?php if ($u['is_active'] && $u['id'] != $user_id): ?>
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('Deactivate this user? This will prevent them from logging in.');">
+                                                <form method="POST" class="d-inline deactivate-form">
                                                     <input type="hidden" name="action" value="deactivate">
                                                     <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                                    <button type="submit" 
-                                                            class="btn btn-outline-secondary"
+                                                    <button type="button" 
+                                                            class="btn btn-outline-secondary deactivate-btn"
+                                                            data-user-name="<?= htmlspecialchars($u['full_name']) ?>"
                                                             data-bs-toggle="tooltip"
                                                             title="Deactivate User">
                                                         <i class="bx bx-user-minus"></i>
                                                     </button>
                                                 </form>
                                                 <?php elseif (!$u['is_active'] && $u['id'] != $user_id): ?>
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('Activate this user?');">
+                                                <form method="POST" class="d-inline activate-form">
                                                     <input type="hidden" name="action" value="activate">
                                                     <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                                    <button type="submit" 
-                                                            class="btn btn-outline-success"
+                                                    <button type="button" 
+                                                            class="btn btn-outline-success activate-btn"
+                                                            data-user-name="<?= htmlspecialchars($u['full_name']) ?>"
                                                             data-bs-toggle="tooltip"
                                                             title="Activate User">
                                                         <i class="bx bx-user-check"></i>
@@ -998,11 +954,12 @@ $stats = $stats_stmt->fetch();
                                                 </form>
                                                 <?php endif; ?>
                                                 <?php if ($u['id'] != $user_id): ?>
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('WARNING: This will permanently delete the user and all associated data! This action cannot be undone.\n\nAre you absolutely sure?');">
+                                                <form method="POST" class="d-inline delete-form">
                                                     <input type="hidden" name="action" value="delete">
                                                     <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                                    <button type="submit" 
-                                                            class="btn btn-outline-danger"
+                                                    <button type="button" 
+                                                            class="btn btn-outline-danger delete-btn"
+                                                            data-user-name="<?= htmlspecialchars($u['full_name']) ?>"
                                                             data-bs-toggle="tooltip"
                                                             title="Permanently Delete User">
                                                         <i class="bx bx-trash"></i>
@@ -1049,14 +1006,12 @@ $stats = $stats_stmt->fetch();
                             <input type="text" class="form-control" name="username" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" class="form-control" name="email">
-                            <small class="text-muted">Optional - If provided, welcome email will be sent</small>
+                            <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="email" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                            <input type="tel" class="form-control" name="phone" required minlength="10">
-                            
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="phone">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Password <span class="text-danger">*</span></label>
@@ -1066,7 +1021,7 @@ $stats = $stats_stmt->fetch();
                                     <i class="bx bx-show"></i>
                                 </button>
                             </div>
-                            <small class="text-muted">Minimum 6 characters.</small>
+                            <small class="text-muted">Minimum 6 characters. A welcome email with credentials will be sent.</small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Role <span class="text-danger">*</span></label>
@@ -1121,14 +1076,12 @@ $stats = $stats_stmt->fetch();
                             <input type="text" class="form-control" name="username" id="edit_username" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" class="form-control" name="email" id="edit_email">
-                            <small class="text-muted">Optional</small>
+                            <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="email" id="edit_email" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                            <input type="tel" class="form-control" name="phone" id="edit_phone" required minlength="10">
-                            <small class="text-muted">Minimum 10 digits</small>
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="phone" id="edit_phone">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Password</label>
@@ -1176,6 +1129,8 @@ $stats = $stats_stmt->fetch();
 
 <?php include 'includes/rightbar.php'; ?>
 <?php include 'includes/scripts.php'; ?>
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 $(document).ready(function() {
@@ -1225,10 +1180,88 @@ $(document).ready(function() {
         $('#edit_password').val('');
     });
 
-    // Auto-close alerts after 5 seconds
-    setTimeout(() => {
-        $('.alert').alert('close');
-    }, 5000);
+    // Deactivate confirmation
+    $('.deactivate-btn').on('click', function() {
+        const form = $(this).closest('form.deactivate-form');
+        const userName = $(this).data('user-name');
+        
+        Swal.fire({
+            title: 'Deactivate User?',
+            html: `Are you sure you want to deactivate <strong>${userName}</strong>?<br><br>This will prevent the user from logging in. You can activate them again later.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, deactivate',
+            cancelButtonText: 'Cancel',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+    
+    // Activate confirmation
+    $('.activate-btn').on('click', function() {
+        const form = $(this).closest('form.activate-form');
+        const userName = $(this).data('user-name');
+        
+        Swal.fire({
+            title: 'Activate User?',
+            html: `Are you sure you want to activate <strong>${userName}</strong>?<br><br>This will allow the user to log in again.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, activate',
+            cancelButtonText: 'Cancel',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+    
+    // Delete confirmation with extra warning
+    $('.delete-btn').on('click', function() {
+        const form = $(this).closest('form.delete-form');
+        const userName = $(this).data('user-name');
+        
+        Swal.fire({
+            title: 'Permanently Delete User?',
+            html: `<span class="text-danger"><strong>WARNING:</strong> This action cannot be undone!</span><br><br>
+                   You are about to permanently delete <strong>${userName}</strong> and all associated data.`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete permanently',
+            cancelButtonText: 'Cancel',
+            showCloseButton: true,
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Double-check with another confirmation
+                Swal.fire({
+                    title: 'Are you absolutely sure?',
+                    html: `This action is irreversible. All data for <strong>${userName}</strong> will be lost forever.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Yes, delete everything',
+                    cancelButtonText: 'Cancel',
+                    reverseButtons: true
+                }).then((secondResult) => {
+                    if (secondResult.isConfirmed) {
+                        form.submit();
+                    }
+                });
+            }
+        });
+    });
 });
 
 // Toggle password visibility
@@ -1247,70 +1280,63 @@ function togglePassword(inputId) {
     }
 }
 
-// Form validation
+// SweetAlert2 Form Validation
 document.getElementById('addUserForm')?.addEventListener('submit', function(e) {
     const password = this.querySelector('[name="password"]');
-    const phone = this.querySelector('[name="phone"]');
-    
     if (password && password.value.length < 6) {
         e.preventDefault();
-        alert('Password must be at least 6 characters long!');
+        Swal.fire({
+            icon: 'error',
+            title: 'Password Too Short',
+            text: 'Password must be at least 6 characters long!',
+            confirmButtonColor: '#5b73e8',
+            confirmButtonText: 'OK'
+        });
         password.focus();
-        return false;
-    }
-    
-    if (phone && phone.value.length < 10) {
-        e.preventDefault();
-        alert('Phone number must be at least 10 digits long!');
-        phone.focus();
-        return false;
-    }
-    
-    // Allow only digits, spaces, +, - for phone
-    const phoneRegex = /^[\d\s\+\-]{10,}$/;
-    if (phone && !phoneRegex.test(phone.value)) {
-        e.preventDefault();
-        alert('Please enter a valid phone number (minimum 10 digits, can include +, -, spaces)');
-        phone.focus();
-        return false;
     }
 });
 
 document.getElementById('editUserForm')?.addEventListener('submit', function(e) {
     const password = this.querySelector('[name="password"]');
-    const phone = this.querySelector('[name="phone"]');
-    
     if (password && password.value && password.value.length < 6) {
         e.preventDefault();
-        alert('Password must be at least 6 characters long!');
+        Swal.fire({
+            icon: 'error',
+            title: 'Password Too Short',
+            text: 'Password must be at least 6 characters long!',
+            confirmButtonColor: '#5b73e8',
+            confirmButtonText: 'OK'
+        });
         password.focus();
-        return false;
-    }
-    
-    if (phone && phone.value.length < 10) {
-        e.preventDefault();
-        alert('Phone number must be at least 10 digits long!');
-        phone.focus();
-        return false;
-    }
-    
-    // Allow only digits, spaces, +, - for phone
-    const phoneRegex = /^[\d\s\+\-]{10,}$/;
-    if (phone && !phoneRegex.test(phone.value)) {
-        e.preventDefault();
-        alert('Please enter a valid phone number (minimum 10 digits, can include +, -, spaces)');
-        phone.focus();
-        return false;
     }
 });
 
-// Phone number input formatting (optional)
-document.querySelectorAll('input[type="tel"]').forEach(input => {
-    input.addEventListener('input', function(e) {
-        // Remove any non-digit characters except +, space, -
-        this.value = this.value.replace(/[^\d\s\+\-]/g, '');
+// SweetAlert2 for PHP messages
+<?php if ($success): ?>
+$(document).ready(function() {
+    Swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: '<?= addslashes($success) ?>',
+        showConfirmButton: true,
+        confirmButtonColor: '#28a745',
+        timer: 5000,
+        timerProgressBar: true
     });
 });
+<?php endif; ?>
+
+<?php if ($error): ?>
+$(document).ready(function() {
+    Swal.fire({
+        icon: 'error',
+        title: 'Error!',
+        text: '<?= addslashes($error) ?>',
+        showConfirmButton: true,
+        confirmButtonColor: '#dc3545'
+    });
+});
+<?php endif; ?>
 </script>
 
 <style>
@@ -1372,6 +1398,26 @@ document.querySelectorAll('input[type="tel"]').forEach(input => {
     .btn-group .btn {
         width: 100%;
     }
+}
+
+/* SweetAlert2 Custom Styles */
+.swal2-popup {
+    font-family: inherit;
+}
+.swal2-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+.swal2-html-container {
+    font-size: 1rem;
+}
+.swal2-confirm {
+    font-weight: 500;
+    padding: 0.5rem 1.5rem;
+}
+.swal2-cancel {
+    font-weight: 500;
+    padding: 0.5rem 1.5rem;
 }
 </style>
 </body>

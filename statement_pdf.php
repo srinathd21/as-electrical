@@ -216,187 +216,139 @@ $current_user = $user_stmt->fetch();
         @media print {
             body { 
                 margin: 0;
-                padding: 10px;
-                font-size: 11px;
-                line-height: 1.3;
+                padding: 20px;
+                font-size: 12px;
             }
             .no-print { display: none !important; }
             .card { border: 1px solid #ddd !important; box-shadow: none !important; }
-            .table { border-collapse: collapse; width: 100%; }
-            .table th, .table td { 
-                border: 1px solid #000; 
-                padding: 5px 6px; 
-                text-align: left;
-            }
-            .table th {
-                background-color: #f0f0f0 !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-                font-weight: bold;
-            }
+            .table { border-collapse: collapse; }
+            .table th, .table td { padding: 4px 8px; }
             .statement-container { 
                 margin: 0; 
-                padding: 15px;
-                width: 100%;
-                background: white;
+                padding: 0;
+                width: 100% !important;
             }
             .header-section { 
                 border-bottom: 2px solid #333;
-                margin-bottom: 15px;
-                padding-bottom: 10px;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
             }
-            .text-end { text-align: right; }
-            .text-center { text-align: center; }
-            .fw-bold { font-weight: bold; }
-            .border-bottom { border-bottom: 1px solid #333; }
-            .border-top { border-top: 1px solid #333; }
         }
         
         body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f8f9fa;
-            font-size: 12px;
-            line-height: 1.4;
         }
         
         .statement-container {
             max-width: 210mm;
             margin: 20px auto;
             background: white;
-            padding: 20px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 25px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
             position: relative;
         }
         
         .header-section {
-            border-bottom: 2px solid #333;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            border-bottom: 2px solid #dc3545;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
         }
         
         .company-name {
-            font-weight: bold;
-            font-size: 24px;
-            margin-bottom: 5px;
+            color: #dc3545;
+            font-weight: 700;
+            font-size: 1.8rem;
         }
         
         .statement-title {
-            font-weight: bold;
-            font-size: 20px;
-            border-left: 3px solid #333;
-            padding-left: 10px;
+            color: #2c3e50;
+            font-weight: 600;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
         }
         
         .customer-info-box {
-            border: 1px solid #333;
-            padding: 12px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 4px solid #28a745;
+            padding: 15px;
             margin-bottom: 20px;
-            background-color: #fff;
         }
         
         .summary-box {
-            border: 1px solid #333;
-            padding: 10px;
-            text-align: center;
-            background-color: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
         }
         
-        .summary-box h4, .summary-box h6 {
-            margin: 5px 0;
+        .summary-credit {
+            border-left: 4px solid #28a745;
+            background-color: rgba(40, 167, 69, 0.05);
         }
         
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
+        .summary-debit {
+            border-left: 4px solid #dc3545;
+            background-color: rgba(220, 53, 69, 0.05);
         }
         
-        .table th {
-            border: 1px solid #000;
-            padding: 8px 6px;
-            background-color: #f0f0f0;
-            font-weight: bold;
-            text-align: center;
+        .summary-total {
+            border-left: 4px solid #007bff;
+            background-color: rgba(0, 123, 255, 0.05);
         }
         
-        .table td {
-            border: 1px solid #000;
-            padding: 6px 6px;
-            vertical-align: top;
+        .table-header {
+            background-color: #2c3e50;
+            color: white;
         }
         
-        .table tfoot th {
-            background-color: #f0f0f0;
-            font-weight: bold;
+        .invoice-row {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .payment-row {
+            background-color: rgba(40, 167, 69, 0.05);
+        }
+        
+        .adjustment-row {
+            background-color: rgba(255, 193, 7, 0.05);
+        }
+        
+        .balance-positive {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        
+        .balance-negative {
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 5rem;
+            color: rgba(0,0,0,0.1);
+            z-index: 0;
+            white-space: nowrap;
+            pointer-events: none;
         }
         
         .footer-section {
-            border-top: 1px solid #333;
-            margin-top: 25px;
+            border-top: 1px dashed #ddd;
+            margin-top: 30px;
             padding-top: 15px;
-            font-size: 10px;
+            font-size: 0.85rem;
+            color: #6c757d;
         }
         
-        .badge {
-            padding: 2px 5px;
-            border: 1px solid #333;
-            font-size: 10px;
-            background-color: #fff;
-            color: #000;
-            font-weight: normal;
+        .page-break {
+            page-break-after: always;
         }
         
-        .progress {
-            height: 8px;
-            background-color: #f0f0f0;
-            border: 1px solid #333;
-            margin: 5px 0;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background-color: #333;
-        }
-        
-        .border-left {
-            border-left: 1px solid #333;
-        }
-        
-        .border-right {
-            border-right: 1px solid #333;
-        }
-        
-        .border-top {
-            border-top: 2px solid #333;
-        }
-        
-        .border-bottom {
-            border-bottom: 1px solid #333;
-        }
-        
-        hr {
-            border-top: 1px solid #333;
-        }
-        
-        .alert-light {
-            background-color: #f9f9f9;
-            border: 1px solid #333;
-            padding: 8px 12px;
-        }
-        
-        /* Remove all colors */
-        * {
-            color: #000 !important;
-            background-color: #fff !important;
-        }
-        
-        .text-success, .text-danger, .text-warning, .text-info, .text-primary {
-            color: #000 !important;
-        }
-        
-        .bg-success, .bg-danger, .bg-warning, .bg-info, .bg-primary {
-            background-color: transparent !important;
-            color: #000 !important;
+        .compact-table th, .compact-table td {
+            padding: 6px 8px;
         }
     </style>
 </head>
@@ -404,19 +356,19 @@ $current_user = $user_stmt->fetch();
     <div class="container-fluid">
         <div class="row no-print mb-4">
             <div class="col-12">
-                <div class="alert alert-secondary d-flex justify-content-between align-items-center">
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
                     <div>
                         <i class="bi bi-info-circle me-2"></i>
                         Click the button below to download or print this statement as PDF
                     </div>
                     <div class="btn-group">
-                        <button class="btn btn-dark" onclick="downloadPDF()">
+                        <button class="btn btn-primary" onclick="downloadPDF()">
                             <i class="bi bi-download me-2"></i>Download PDF
                         </button>
-                        <button class="btn btn-secondary" onclick="printPDF()">
+                        <button class="btn btn-success" onclick="printPDF()">
                             <i class="bi bi-printer me-2"></i>Print PDF
                         </button>
-                        <a href="customer_credit_statement.php?customer_id=<?= $customer_id ?>" class="btn btn-outline-dark">
+                        <a href="customer_credit_statement.php?customer_id=<?= $customer_id ?>" class="btn btn-secondary">
                             <i class="bi bi-arrow-left me-2"></i>Back to Statement
                         </a>
                     </div>
@@ -426,33 +378,48 @@ $current_user = $user_stmt->fetch();
 
         <!-- Statement Content (This will be converted to PDF) -->
         <div id="pdf-content" class="statement-container">
+            <!-- Watermark -->
+            <div class="watermark"><?= htmlspecialchars($business['name'] ?? 'BUSINESS') ?></div>
+            
             <!-- Header Section -->
             <div class="header-section">
                 <div class="row">
                     <div class="col-8">
-                        <div class="company-name">
+                        <h1 class="company-name mb-1">
                             <?= htmlspecialchars($business['name'] ?? 'YOUR BUSINESS NAME') ?>
-                        </div>
+                        </h1>
                         <?php if (!empty($business['address'])): ?>
-                        <div class="mb-1"><?= nl2br(htmlspecialchars($business['address'])) ?></div>
+                        <p class="mb-1" style="color: #666;">
+                            <?= nl2br(htmlspecialchars($business['address'])) ?>
+                        </p>
                         <?php endif; ?>
                         <?php if (!empty($business['phone'])): ?>
-                        <div class="mb-1">Phone: <?= htmlspecialchars($business['phone']) ?></div>
+                        <p class="mb-1" style="color: #666;">
+                            <i class="bi bi-telephone me-1"></i><?= htmlspecialchars($business['phone']) ?>
+                        </p>
                         <?php endif; ?>
                         <?php if (!empty($business['email'])): ?>
-                        <div class="mb-1">Email: <?= htmlspecialchars($business['email']) ?></div>
+                        <p class="mb-1" style="color: #666;">
+                            <i class="bi bi-envelope me-1"></i><?= htmlspecialchars($business['email']) ?>
+                        </p>
                         <?php endif; ?>
                         <?php if (!empty($business['gstin'])): ?>
-                        <div class="mb-0">GSTIN: <?= htmlspecialchars($business['gstin']) ?></div>
+                        <p class="mb-0" style="color: #666;">
+                            <i class="bi bi-card-text me-1"></i>GSTIN: <?= htmlspecialchars($business['gstin']) ?>
+                        </p>
                         <?php endif; ?>
                     </div>
                     <div class="col-4 text-end">
-                        <div class="statement-title">CREDIT STATEMENT</div>
-                        <div class="mt-2">
-                            <div><strong>Statement Date:</strong> <?= date('d M Y') ?></div>
-                            <div><strong>Statement No:</strong> STMT-<?= date('Ymd') . '-' . $customer_id ?></div>
-                            <div><strong>Generated By:</strong> <?= htmlspecialchars($current_user['full_name'] ?? 'System') ?></div>
-                        </div>
+                        <h2 class="statement-title">CREDIT STATEMENT</h2>
+                        <p class="mb-1">
+                            <strong>Statement Date:</strong> <?= date('d M Y') ?>
+                        </p>
+                        <p class="mb-1">
+                            <strong>Statement No:</strong> STMT-<?= date('Ymd') . '-' . $customer_id ?>
+                        </p>
+                        <p class="mb-0">
+                            <strong>Generated By:</strong> <?= htmlspecialchars($current_user['full_name'] ?? 'System') ?>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -461,33 +428,35 @@ $current_user = $user_stmt->fetch();
             <div class="customer-info-box">
                 <div class="row">
                     <div class="col-7">
-                        <h4 class="mb-2 fw-bold"><?= htmlspecialchars($customer['name']) ?></h4>
+                        <h4 class="mb-2"><?= htmlspecialchars($customer['name']) ?></h4>
                         <?php if ($customer['phone']): ?>
-                        <div class="mb-1"><strong>Phone:</strong> <?= htmlspecialchars($customer['phone']) ?></div>
+                        <p class="mb-1"><strong>Phone:</strong> <?= htmlspecialchars($customer['phone']) ?></p>
                         <?php endif; ?>
                         <?php if ($customer['email']): ?>
-                        <div class="mb-1"><strong>Email:</strong> <?= htmlspecialchars($customer['email']) ?></div>
+                        <p class="mb-1"><strong>Email:</strong> <?= htmlspecialchars($customer['email']) ?></p>
                         <?php endif; ?>
                         <?php if ($customer['address']): ?>
-                        <div class="mb-1"><strong>Address:</strong> <?= nl2br(htmlspecialchars($customer['address'])) ?></div>
+                        <p class="mb-1"><strong>Address:</strong> <?= nl2br(htmlspecialchars($customer['address'])) ?></p>
                         <?php endif; ?>
                         <?php if ($customer['gstin']): ?>
-                        <div class="mb-0"><strong>GSTIN:</strong> <?= htmlspecialchars($customer['gstin']) ?></div>
+                        <p class="mb-0"><strong>GSTIN:</strong> <?= htmlspecialchars($customer['gstin']) ?></p>
                         <?php endif; ?>
                     </div>
                     <div class="col-5 text-end">
-                        <div class="p-2 border">
-                            <div><strong>Current Outstanding</strong></div>
-                            <div class="fw-bold" style="font-size: 24px;">₹<?= number_format(abs($total_outstanding), 2) ?></div>
-                            <div class="small">
+                        <div class="p-3" style="background: white; border-radius: 6px; border: 1px solid #dee2e6;">
+                            <h6 class="text-muted mb-1">Current Outstanding</h6>
+                            <h2 class="<?= $total_outstanding > 0 ? 'text-danger' : ($total_outstanding < 0 ? 'text-success' : 'text-muted') ?> mb-0">
+                                ₹<?= number_format(abs($total_outstanding), 2) ?>
+                            </h2>
+                            <p class="mb-0 small">
                                 <?php if ($total_outstanding > 0): ?>
-                                <span class="badge">Customer Owes You</span>
+                                <span class="badge bg-danger">Customer Owes You</span>
                                 <?php elseif ($total_outstanding < 0): ?>
-                                <span class="badge">You Owe Customer</span>
+                                <span class="badge bg-success">You Owe Customer</span>
                                 <?php else: ?>
-                                <span class="badge">No Dues</span>
+                                <span class="badge bg-secondary">No Dues</span>
                                 <?php endif; ?>
-                            </div>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -496,28 +465,34 @@ $current_user = $user_stmt->fetch();
                 <div class="row mt-3">
                     <div class="col-12">
                         <div class="d-flex justify-content-between align-items-center">
-                            <div><strong>Credit Limit Information</strong></div>
-                            <div class="badge">Utilization: <?= number_format($credit_utilization, 1) ?>%</div>
+                            <h6 class="mb-0"><i class="bi bi-credit-card me-2"></i>Credit Limit Information</h6>
+                            <span class="badge bg-<?= $credit_utilization > 80 ? 'danger' : ($credit_utilization > 50 ? 'warning' : 'success') ?>">
+                                Utilization: <?= number_format($credit_utilization, 1) ?>%
+                            </span>
                         </div>
-                        <div class="progress mt-2">
-                            <div class="progress-bar" style="width: <?= min($credit_utilization, 100) ?>%;"></div>
+                        <div class="progress mt-2" style="height: 10px;">
+                            <div class="progress-bar bg-<?= $credit_utilization > 80 ? 'danger' : ($credit_utilization > 50 ? 'warning' : 'success') ?>" 
+                                 style="width: <?= min($credit_utilization, 100) ?>%">
+                            </div>
                         </div>
                         <div class="row mt-2 text-center">
-                            <div class="col-3 border-right">
-                                <div class="small">Limit</div>
-                                <div class="fw-bold">₹<?= number_format($credit_limit, 2) ?></div>
-                            </div>
-                            <div class="col-3 border-right">
-                                <div class="small">Used</div>
-                                <div class="fw-bold">₹<?= number_format($credit_used, 2) ?></div>
-                            </div>
-                            <div class="col-3 border-right">
-                                <div class="small">Available</div>
-                                <div class="fw-bold">₹<?= number_format($available_credit, 2) ?></div>
+                            <div class="col-3">
+                                <small class="text-muted">Limit</small>
+                                <p class="mb-0 fw-bold">₹<?= number_format($credit_limit, 2) ?></p>
                             </div>
                             <div class="col-3">
-                                <div class="small">Status</div>
-                                <div class="fw-bold"><?= $available_credit > 0 ? 'Within Limit' : 'Over Limit' ?></div>
+                                <small class="text-muted">Used</small>
+                                <p class="mb-0 fw-bold text-warning">₹<?= number_format($credit_used, 2) ?></p>
+                            </div>
+                            <div class="col-3">
+                                <small class="text-muted">Available</small>
+                                <p class="mb-0 fw-bold text-success">₹<?= number_format($available_credit, 2) ?></p>
+                            </div>
+                            <div class="col-3">
+                                <small class="text-muted">Status</small>
+                                <p class="mb-0 fw-bold text-<?= $available_credit > 0 ? 'success' : 'danger' ?>">
+                                    <?= $available_credit > 0 ? 'Within Limit' : 'Over Limit' ?>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -528,31 +503,39 @@ $current_user = $user_stmt->fetch();
             <!-- Statement Summary -->
             <div class="row mb-4">
                 <div class="col-3">
-                    <div class="summary-box">
-                        <div>Opening Balance</div>
-                        <div class="fw-bold" style="font-size: 18px;">₹<?= number_format(abs($opening_balance), 2) ?></div>
-                        <div class="small"><?= $opening_balance >= 0 ? 'Credit' : 'Debit' ?></div>
+                    <div class="summary-box summary-credit">
+                        <h6 class="text-muted mb-1">Opening Balance</h6>
+                        <h4 class="<?= $opening_balance >= 0 ? 'text-danger' : 'text-success' ?> mb-0">
+                            ₹<?= number_format(abs($opening_balance), 2) ?>
+                        </h4>
+                        <small class="text-muted">
+                            <?= $opening_balance >= 0 ? 'Credit' : 'Debit' ?>
+                        </small>
                     </div>
                 </div>
                 <div class="col-3">
-                    <div class="summary-box">
-                        <div>Total Credit</div>
-                        <div class="fw-bold" style="font-size: 18px;">₹<?= number_format($total_credit, 2) ?></div>
-                        <div class="small">Added to Account</div>
+                    <div class="summary-box" style="border-left: 4px solid #28a745;">
+                        <h6 class="text-muted mb-1">Total Credit</h6>
+                        <h4 class="text-success mb-0">₹<?= number_format($total_credit, 2) ?></h4>
+                        <small class="text-muted">Added to Account</small>
                     </div>
                 </div>
                 <div class="col-3">
-                    <div class="summary-box">
-                        <div>Total Debit</div>
-                        <div class="fw-bold" style="font-size: 18px;">₹<?= number_format($total_debit, 2) ?></div>
-                        <div class="small">Received from Customer</div>
+                    <div class="summary-box" style="border-left: 4px solid #dc3545;">
+                        <h6 class="text-muted mb-1">Total Debit</h6>
+                        <h4 class="text-danger mb-0">₹<?= number_format($total_debit, 2) ?></h4>
+                        <small class="text-muted">Received from Customer</small>
                     </div>
                 </div>
                 <div class="col-3">
-                    <div class="summary-box">
-                        <div>Closing Balance</div>
-                        <div class="fw-bold" style="font-size: 18px;">₹<?= number_format(abs($closing_balance), 2) ?></div>
-                        <div class="small"><?= $closing_balance >= 0 ? 'Credit (Customer Owes)' : 'Debit (You Owe)' ?></div>
+                    <div class="summary-box summary-total">
+                        <h6 class="text-muted mb-1">Closing Balance</h6>
+                        <h4 class="<?= $closing_balance >= 0 ? 'text-danger' : 'text-success' ?> mb-0">
+                            ₹<?= number_format(abs($closing_balance), 2) ?>
+                        </h4>
+                        <small class="text-muted">
+                            <?= $closing_balance >= 0 ? 'Credit (Customer Owes)' : 'Debit (You Owe)' ?>
+                        </small>
                     </div>
                 </div>
             </div>
@@ -561,6 +544,7 @@ $current_user = $user_stmt->fetch();
             <div class="alert alert-light mb-3">
                 <div class="row">
                     <div class="col-6">
+                        <i class="bi bi-calendar me-2"></i>
                         <strong>Statement Period:</strong> 
                         <?php if (!empty($statement_data)): ?>
                         <?= date('d M Y', strtotime($statement_data[0]['date'])) ?> to <?= date('d M Y', strtotime(end($statement_data)['date'])) ?>
@@ -569,6 +553,7 @@ $current_user = $user_stmt->fetch();
                         <?php endif; ?>
                     </div>
                     <div class="col-6 text-end">
+                        <i class="bi bi-journal-text me-2"></i>
                         <strong>Total Transactions:</strong> <?= count($statement_data) ?>
                     </div>
                 </div>
@@ -576,63 +561,101 @@ $current_user = $user_stmt->fetch();
 
             <!-- Transactions Table -->
             <div class="table-responsive">
-                <table class="table">
-                    <thead>
+                <table class="table table-bordered compact-table">
+                    <thead class="table-header">
                         <tr>
-                            <th width="10%">Date</th>
-                            <th width="10%">Type</th>
-                            <th width="25%">Description</th>
-                            <th width="15%">Reference</th>
-                            <th width="12%" class="text-end">Credit (₹)</th>
-                            <th width="12%" class="text-end">Debit (₹)</th>
-                            <th width="16%" class="text-end">Balance (₹)</th>
+                            <th width="80">Date</th>
+                            <th width="80">Type</th>
+                            <th>Description</th>
+                            <th width="100">Reference</th>
+                            <th width="100" class="text-end">Credit (₹)</th>
+                            <th width="100" class="text-end">Debit (₹)</th>
+                            <th width="120" class="text-end">Balance (₹)</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($statement_data)): ?>
                         <tr>
                             <td colspan="7" class="text-center py-4">
-                                <i class="bi bi-journal-x fs-1 d-block mb-2"></i>
-                                <div>No transactions found for this customer</div>
+                                <i class="bi bi-journal-x fs-1 text-muted d-block mb-2"></i>
+                                <h6 class="text-muted">No transactions found for this customer</h6>
                             </td>
                         </tr>
                         <?php else: ?>
                         <?php foreach ($statement_data as $transaction): 
-                            $type_text = '';
+                            $row_class = '';
+                            $type_badge = '';
+                            
                             switch ($transaction['type']) {
-                                case 'invoice': $type_text = 'INVOICE'; break;
-                                case 'payment': $type_text = 'PAYMENT'; break;
-                                case 'adjustment_credit': $type_text = 'CREDIT ADJ'; break;
-                                case 'adjustment_debit': $type_text = 'DEBIT ADJ'; break;
-                                case 'opening_balance': $type_text = 'OPENING'; break;
+                                case 'invoice':
+                                    $row_class = 'invoice-row';
+                                    $type_badge = '<span class="badge bg-info">INVOICE</span>';
+                                    break;
+                                case 'payment':
+                                    $row_class = 'payment-row';
+                                    $type_badge = '<span class="badge bg-success">PAYMENT</span>';
+                                    break;
+                                case 'adjustment_credit':
+                                    $row_class = 'adjustment-row';
+                                    $type_badge = '<span class="badge bg-warning">CREDIT ADJ</span>';
+                                    break;
+                                case 'adjustment_debit':
+                                    $row_class = 'adjustment-row';
+                                    $type_badge = '<span class="badge bg-warning">DEBIT ADJ</span>';
+                                    break;
+                                case 'opening_balance':
+                                    $type_badge = '<span class="badge bg-secondary">OPENING</span>';
+                                    break;
                             }
                         ?>
-                        <tr>
+                        <tr class="<?= $row_class ?>">
                             <td><?= date('d/m/Y', strtotime($transaction['date'])) ?></td>
-                            <td><?= $type_text ?></td>
+                            <td><?= $type_badge ?></td>
                             <td><?= htmlspecialchars($transaction['description']) ?></td>
-                            <td><?= htmlspecialchars($transaction['reference']) ?></td>
-                            <td class="text-end"><?= $transaction['credit'] > 0 ? '₹' . number_format($transaction['credit'], 2) : '-' ?></td>
-                            <td class="text-end"><?= $transaction['debit'] > 0 ? '₹' . number_format($transaction['debit'], 2) : '-' ?></td>
-                            <td class="text-end fw-bold">
+                            <td>
+                                <?= htmlspecialchars($transaction['reference']) ?>
+                            </td>
+                            <td class="text-end <?= $transaction['credit'] > 0 ? 'text-success fw-bold' : '' ?>">
+                                <?php if ($transaction['credit'] > 0): ?>
+                                ₹<?= number_format($transaction['credit'], 2) ?>
+                                <?php else: ?>
+                                -
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-end <?= $transaction['debit'] > 0 ? 'text-danger fw-bold' : '' ?>">
+                                <?php if ($transaction['debit'] > 0): ?>
+                                ₹<?= number_format($transaction['debit'], 2) ?>
+                                <?php else: ?>
+                                -
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-end fw-bold <?= $transaction['balance'] >= 0 ? 'balance-positive' : 'balance-negative' ?>">
                                 ₹<?= number_format(abs($transaction['balance']), 2) ?>
                                 <br>
-                                <small><?= $transaction['balance'] >= 0 ? 'Cr' : 'Dr' ?></small>
+                                <small class="text-muted">
+                                    <?= $transaction['balance'] >= 0 ? 'Cr' : 'Dr' ?>
+                                </small>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>
                     <?php if (!empty($statement_data)): ?>
-                    <tfoot>
+                    <tfoot style="background-color: #f8f9fa;">
                         <tr>
                             <th colspan="4" class="text-end">TOTALS</th>
-                            <th class="text-end border-top">₹<?= number_format($total_credit, 2) ?></th>
-                            <th class="text-end border-top">₹<?= number_format($total_debit, 2) ?></th>
-                            <th class="text-end border-top">
+                            <th class="text-end text-success border-top">
+                                ₹<?= number_format($total_credit, 2) ?>
+                            </th>
+                            <th class="text-end text-danger border-top">
+                                ₹<?= number_format($total_debit, 2) ?>
+                            </th>
+                            <th class="text-end fw-bold border-top <?= $closing_balance >= 0 ? 'balance-positive' : 'balance-negative' ?>">
                                 ₹<?= number_format(abs($closing_balance), 2) ?>
                                 <br>
-                                <small><?= $closing_balance >= 0 ? 'Credit' : 'Debit' ?></small>
+                                <small>
+                                    <?= $closing_balance >= 0 ? 'Credit (Customer Owes)' : 'Debit (You Owe)' ?>
+                                </small>
                             </th>
                         </tr>
                     </tfoot>
@@ -641,33 +664,39 @@ $current_user = $user_stmt->fetch();
             </div>
 
             <!-- Notes Section -->
-            <div class="row mt-4">
-                <div class="col-6">
-                    <div class="border p-2">
-                        <div class="fw-bold mb-2">Notes</div>
-                        <ul class="mb-0 small" style="padding-left: 15px;">
-                            <li>All amounts are in Indian Rupees (₹)</li>
-                            <li>Credit (Cr) - Customer owes you money</li>
-                            <li>Debit (Dr) - You owe customer money</li>
-                            <li>Credit adjustments increase customer's outstanding</li>
-                            <li>Debit adjustments reduce customer's outstanding</li>
-                        </ul>
+            <div class="mt-4">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="card border-light">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted mb-2"><i class="bi bi-info-circle me-2"></i>Notes</h6>
+                                <ul class="mb-0 small" style="padding-left: 15px;">
+                                    <li>All amounts are in Indian Rupees (₹)</li>
+                                    <li>Positive balance indicates amount customer owes to you</li>
+                                    <li>Negative balance indicates amount you owe to customer</li>
+                                    <li>Credit adjustments increase customer's outstanding balance</li>
+                                    <li>Debit adjustments reduce customer's outstanding balance</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-6">
-                    <div class="border p-2">
-                        <div class="fw-bold mb-2">Important Dates</div>
-                        <ul class="mb-0 small" style="padding-left: 15px;">
-                            <li><strong>Statement Date:</strong> <?= date('d M Y') ?></li>
-                            <li><strong>Next Statement:</strong> <?= date('d M Y', strtotime('+1 month')) ?></li>
-                            <li><strong>Payment Due:</strong> 
-                                <?php if ($total_outstanding > 0): ?>
-                                Immediate
-                                <?php else: ?>
-                                N/A
-                                <?php endif; ?>
-                            </li>
-                        </ul>
+                    <div class="col-6">
+                        <div class="card border-light">
+                            <div class="card-body p-3">
+                                <h6 class="text-muted mb-2"><i class="bi bi-calendar-check me-2"></i>Important Dates</h6>
+                                <ul class="mb-0 small" style="padding-left: 15px;">
+                                    <li><strong>Statement Date:</strong> <?= date('d M Y') ?></li>
+                                    <li><strong>Next Statement:</strong> <?= date('d M Y', strtotime('+1 month')) ?></li>
+                                    <li><strong>Payment Due:</strong> 
+                                        <?php if ($total_outstanding > 0): ?>
+                                        Immediately
+                                        <?php else: ?>
+                                        N/A
+                                        <?php endif; ?>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -676,22 +705,31 @@ $current_user = $user_stmt->fetch();
             <div class="footer-section">
                 <div class="row">
                     <div class="col-6">
-                        <div><strong>Generated On:</strong> <?= date('d M Y, h:i A') ?></div>
-                        <div><strong>Generated By:</strong> <?= htmlspecialchars($current_user['full_name'] ?? 'System') ?></div>
-                        <div><strong>Page:</strong> 1 of 1</div>
+                        <p class="mb-1"><strong>Generated On:</strong> <?= date('d M Y, h:i A') ?></p>
+                        <p class="mb-1"><strong>Generated By:</strong> <?= htmlspecialchars($current_user['full_name'] ?? 'System') ?></p>
+                        <p class="mb-0"><strong>Page:</strong> 1 of 1</p>
                     </div>
                     <div class="col-6 text-end">
-                        <div><strong>Signature:</strong> _________________________</div>
-                        <div class="mt-2"><strong>Stamp:</strong></div>
-                        <div class="mt-2 border-bottom" style="width: 150px; margin-left: auto;"></div>
+                        <p class="mb-1">
+                            <strong>Signature:</strong> _________________________
+                        </p>
+                        <p class="mb-0">
+                            <strong>Stamp:</strong>
+                        </p>
+                        <div class="mt-2" style="border: 1px dashed #ccc; padding: 5px; display: inline-block; min-width: 150px;"></div>
                     </div>
                 </div>
-                <hr>
+                <hr class="my-2">
                 <div class="text-center small">
-                    <div><strong><?= htmlspecialchars($business['name'] ?? 'YOUR BUSINESS NAME') ?></strong></div>
-                    <div>This is a computer-generated statement. No signature required.</div>
+                    <p class="mb-0">
+                        <strong><?= htmlspecialchars($business['name'] ?? 'YOUR BUSINESS NAME') ?></strong> | 
+                        This is a computer-generated statement. No signature required.
+                    </p>
                     <?php if (!empty($business['phone'])): ?>
-                    <div>For any queries, contact: <?= htmlspecialchars($business['phone']) ?> | <?= htmlspecialchars($business['email'] ?? '') ?></div>
+                    <p class="mb-0">
+                        For any queries, contact: <?= htmlspecialchars($business['phone']) ?> | 
+                        <?= htmlspecialchars($business['email'] ?? '') ?>
+                    </p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -703,14 +741,17 @@ $current_user = $user_stmt->fetch();
         function downloadPDF() {
             const element = document.getElementById('pdf-content');
             const options = {
-                margin: [10, 10, 10, 10],
+                margin: [15, 15, 15, 15],
                 filename: 'Credit_Statement_<?= preg_replace('/[^A-Za-z0-9]/', '_', $customer['name']) ?>_<?= date('Ymd') ?>.pdf',
-                image: { type: 'jpeg', quality: 1 },
+                image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { 
                     scale: 2,
                     useCORS: true,
                     letterRendering: true,
-                    backgroundColor: '#ffffff'
+                    width: element.scrollWidth,
+                    height: element.scrollHeight,
+                    scrollX: 0,
+                    scrollY: 0
                 },
                 jsPDF: { 
                     unit: 'mm', 
@@ -745,12 +786,11 @@ $current_user = $user_stmt->fetch();
             const options = {
                 margin: [10, 10, 10, 10],
                 filename: 'Credit_Statement_<?= preg_replace('/[^A-Za-z0-9]/', '_', $customer['name']) ?>_<?= date('Ymd') ?>.pdf',
-                image: { type: 'jpeg', quality: 1 },
+                image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { 
                     scale: 2,
                     useCORS: true,
-                    letterRendering: true,
-                    backgroundColor: '#ffffff'
+                    letterRendering: true
                 },
                 jsPDF: { 
                     unit: 'mm', 
@@ -790,7 +830,7 @@ $current_user = $user_stmt->fetch();
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0,0,0,0.8);
+                background: rgba(0,0,0,0.7);
                 display: flex;
                 justify-content: center;
                 align-items: center;
@@ -801,13 +841,13 @@ $current_user = $user_stmt->fetch();
             
             const spinner = document.createElement('div');
             spinner.style.cssText = `
-                border: 4px solid #f3f3f3;
-                border-top: 4px solid #3498db;
+                border: 5px solid #f3f3f3;
+                border-top: 5px solid #3498db;
                 border-radius: 50%;
-                width: 40px;
-                height: 40px;
+                width: 50px;
+                height: 50px;
                 animation: spin 1s linear infinite;
-                margin: 0 auto 15px auto;
+                margin-bottom: 20px;
             `;
             
             const text = document.createElement('div');
@@ -815,7 +855,7 @@ $current_user = $user_stmt->fetch();
             text.style.textAlign = 'center';
             
             const container = document.createElement('div');
-            container.style.cssText = 'text-align: center; background: transparent;';
+            container.style.cssText = 'text-align: center;';
             container.appendChild(spinner);
             container.appendChild(text);
             
@@ -829,10 +869,6 @@ $current_user = $user_stmt->fetch();
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
                 }
-                #loading-overlay * {
-                    background: transparent !important;
-                    color: white !important;
-                }
             `;
             document.head.appendChild(style);
         }
@@ -845,14 +881,15 @@ $current_user = $user_stmt->fetch();
             }
         }
 
-        // Ensure proper rendering before PDF generation
+        // Auto-download PDF on page load (optional)
         window.addEventListener('load', function() {
-            // Force background colors to be white
-            document.querySelectorAll('*').forEach(el => {
-                if (el.classList) {
-                    el.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-primary');
-                }
-            });
+            // Uncomment the line below to auto-download PDF when page loads
+            // downloadPDF();
+        });
+
+        // Handle window resize for better PDF generation
+        window.addEventListener('resize', function() {
+            // Optional: Handle responsive adjustments
         });
     </script>
 

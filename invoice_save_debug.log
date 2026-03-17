@@ -13128,437 +13128,101 @@
 [2026-01-30 23:45:41] Points earning recorded
 [2026-01-30 23:45:41] GST summary saved
 [2026-01-30 23:45:41] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
-[2026-02-05 16:10:43] === NEW INVOICE REQUEST STARTED ===
-[2026-02-05 16:10:43] User authenticated | {
-    "user_id": 1
+[2026-02-04 22:54:51] === NEW INVOICE REQUEST STARTED ===
+[2026-02-04 22:54:51] User authenticated | {
+    "user_id": 2
 }
-[2026-02-05 16:10:43] Raw input received | {
-    "raw": "{\"business_id\":1,\"shop_id\":1,\"customer_name\":\"No Referral\",\"customer_type\":\"retail\",\"gst_status\":1,\"gst_type\":\"gst\",\"subtotal\":36800,\"discount\":0,\"discount_type\":\"percent\",\"overall_discount\":0,\"total\":36800,\"payment_method\":\"cash\",\"payment_status\":\"paid\",\"cash_amount\":36800,\"upi_amount\":0,\"bank_amount\":0,\"cheque_amount\":0,\"seller_id\":1,\"referral_id\":null,\"referral_commission_amount\":0,\"loyalty_points_used\":0,\"loyalty_points_discount\":0,\"items\":[{\"product_id\":1,\"quantity\":2,\"sale_type\":\"retail\",\"unit_price\":18400,\"original_price\":16000,\"total_price\":36800,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"cgst_amount\":null,\"sgst_amount\":null,\"igst_amount\":null,\"total_with_gst\":36800,\"taxable_value\":36800,\"profit\":4800,\"gst_inclusive\":1,\"referral_commission\":0,\"unit\":\"nos\",\"secondary_quantity\":null,\"secondary_unit\":null}]}"
+[2026-02-04 22:54:51] Raw input received | {
+    "raw": "{\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_address\":\"\",\"customer_gstin\":\"\",\"customer_id\":null,\"invoice_number\":\"INV26024583\",\"invoice_type\":\"gst\",\"date\":\"2026-02-04\",\"price_type\":\"retail\",\"referral_id\":null,\"points_used\":0,\"points_discount\":0,\"subtotal\":18978,\"discount\":\"0\",\"discount_type\":\"percentage\",\"overall_discount\":0,\"total_cgst\":1387.07,\"total_sgst\":1387.07,\"total_igst\":0,\"total_taxable\":16203.86,\"total_gst\":2774.14,\"grand_total\":21752.14,\"referral_commission\":0,\"items\":[{\"id\":466,\"name\":\"Black Wire\",\"code\":\"466\",\"quantity\":1,\"unit\":\"coil\",\"batch\":\"\",\"price\":16800,\"price_type\":\"retail\",\"discount_value\":0,\"discount_type\":\"percentage\",\"total\":16800,\"hsn_code\":\"98765\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"taxable_value\":14237.28813559322,\"cgst_amount\":1281.3559322033898,\"sgst_amount\":1281.3559322033898,\"igst_amount\":0,\"stock_price\":14000,\"referral_enabled\":1,\"referral_type\":\"percentage\",\"referral_value\":2,\"referral_commission\":0},{\"id\":524,\"name\":\"Coil 1\",\"code\":\"524\",\"quantity\":1,\"unit\":\"coil\",\"batch\":\"\",\"price\":1386,\"price_type\":\"retail\",\"discount_value\":0,\"discount_type\":\"percentage\",\"total\":1386,\"hsn_code\":\"98765\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"taxable_value\":1174.5762711864406,\"cgst_amount\":105.71186440677968,\"sgst_amount\":105.71186440677968,\"igst_amount\":0,\"stock_price\":1260,\"referral_enabled\":1,\"referral_type\":\"percentage\",\"referral_value\":2,\"referral_commission\":0},{\"id\":523,\"name\":\"Asian Paint\",\"code\":\"523\",\"quantity\":1,\"unit\":\"ltr\",\"batch\":\"\",\"price\":792,\"price_type\":\"retail\",\"discount_value\":0,\"discount_type\":\"percentage\",\"total\":792,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"taxable_value\":792,\"cgst_amount\":0,\"sgst_amount\":0,\"igst_amount\":0,\"stock_price\":700,\"referral_enabled\":0,\"referral_type\":\"fixed\",\"referral_value\":0,\"referral_commission\":0}],\"payment_method\":\"cash\",\"payment_details\":{\"cash\":21752.14,\"upi\":0,\"bank\":0,\"cheque\":0,\"credit\":0,\"totalPaid\":21752.14,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\",\"credit_reference\":\"\"},\"change_given\":0,\"pending_amount\":0}"
 }
-[2026-02-05 16:10:43] Input parsed successfully | {
-    "item_count": 1,
-    "gst_type": "gst",
-    "customer_name": "No Referral",
-    "loyalty_points_used": 0,
-    "loyalty_points_discount": 0
-}
-[2026-02-05 16:10:43] Context loaded | {
-    "business_id": 1,
-    "shop_id": 1,
-    "seller_id": 1
-}
-[2026-02-05 16:10:43] Loyalty settings loaded | {
-    "points_per_amount": "0.01",
-    "amount_per_point": "100.00",
-    "redeem_value_per_point": "1.00",
-    "min_points_to_redeem": 50,
-    "expiry_months": null,
-    "is_active": 1
-}
-[2026-02-05 16:10:43] GST handling | {
-    "frontend_gst_type": "gst",
-    "force_non_gst": false
-}
-[2026-02-05 16:10:43] Customer address | {
-    "address": ""
-}
-[2026-02-05 16:10:43] GST settings loaded | {
-    "is_gst_enabled": 0,
-    "is_inclusive": 1
-}
-[2026-02-05 16:10:43] HSN check | {
-    "has_hsn": false
-}
-[2026-02-05 16:10:43] Invoice type decided | {
-    "gst_status": 0,
-    "invoice_type": "retail_bill"
-}
-[2026-02-05 16:10:43] Created new customer | {
-    "customer_id": "2"
-}
-[2026-02-05 16:10:43] Created new customer points record | {
-    "customer_id": "2"
-}
-[2026-02-05 16:10:43] Generated invoice number | {
-    "invoice_number": "INVNG202602-0001"
-}
-[2026-02-05 16:10:43] Payment summary | {
-    "subtotal": 36800,
-    "overall_discount": 0,
-    "points_discount": 0,
-    "total": 36800,
-    "total_paid": 36800,
-    "change_given": 0,
-    "pending_amount": 0,
-    "payment_status": "paid",
-    "payment_method": "cash"
-}
-[2026-02-05 16:10:43] Referral info | {
-    "referral_id": null,
-    "commission": 0
-}
-[2026-02-05 16:10:43] Invoice created | {
-    "invoice_id": "1",
-    "points_used": 0,
-    "points_discount": 0
-}
-[2026-02-05 16:10:43] Processing item #1 | {
-    "product_id": 1,
-    "quantity": 2,
-    "sale_type": "retail",
-    "unit_price": 18400,
-    "original_price": 16000,
-    "total_price": 36800,
-    "hsn_code": "",
-    "cgst_rate": 0,
-    "sgst_rate": 0,
-    "igst_rate": 0,
-    "cgst_amount": null,
-    "sgst_amount": null,
-    "igst_amount": null,
-    "total_with_gst": 36800,
-    "taxable_value": 36800,
-    "profit": 4800,
-    "gst_inclusive": 1,
-    "referral_commission": 0,
-    "unit": "nos",
-    "secondary_quantity": null,
-    "secondary_unit": null
-}
-[2026-02-05 16:10:43] Item #1 saved | {
-    "item_id": "1",
-    "unit": "nos",
-    "quantity_stored": 2,
-    "secondary_quantity": null,
-    "profit": 4800
-}
-[2026-02-05 16:10:43] Stock deduction for product 1 | {
-    "qty_deducted": 2,
-    "rows_affected": 1
-}
-[2026-02-05 16:10:43] Points earned | {
-    "points_earned": 368
-}
-[2026-02-05 16:10:43] Points earning recorded
-[2026-02-05 16:10:43] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
-[2026-02-05 16:17:04] === NEW INVOICE REQUEST STARTED ===
-[2026-02-05 16:17:04] User authenticated | {
-    "user_id": 1
-}
-[2026-02-05 16:17:04] Raw input received | {
-    "raw": "{\"business_id\":1,\"shop_id\":1,\"customer_name\":\"Walk-in Customer\",\"customer_type\":\"wholesale\",\"gst_status\":0,\"gst_type\":\"non-gst\",\"subtotal\":18400,\"discount\":0,\"discount_type\":\"percent\",\"overall_discount\":0,\"total\":18400,\"payment_method\":\"cash\",\"payment_status\":\"paid\",\"cash_amount\":18400,\"upi_amount\":0,\"bank_amount\":0,\"cheque_amount\":0,\"seller_id\":1,\"referral_id\":null,\"referral_commission_amount\":0,\"loyalty_points_used\":0,\"loyalty_points_discount\":0,\"items\":[{\"product_id\":1,\"quantity\":1,\"sale_type\":\"retail\",\"unit_price\":18400,\"original_price\":16000,\"total_price\":18400,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"cgst_amount\":0,\"sgst_amount\":0,\"igst_amount\":0,\"total_with_gst\":18400,\"taxable_value\":18400,\"profit\":2400,\"gst_inclusive\":0,\"referral_commission\":0,\"unit\":\"nos\",\"secondary_quantity\":null,\"secondary_unit\":null}]}"
-}
-[2026-02-05 16:17:04] Input parsed successfully | {
-    "item_count": 1,
-    "gst_type": "non-gst",
+[2026-02-04 22:54:51] Input parsed successfully | {
+    "item_count": 3,
+    "gst_type": "not set",
     "customer_name": "Walk-in Customer",
     "loyalty_points_used": 0,
     "loyalty_points_discount": 0
 }
-[2026-02-05 16:17:04] Context loaded | {
-    "business_id": 1,
-    "shop_id": 1,
-    "seller_id": 1
+[2026-02-04 22:54:51] Context loaded | {
+    "business_id": 5,
+    "shop_id": 6,
+    "seller_id": 2
 }
-[2026-02-05 16:17:04] Loyalty settings loaded | {
+[2026-02-04 22:54:51] Loyalty settings loaded | {
     "points_per_amount": "0.01",
     "amount_per_point": "100.00",
     "redeem_value_per_point": "1.00",
-    "min_points_to_redeem": 50,
+    "min_points_to_redeem": 100,
     "expiry_months": null,
     "is_active": 1
 }
-[2026-02-05 16:17:04] GST handling | {
-    "frontend_gst_type": "non-gst",
-    "force_non_gst": true
+[2026-02-04 22:54:51] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
 }
-[2026-02-05 16:17:04] Customer address | {
+[2026-02-04 22:54:51] Customer address | {
     "address": ""
 }
-[2026-02-05 16:17:04] GST settings loaded | {
-    "is_gst_enabled": 0,
+[2026-02-04 22:54:51] GST settings loaded | {
+    "is_gst_enabled": 1,
     "is_inclusive": 1
 }
-[2026-02-05 16:17:04] HSN check | {
-    "has_hsn": false
+[2026-02-04 22:54:51] HSN check | {
+    "has_hsn": true
 }
-[2026-02-05 16:17:04] Invoice type decided | {
-    "gst_status": 0,
-    "invoice_type": "retail_bill"
+[2026-02-04 22:54:51] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
 }
-[2026-02-05 16:17:04] Generated invoice number | {
-    "invoice_number": "INVNG202602-0002"
+[2026-02-04 22:54:51] Generated invoice number | {
+    "invoice_number": "INV202602-0001"
 }
-[2026-02-05 16:17:04] Payment summary | {
-    "subtotal": 18400,
+[2026-02-04 22:54:51] Payment summary | {
+    "subtotal": 18978,
     "overall_discount": 0,
     "points_discount": 0,
-    "total": 18400,
-    "total_paid": 18400,
+    "total": 0,
+    "total_paid": 0,
     "change_given": 0,
     "pending_amount": 0,
     "payment_status": "paid",
     "payment_method": "cash"
 }
-[2026-02-05 16:17:04] Referral info | {
+[2026-02-04 22:54:51] Referral info | {
     "referral_id": null,
     "commission": 0
 }
-[2026-02-05 16:17:04] Invoice created | {
-    "invoice_id": "2",
+[2026-02-04 22:54:51] Invoice created | {
+    "invoice_id": "168",
     "points_used": 0,
     "points_discount": 0
 }
-[2026-02-05 16:17:04] Processing item #1 | {
-    "product_id": 1,
+[2026-02-04 22:54:51] Processing item #1 | {
+    "id": 466,
+    "name": "Black Wire",
+    "code": "466",
     "quantity": 1,
-    "sale_type": "retail",
-    "unit_price": 18400,
-    "original_price": 16000,
-    "total_price": 18400,
-    "hsn_code": "",
-    "cgst_rate": 0,
-    "sgst_rate": 0,
+    "unit": "coil",
+    "batch": "",
+    "price": 16800,
+    "price_type": "retail",
+    "discount_value": 0,
+    "discount_type": "percentage",
+    "total": 16800,
+    "hsn_code": "98765",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
     "igst_rate": 0,
-    "cgst_amount": 0,
-    "sgst_amount": 0,
+    "taxable_value": 14237.28813559322,
+    "cgst_amount": 1281.3559322033898,
+    "sgst_amount": 1281.3559322033898,
     "igst_amount": 0,
-    "total_with_gst": 18400,
-    "taxable_value": 18400,
-    "profit": 2400,
-    "gst_inclusive": 0,
-    "referral_commission": 0,
-    "unit": "nos",
-    "secondary_quantity": null,
-    "secondary_unit": null
+    "stock_price": 14000,
+    "referral_enabled": 1,
+    "referral_type": "percentage",
+    "referral_value": 2,
+    "referral_commission": 0
 }
-[2026-02-05 16:17:04] Item #1 saved | {
-    "item_id": "2",
-    "unit": "nos",
-    "quantity_stored": 1,
-    "secondary_quantity": null,
-    "profit": 2400
+[2026-02-04 22:54:51] CRITICAL ERROR | {
+    "message": "SQLSTATE[23000]: Integrity constraint violation: 1452 Cannot add or update a child row: a foreign key constraint fails (`u329947844_traders`.`invoice_items`, CONSTRAINT `invoice_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`))",
+    "trace": "#0 \/home\/u329947844\/domains\/ecommer.in\/public_html\/billing\/trading\/save_invoice.php(465): PDOStatement->execute()\n#1 {main}"
 }
-[2026-02-05 16:17:04] Stock deduction for product 1 | {
-    "qty_deducted": 1,
-    "rows_affected": 1
-}
-[2026-02-05 16:17:04] Points earned | {
-    "points_earned": 184
-}
-[2026-02-05 16:17:04] Points earning recorded
-[2026-02-05 16:17:04] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
-[2026-02-05 16:31:08] === NEW INVOICE REQUEST STARTED ===
-[2026-02-05 16:31:08] User authenticated | {
-    "user_id": 1
-}
-[2026-02-05 16:31:08] Raw input received | {
-    "raw": "{\"business_id\":1,\"shop_id\":1,\"customer_name\":\"Walk-in Customer\",\"customer_type\":\"wholesale\",\"gst_status\":1,\"gst_type\":\"gst\",\"subtotal\":18400,\"discount\":0,\"discount_type\":\"percent\",\"overall_discount\":0,\"total\":18400,\"payment_method\":\"cash\",\"payment_status\":\"paid\",\"cash_amount\":18400,\"upi_amount\":0,\"bank_amount\":0,\"cheque_amount\":0,\"seller_id\":1,\"referral_id\":null,\"referral_commission_amount\":0,\"loyalty_points_used\":0,\"loyalty_points_discount\":0,\"items\":[{\"product_id\":1,\"quantity\":1,\"sale_type\":\"retail\",\"unit_price\":18400,\"original_price\":16000,\"total_price\":18400,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"cgst_amount\":null,\"sgst_amount\":null,\"igst_amount\":null,\"total_with_gst\":18400,\"taxable_value\":18400,\"profit\":2400,\"gst_inclusive\":1,\"referral_commission\":0,\"unit\":\"nos\",\"secondary_quantity\":null,\"secondary_unit\":null}]}"
-}
-[2026-02-05 16:31:08] Input parsed successfully | {
-    "item_count": 1,
-    "gst_type": "gst",
-    "customer_name": "Walk-in Customer",
-    "loyalty_points_used": 0,
-    "loyalty_points_discount": 0
-}
-[2026-02-05 16:31:08] Context loaded | {
-    "business_id": 1,
-    "shop_id": 1,
-    "seller_id": 1
-}
-[2026-02-05 16:31:08] Loyalty settings loaded | {
-    "points_per_amount": "0.01",
-    "amount_per_point": "100.00",
-    "redeem_value_per_point": "1.00",
-    "min_points_to_redeem": 50,
-    "expiry_months": null,
-    "is_active": 1
-}
-[2026-02-05 16:31:08] GST handling | {
-    "frontend_gst_type": "gst",
-    "force_non_gst": false
-}
-[2026-02-05 16:31:08] Customer address | {
-    "address": ""
-}
-[2026-02-05 16:31:08] GST settings loaded | {
-    "is_gst_enabled": 0,
-    "is_inclusive": 1
-}
-[2026-02-05 16:31:08] HSN check | {
-    "has_hsn": false
-}
-[2026-02-05 16:31:08] Invoice type decided | {
-    "gst_status": 0,
-    "invoice_type": "retail_bill"
-}
-[2026-02-05 16:31:08] Generated invoice number | {
-    "invoice_number": "INVNG202602-0003"
-}
-[2026-02-05 16:31:08] Payment summary | {
-    "subtotal": 18400,
-    "overall_discount": 0,
-    "points_discount": 0,
-    "total": 18400,
-    "total_paid": 18400,
-    "change_given": 0,
-    "pending_amount": 0,
-    "payment_status": "paid",
-    "payment_method": "cash"
-}
-[2026-02-05 16:31:08] Referral info | {
-    "referral_id": null,
-    "commission": 0
-}
-[2026-02-05 16:31:08] Invoice created | {
-    "invoice_id": "3",
-    "points_used": 0,
-    "points_discount": 0
-}
-[2026-02-05 16:31:08] Processing item #1 | {
-    "product_id": 1,
-    "quantity": 1,
-    "sale_type": "retail",
-    "unit_price": 18400,
-    "original_price": 16000,
-    "total_price": 18400,
-    "hsn_code": "",
-    "cgst_rate": 0,
-    "sgst_rate": 0,
-    "igst_rate": 0,
-    "cgst_amount": null,
-    "sgst_amount": null,
-    "igst_amount": null,
-    "total_with_gst": 18400,
-    "taxable_value": 18400,
-    "profit": 2400,
-    "gst_inclusive": 1,
-    "referral_commission": 0,
-    "unit": "nos",
-    "secondary_quantity": null,
-    "secondary_unit": null
-}
-[2026-02-05 16:31:08] Item #1 saved | {
-    "item_id": "3",
-    "unit": "nos",
-    "quantity_stored": 1,
-    "secondary_quantity": null,
-    "profit": 2400
-}
-[2026-02-05 16:31:08] Stock deduction for product 1 | {
-    "qty_deducted": 1,
-    "rows_affected": 1
-}
-[2026-02-05 16:31:08] Points earned | {
-    "points_earned": 184
-}
-[2026-02-05 16:31:08] Points earning recorded
-[2026-02-05 16:31:08] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
-[2026-02-05 16:31:51] === NEW INVOICE REQUEST STARTED ===
-[2026-02-05 16:31:51] User authenticated | {
-    "user_id": 1
-}
-[2026-02-05 16:31:51] Raw input received | {
-    "raw": "{\"business_id\":1,\"shop_id\":1,\"customer_name\":\"Walk-in Customer\",\"customer_type\":\"retail\",\"gst_status\":1,\"gst_type\":\"gst\",\"subtotal\":36800,\"discount\":0,\"discount_type\":\"percent\",\"overall_discount\":0,\"total\":36800,\"payment_method\":\"cash\",\"payment_status\":\"paid\",\"cash_amount\":36800,\"upi_amount\":0,\"bank_amount\":0,\"cheque_amount\":0,\"seller_id\":1,\"referral_id\":null,\"referral_commission_amount\":0,\"loyalty_points_used\":0,\"loyalty_points_discount\":0,\"items\":[{\"product_id\":1,\"quantity\":2,\"sale_type\":\"retail\",\"unit_price\":18400,\"original_price\":16000,\"total_price\":36800,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"cgst_amount\":null,\"sgst_amount\":null,\"igst_amount\":null,\"total_with_gst\":36800,\"taxable_value\":36800,\"profit\":4800,\"gst_inclusive\":1,\"referral_commission\":0,\"unit\":\"nos\",\"secondary_quantity\":null,\"secondary_unit\":null}]}"
-}
-[2026-02-05 16:31:51] Input parsed successfully | {
-    "item_count": 1,
-    "gst_type": "gst",
-    "customer_name": "Walk-in Customer",
-    "loyalty_points_used": 0,
-    "loyalty_points_discount": 0
-}
-[2026-02-05 16:31:51] Context loaded | {
-    "business_id": 1,
-    "shop_id": 1,
-    "seller_id": 1
-}
-[2026-02-05 16:31:51] Loyalty settings loaded | {
-    "points_per_amount": "0.01",
-    "amount_per_point": "100.00",
-    "redeem_value_per_point": "1.00",
-    "min_points_to_redeem": 50,
-    "expiry_months": null,
-    "is_active": 1
-}
-[2026-02-05 16:31:51] GST handling | {
-    "frontend_gst_type": "gst",
-    "force_non_gst": false
-}
-[2026-02-05 16:31:51] Customer address | {
-    "address": ""
-}
-[2026-02-05 16:31:51] GST settings loaded | {
-    "is_gst_enabled": 0,
-    "is_inclusive": 1
-}
-[2026-02-05 16:31:51] HSN check | {
-    "has_hsn": false
-}
-[2026-02-05 16:31:51] Invoice type decided | {
-    "gst_status": 0,
-    "invoice_type": "retail_bill"
-}
-[2026-02-05 16:31:51] Generated invoice number | {
-    "invoice_number": "INVNG202602-0004"
-}
-[2026-02-05 16:31:51] Payment summary | {
-    "subtotal": 36800,
-    "overall_discount": 0,
-    "points_discount": 0,
-    "total": 36800,
-    "total_paid": 36800,
-    "change_given": 0,
-    "pending_amount": 0,
-    "payment_status": "paid",
-    "payment_method": "cash"
-}
-[2026-02-05 16:31:51] Referral info | {
-    "referral_id": null,
-    "commission": 0
-}
-[2026-02-05 16:31:51] Invoice created | {
-    "invoice_id": "4",
-    "points_used": 0,
-    "points_discount": 0
-}
-[2026-02-05 16:31:51] Processing item #1 | {
-    "product_id": 1,
-    "quantity": 2,
-    "sale_type": "retail",
-    "unit_price": 18400,
-    "original_price": 16000,
-    "total_price": 36800,
-    "hsn_code": "",
-    "cgst_rate": 0,
-    "sgst_rate": 0,
-    "igst_rate": 0,
-    "cgst_amount": null,
-    "sgst_amount": null,
-    "igst_amount": null,
-    "total_with_gst": 36800,
-    "taxable_value": 36800,
-    "profit": 4800,
-    "gst_inclusive": 1,
-    "referral_commission": 0,
-    "unit": "nos",
-    "secondary_quantity": null,
-    "secondary_unit": null
-}
-[2026-02-05 16:31:51] Item #1 saved | {
-    "item_id": "4",
-    "unit": "nos",
-    "quantity_stored": 2,
-    "secondary_quantity": null,
-    "profit": 4800
-}
-[2026-02-05 16:31:51] Stock deduction for product 1 | {
-    "qty_deducted": 2,
-    "rows_affected": 1
-}
-[2026-02-05 16:31:51] Points earned | {
-    "points_earned": 368
-}
-[2026-02-05 16:31:51] Points earning recorded
-[2026-02-05 16:31:51] === INVOICE SAVE COMPLETED SUCCESSFULLY ===

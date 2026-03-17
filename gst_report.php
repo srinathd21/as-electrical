@@ -884,7 +884,9 @@ include('includes/head.php')
                                         <i class="bx bx-download me-1"></i> Export
                                     </button>
                                     <div class="dropdown-menu export-dropdown">
-                                       
+                                        <a class="dropdown-item" href="#" onclick="window.print()">
+                                            <i class="bx bx-printer me-2"></i> Print Report
+                                        </a>
                                         <div class="dropdown-divider"></div>
                                         <h6 class="dropdown-header">Download As</h6>
                                         <a class="dropdown-item export-link" href="#" data-type="csv">
