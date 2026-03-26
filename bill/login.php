@@ -547,6 +547,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-key me-1"></i> Forgot Password?
                         </a>
                     </div>
+                    <div class="forgot-password">
+                        <a href="../" >
+                            <i class="fas fa-home me-1"></i> Home
+                        </a>
+                    </div>
                     
                     <div class="security-badge">
                         <i class="fas fa-shield-alt"></i>
