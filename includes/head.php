@@ -1,12 +1,21 @@
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>AS Electricals | Best Electrical Shop in Tiruvannamalai</title>
-  <!-- Bootstrap 5 CSS + Icons + Google Fonts + AOS Animation -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
-  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<title>AS Electricals | Best Electrical Shop in Tiruvannamalai</title>
+
+<!-- SEO Meta Tags -->
+<meta name="description" content="AS Electricals is the best electrical shop in Tiruvannamalai offering quality electrical products, wiring solutions, and trading services at affordable prices.">
+<meta name="keywords" content="AS Electricals, AS Electricals Tiruvannamalai, electrical shop Tiruvannamalai, electrical products, electrical trading, wiring materials, electrical store Tamil Nadu">
+<link rel="apple-touch-icon" sizes="180x180" href="assests/favicon/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assests/favicon/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assests/favicon/favicon-16x16.png">
+<link rel="manifest" href="assests/favicon/site.webmanifest">
+<!-- Bootstrap 5 CSS + Icons + Google Fonts + AOS Animation -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
   <!-- Using online image library: Unsplash & reliable icon CDN but we use realistic product visuals from placeholder images (free to use, high-quality) -->
   <style>
     * {
