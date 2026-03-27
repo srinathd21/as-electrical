@@ -22,7 +22,7 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      overflow-x: hidden;
+      
     }
 
     body {
@@ -304,6 +304,9 @@
       }
       .hero {
         padding: 90px 0 60px;
+      }
+      body{
+        overflow-x: hidden;
       }
     }
   </style>
