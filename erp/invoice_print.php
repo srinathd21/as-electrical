@@ -22,7 +22,7 @@ if (isset($_GET['invoice_id'])) {
     exit();
 }
 
-// Fetch invoice with shop details, site and engineer information
+// Fetch invoice with shop details and shipping details
 $stmt = $pdo->prepare("
     SELECT i.*,
            c.name as customer_name, c.phone as customer_phone, c.gstin as customer_gstin,
@@ -30,16 +30,12 @@ $stmt = $pdo->prepare("
            u.full_name as seller_name,
            s.shop_name, s.address as shop_address, s.phone as shop_phone, s.gstin as shop_gstin,
            s.id as shop_id,
-           si.site_name, si.site_address, si.city as site_city, si.state as site_state,
-           si.postal_code as site_postal_code,
-           e.first_name as engineer_first_name, e.last_name as engineer_last_name,
-           e.phone as engineer_phone, e.email as engineer_email, e.specialization as engineer_specialization
+           i.shipping_name, i.shipping_contact, i.shipping_gstin, i.shipping_address,
+           i.shipping_vehicle_number, i.shipping_charges
     FROM invoices i
     LEFT JOIN customers c ON i.customer_id = c.id
     LEFT JOIN users u ON i.seller_id = u.id
     LEFT JOIN shops s ON i.shop_id = s.id
-    LEFT JOIN sites si ON i.site_id = si.site_id
-    LEFT JOIN engineers e ON i.engineer_id = e.engineer_id
     WHERE i.id = ? AND i.business_id = ?
 ");
 $stmt->execute([$invoice_id, $business_id]);
@@ -48,6 +44,14 @@ $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$invoice) {
     die("Invoice not found or access denied");
 }
+
+// Get shipping details
+$shipping_name = $invoice['shipping_name'] ?? '';
+$shipping_contact = $invoice['shipping_contact'] ?? '';
+$shipping_gstin = $invoice['shipping_gstin'] ?? '';
+$shipping_address = $invoice['shipping_address'] ?? '';
+$shipping_vehicle_number = $invoice['shipping_vehicle_number'] ?? '';
+$shipping_charges = $invoice['shipping_charges'] ?? 0;
 
 // Get shop_id from invoice
 $shop_id = $invoice['shop_id'] ?? null;
@@ -178,34 +182,6 @@ $customer_phone = $invoice['customer_phone'] ?? '';
 $customer_address = $invoice['customer_address'] ?? '';
 $customer_gstin = $invoice['customer_gstin'] ?? '';
 
-// Site details
-$site_name = $invoice['site_name'] ?? '';
-$site_address = $invoice['site_address'] ?? '';
-$site_city = $invoice['site_city'] ?? '';
-$site_state = $invoice['site_state'] ?? '';
-$site_postal_code = $invoice['site_postal_code'] ?? '';
-
-// Format full site address
-$site_full_address = $site_address;
-if (!empty($site_city)) {
-    $site_full_address .= (!empty($site_full_address) ? ', ' : '') . $site_city;
-}
-if (!empty($site_state)) {
-    $site_full_address .= (!empty($site_full_address) ? ', ' : '') . $site_state;
-}
-if (!empty($site_postal_code)) {
-    $site_full_address .= (!empty($site_full_address) ? ' - ' : '') . $site_postal_code;
-}
-
-// Engineer details
-$engineer_name = '';
-if (!empty($invoice['engineer_first_name'])) {
-    $engineer_name = trim($invoice['engineer_first_name'] . ' ' . ($invoice['engineer_last_name'] ?? ''));
-}
-$engineer_phone = $invoice['engineer_phone'] ?? '';
-$engineer_email = $invoice['engineer_email'] ?? '';
-$engineer_specialization = $invoice['engineer_specialization'] ?? '';
-
 // QR Code amount (if UPI payment)
 $qr_amount = 0;
 if ($payment_method === 'UPI' || strpos($payment_method, 'UPI') !== false) {
@@ -242,58 +218,67 @@ function pdf_text_simple($s) {
     return $s;
 }
 
-// ========== PDF Class (same as sale-invoice.php) ==========
+function wrap_text_for_pdf($text, $width, $pdf) {
+    if (empty($text)) return [];
+    $pdf->SetFont('Arial', '', 9);
+    return $pdf->MultiCell($width, 5, pdf_text_simple($text), 0, 'L');
+}
+
+// ========== PDF Class (modified for non-GST invoices) ==========
 class InvoicePDF extends FPDF {
     public $company = [];
     public $invoice = [];
     public $customer = [];
-    public $site = [];
-    public $engineer = [];
+    public $shipping = [];
     public $totals = [];
     public $account = [];
     public $col_w = [];
     public $col_headers = [];
     public $lm = 8; public $rm = 8; public $tm = 8; public $bm = 15;
     public $verified_by = '-';
+    public $is_gst_invoice = true; // Flag for GST/non-GST invoice
     
-    // Column width proportions
-    private $col_props = [0.05, 0.27, 0.08, 0.09, 0.11, 0.06, 0.10, 0.10, 0.14];
+    // Column width proportions - original for GST invoice
+    private $col_props_gst = [0.05, 0.27, 0.08, 0.09, 0.11, 0.06, 0.10, 0.10, 0.14];
+    // Column width proportions for non-GST invoice (HSN, GST%, GST Amt columns removed)
+    private $col_props_non_gst = [0.05, 0.35, 0.14, 0.08, 0.16, 0.22]; // SN, Item, Rate, Qty, Disc, Total
     
     function Header() {
         $pw = $this->GetPageWidth();
-    $printable = $pw - ($this->lm + $this->rm);
-    
-    $this->SetXY($this->lm, $this->tm);
-    
-    // Logo (if exists) - with error suppression and fallback
-    if (!empty($this->company['logo']) && file_exists($this->company['logo'])) {
-        // Suppress errors and try to load the image
-        $old_error_level = error_reporting(0);
-        try {
-            // Try with @ to suppress warnings
-            $image_loaded = @$this->Image($this->company['logo'], $this->lm, $this->tm, 15, 15);
-            if ($image_loaded !== false) {
-                $this->SetX($this->lm + 17);
-            } else {
+        $printable = $pw - ($this->lm + $this->rm);
+        
+        $this->SetXY($this->lm, $this->tm);
+        
+        // Logo (if exists) - with error suppression and fallback
+        if (!empty($this->company['logo']) && file_exists($this->company['logo'])) {
+            // Suppress errors and try to load the image
+            $old_error_level = error_reporting(0);
+            try {
+                // Try with @ to suppress warnings
+                $image_loaded = @$this->Image($this->company['logo'], $this->lm, $this->tm, 15, 15);
+                if ($image_loaded !== false) {
+                    $this->SetX($this->lm + 17);
+                } else {
+                    $this->SetX($this->lm);
+                }
+            } catch (Exception $e) {
+                // Silently fail - just don't show logo
                 $this->SetX($this->lm);
+                error_log("Logo error: " . $e->getMessage());
+            } catch (Error $e) {
+                // Silently fail - just don't show logo
+                $this->SetX($this->lm);
+                error_log("Logo error: " . $e->getMessage());
             }
-        } catch (Exception $e) {
-            // Silently fail - just don't show logo
+            error_reporting($old_error_level);
+        } else {
             $this->SetX($this->lm);
-            error_log("Logo error: " . $e->getMessage());
-        } catch (Error $e) {
-            // Silently fail - just don't show logo
-            $this->SetX($this->lm);
-            error_log("Logo error: " . $e->getMessage());
         }
-        error_reporting($old_error_level);
-    } else {
-        $this->SetX($this->lm);
-    }
-    
+        
         // Title - on the same line as logo
+        $title = $this->is_gst_invoice ? 'TAX INVOICE' : 'INVOICE';
         $this->SetFont('Arial','B',14);
-        $this->Cell(100, 7, pdf_text_simple('TAX INVOICE'), 0, 0, 'L');
+        $this->Cell(100, 7, pdf_text_simple($title), 0, 0, 'L');
         
         // Page number on right
         $this->SetFont('Arial','',9);
@@ -312,7 +297,10 @@ class InvoicePDF extends FPDF {
         
         $this->SetFont('Arial','',9);
         $this->SetX($this->lm + $logo_offset);
-        $this->MultiCell(0, 4.2, pdf_text_simple($this->company['address']), 0, 'L');
+        
+        // Wrap company address
+        $address_width = 100;
+        $this->MultiCell($address_width, 4.5, pdf_text_simple($this->company['address']), 0, 'L');
         
         $this->SetX($this->lm + $logo_offset);
         if (!empty($this->company['phone'])) {
@@ -342,79 +330,98 @@ class InvoicePDF extends FPDF {
         $max_y = max($company_info_height, $right_info_height);
         $this->SetY($max_y + 2);
         
-        // GSTIN and Place of Supply
+        // GSTIN and Place of Supply (only show GSTIN for GST invoices)
         $this->SetFont('Arial','',9);
         $this->SetX($this->lm);
-        $this->Cell(120, 5, pdf_text_simple('GSTIN : '.$this->company['gstin']), 0, 0, 'L');
-        $this->Cell(0, 5, pdf_text_simple('Place of Supply : '.$this->invoice['place_of_supply']), 0, 1, 'R');
+        if ($this->is_gst_invoice) {
+            $this->Cell(120, 5, pdf_text_simple('GSTIN : '.$this->company['gstin']), 0, 0, 'L');
+            $this->Cell(0, 5, pdf_text_simple('Place of Supply : '.$this->invoice['place_of_supply']), 0, 1, 'R');
+        } else {
+            $this->Cell(0, 5, pdf_text_simple('PAN : '.$this->company['gstin']), 0, 1, 'L');
+        }
         
         $this->Ln(2);
         
-        // Bill To and Ship To sections
+        // Bill To and Ship To
         $colW = round($printable / 2);
-        
-        // Bill To (Customer)
         $this->SetFont('Arial','B',10);
         $this->SetX($this->lm);
         $this->Cell($colW, 6, pdf_text_simple('Bill To'), 0, 0, 'L');
-        
-        // Ship To (Site/Engineer)
         $this->Cell($colW, 6, pdf_text_simple('Ship To'), 0, 1, 'L');
         
-        // Bill To details
         $this->SetFont('Arial','',9);
-        $bill_info = [
-            'Name : ' . ($this->customer['name'] ?? ''),
-            'Mobile : ' . ($this->customer['phone'] ?? ''),
-            'GSTIN : ' . ($this->customer['gstin'] ?? ''),
-            'Address : ' . ($this->customer['address'] ?? '')
-        ];
         
-        // Ship To details - Start with Site information if available
-        $ship_info = [];
+        // Bill To details with proper wrapping
+        $bill_y_start = $this->GetY();
         
-        if (!empty($this->site['name'])) {
-            // Site information is available
-            $ship_info[] = 'Name : ' . $this->site['name'];
-            $ship_info[] = 'Address : ' . ($this->site['address'] ?? '');
-            
-            // Add engineer details if available
-            if (!empty($this->engineer['name'])) {
-                $ship_info[] = 'Engineer : ' . $this->engineer['name'];
-                if (!empty($this->engineer['phone'])) {
-                    $ship_info[] = 'Eng. Mobile : ' . $this->engineer['phone'];
-                }
-            }
-        } else {
-            // No site information, use customer details as fallback for Ship To
-            $ship_info = [
-                'Name : ' . ($this->customer['name'] ?? ''),
-                'Mobile : ' . ($this->customer['phone'] ?? ''),
-                'GSTIN : ' . ($this->customer['gstin'] ?? ''),
-                'Address : ' . ($this->customer['address'] ?? '')
-            ];
+        // Bill To (left side)
+        $this->SetX($this->lm);
+        $this->MultiCell($colW - 2, 5, pdf_text_simple('Name: ' . $this->customer['name']), 0, 'L');
+        $this->SetX($this->lm);
+        $this->MultiCell($colW - 2, 5, pdf_text_simple('Mobile: ' . $this->customer['phone']), 0, 'L');
+        
+        if ($this->is_gst_invoice && !empty($this->customer['gstin'])) {
+            $this->SetX($this->lm);
+            $this->MultiCell($colW - 2, 5, pdf_text_simple('GSTIN: ' . $this->customer['gstin']), 0, 'L');
         }
         
-        // Calculate maximum number of lines for both sections
-        $maxLines = max(count($bill_info), count($ship_info));
+        $this->SetX($this->lm);
+        $this->MultiCell($colW - 2, 5, pdf_text_simple('Address: ' . $this->customer['address']), 0, 'L');
         
-        // Display both sections side by side
-        for ($i = 0; $i < $maxLines; $i++) {
+        $bill_y_end = $this->GetY();
+        
+        // Ship To details (right side)
+        $this->SetY($bill_y_start);
+        $has_shipping = !empty($this->shipping['name']) || !empty($this->shipping['address']);
+        
+        if ($has_shipping) {
+            if (!empty($this->shipping['name'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('Name: ' . $this->shipping['name']), 0, 'L');
+            }
+            if (!empty($this->shipping['contact'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('Mobile: ' . $this->shipping['contact']), 0, 'L');
+            }
+            if ($this->is_gst_invoice && !empty($this->shipping['gstin'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('GSTIN: ' . $this->shipping['gstin']), 0, 'L');
+            }
+            if (!empty($this->shipping['vehicle_number'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('Vehicle No: ' . $this->shipping['vehicle_number']), 0, 'L');
+            }
+            if (!empty($this->shipping['address'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('Address: ' . $this->shipping['address']), 0, 'L');
+            }
+        } else {
+            // Copy bill to details to ship to
+            $this->SetX($this->lm + $colW);
+            $this->MultiCell($colW - 2, 5, pdf_text_simple('Name: ' . $this->customer['name']), 0, 'L');
+            $this->SetX($this->lm + $colW);
+            $this->MultiCell($colW - 2, 5, pdf_text_simple('Mobile: ' . $this->customer['phone']), 0, 'L');
+            if ($this->is_gst_invoice && !empty($this->customer['gstin'])) {
+                $this->SetX($this->lm + $colW);
+                $this->MultiCell($colW - 2, 5, pdf_text_simple('GSTIN: ' . $this->customer['gstin']), 0, 'L');
+            }
+            $this->SetX($this->lm + $colW);
+            $this->MultiCell($colW - 2, 5, pdf_text_simple('Address: ' . $this->customer['address']), 0, 'L');
+        }
+        
+        $ship_y_end = $this->GetY();
+        $this->SetY(max($bill_y_end, $ship_y_end));
+        
+        // Show shipping charges if applicable
+        if ($this->shipping['charges'] > 0) {
+            $this->Ln(2);
+            $this->SetFont('Arial','',9);
             $this->SetX($this->lm);
-            
-            // Bill To line
-            if ($i < count($bill_info)) {
-                $this->Cell($colW, 5, pdf_text_simple($bill_info[$i]), 0, 0, 'L');
-            } else {
-                $this->Cell($colW, 5, '', 0, 0, 'L');
-            }
-            
-            // Ship To line
-            if ($i < count($ship_info)) {
-                $this->Cell($colW, 5, pdf_text_simple($ship_info[$i]), 0, 1, 'L');
-            } else {
-                $this->Cell($colW, 5, '', 0, 1, 'L');
-            }
+            $this->Cell($colW, 5, '', 0, 0, 'L');
+            $this->SetX($this->lm + $colW);
+            $this->SetTextColor(0, 100, 0);
+            $this->Cell($colW, 5, pdf_text_simple('Shipping Charges: Rs. ' . money($this->shipping['charges'])), 0, 1, 'R');
+            $this->SetTextColor(0, 0, 0);
         }
         
         $this->Ln(2);
@@ -520,81 +527,137 @@ class InvoicePDF extends FPDF {
         $igst_rate = $item['igst_rate'] ?? 0;
         
         $total_gst_rate = $cgst_rate + $sgst_rate + $igst_rate;
+        
+        // Calculate line totals
         $line_total_before_discount = $unit_price * $quantity;
+        
+        // After discount total
         $line_total_after_discount = $line_total_before_discount - $discount_amount;
         
-        $taxable_value = $item['taxable_value'] ?? $line_total_after_discount;
-        $cgst_amount = $item['cgst_amount'] ?? 0;
-        $sgst_amount = $item['sgst_amount'] ?? 0;
-        $igst_amount = $item['igst_amount'] ?? 0;
-        $total_gst_amount = $cgst_amount + $sgst_amount + $igst_amount;
-        $total_with_gst = $taxable_value + $total_gst_amount;
         $unit = !empty($item['product_unit']) ? $item['product_unit'] : (empty($item['unit']) ? 'PCS' : $item['unit']);
         
-        // Set positions
-        $x0 = $x;
-        $x1 = $x0 + $this->col_w[0];
-        $x2 = $x1 + $this->col_w[1];
-        $x3 = $x2 + $this->col_w[2];
-        $x4 = $x3 + $this->col_w[3];
-        $x5 = $x4 + $this->col_w[4];
-        $x6 = $x5 + $this->col_w[5];
-        $x7 = $x6 + $this->col_w[6];
-        $x8 = $x7 + $this->col_w[7];
-        
-        // SN
-        $this->Rect($x0, $y, $this->col_w[0], $cellH);
-        $this->SetXY($x0, $y);
-        $this->Cell($this->col_w[0], $cellH, (string)$sn, 0, 0, 'C');
-        
-        // Item Description
-        $item_text = (!empty($item['product_code']) ? $item['product_code'] . " - " : "") . $item['product_name'];
-        $this->BoxText($x1, $y, $this->col_w[1], $cellH, $item_text, 'L', 'M', 1.2, 1.0, 5.4);
-        
-        // HSN
-        $this->Rect($x2, $y, $this->col_w[2], $cellH);
-        $this->SetXY($x2, $y);
-        $this->Cell($this->col_w[2], $cellH, pdf_text_simple($item['hsn_code'] ?? ''), 0, 0, 'C');
-        
-        // GST(%) - Instead of Colour
-        $gst_text = $total_gst_rate > 0 ? number_format($total_gst_rate, 1) . '%' : '0%';
-        $this->BoxText($x3, $y, $this->col_w[3], $cellH, $gst_text, 'C', 'M', 1.0, 1.0, 5.4);
-        
-        // Rate
-        $rate_text = 'Rs. ' . money($unit_price);
-        $this->Rect($x4, $y, $this->col_w[4], $cellH);
-        $this->SetXY($x4, $y);
-        $this->Cell($this->col_w[4], $cellH, pdf_text_simple($rate_text), 0, 0, 'R');
-        
-        // Qty
-        $qty_text = format_quantity($quantity) . ' ' . $unit;
-        $this->Rect($x5, $y, $this->col_w[5], $cellH);
-        $this->SetXY($x5, $y);
-        $this->Cell($this->col_w[5], $cellH, pdf_text_simple($qty_text), 0, 0, 'C');
-        
-        // Discount (instead of CGST)
-        if ($discount_amount > 0) {
-            $disc_text = 'Rs. ' . money($discount_amount) . "\n(" . $discount_rate . "%)";
+        if ($this->is_gst_invoice) {
+            // GST INVOICE - Show rate without GST
+            $gst_multiplier = 1 + ($total_gst_rate / 100);
+            $base_unit_price = $unit_price / $gst_multiplier;
+            
+            // Calculate GST amount
+            $base_after_discount = $base_unit_price * $quantity;
+            if ($discount_amount > 0) {
+                $discount_ratio = $discount_amount / $line_total_before_discount;
+                $base_after_discount = $base_unit_price * $quantity * (1 - $discount_ratio);
+            }
+            $total_gst_amount = $line_total_after_discount - $base_after_discount;
+            
+            // Set positions
+            $x0 = $x;
+            $x1 = $x0 + $this->col_w[0];
+            $x2 = $x1 + $this->col_w[1];
+            $x3 = $x2 + $this->col_w[2];
+            $x4 = $x3 + $this->col_w[3];
+            $x5 = $x4 + $this->col_w[4];
+            $x6 = $x5 + $this->col_w[5];
+            $x7 = $x6 + $this->col_w[6];
+            $x8 = $x7 + $this->col_w[7];
+            
+            // SN
+            $this->Rect($x0, $y, $this->col_w[0], $cellH);
+            $this->SetXY($x0, $y);
+            $this->Cell($this->col_w[0], $cellH, (string)$sn, 0, 0, 'C');
+            
+            // Item Description
+            $item_text = (!empty($item['product_code']) ? $item['product_code'] . " - " : "") . $item['product_name'];
+            $this->BoxText($x1, $y, $this->col_w[1], $cellH, $item_text, 'L', 'M', 1.2, 1.0, 5.4);
+            
+            // HSN
+            $this->Rect($x2, $y, $this->col_w[2], $cellH);
+            $this->SetXY($x2, $y);
+            $this->Cell($this->col_w[2], $cellH, pdf_text_simple($item['hsn_code'] ?? ''), 0, 0, 'C');
+            
+            // GST(%) 
+            $gst_text = $total_gst_rate > 0 ? number_format($total_gst_rate, 1) . '%' : '0%';
+            $this->BoxText($x3, $y, $this->col_w[3], $cellH, $gst_text, 'C', 'M', 1.0, 1.0, 5.4);
+            
+            // Rate (Without GST)
+            $rate_text = 'Rs. ' . money($base_unit_price);
+            $this->Rect($x4, $y, $this->col_w[4], $cellH);
+            $this->SetXY($x4, $y);
+            $this->Cell($this->col_w[4], $cellH, pdf_text_simple($rate_text), 0, 0, 'R');
+            
+            // Qty
+            $qty_text = format_quantity($quantity) . ' ' . $unit;
+            $this->Rect($x5, $y, $this->col_w[5], $cellH);
+            $this->SetXY($x5, $y);
+            $this->Cell($this->col_w[5], $cellH, pdf_text_simple($qty_text), 0, 0, 'C');
+            
+            // Discount 
+            if ($discount_amount > 0) {
+                $disc_text = 'Rs. ' . money($discount_amount) . "\n(" . $discount_rate . "%)";
+            } else {
+                $disc_text = '-';
+            }
+            $this->BoxText($x6, $y, $this->col_w[6], $cellH, $disc_text, 'C', 'M', 1.0, 1.0, 5.4);
+            
+            // GST Amt - Show calculated GST amount
+            if ($total_gst_amount > 0) {
+                $gst_amt_text = 'Rs. ' . money($total_gst_amount);
+            } else {
+                $gst_amt_text = '-';
+            }
+            $this->Rect($x7, $y, $this->col_w[7], $cellH);
+            $this->SetXY($x7, $y);
+            $this->Cell($this->col_w[7], $cellH, pdf_text_simple($gst_amt_text), 0, 0, 'R');
+            
+            // Total (After discount, with GST)
+            $total_text = 'Rs. ' . money($line_total_after_discount);
+            $this->Rect($x8, $y, $this->col_w[8], $cellH);
+            $this->SetXY($x8, $y);
+            $this->Cell($this->col_w[8], $cellH, pdf_text_simple($total_text), 0, 0, 'R');
         } else {
-            $disc_text = '-';
+            // NON-GST INVOICE - Show simple item row without GST columns
+            // Column positions: SN, Item, Rate, Qty, Disc, Total
+            $x0 = $x;
+            $x1 = $x0 + $this->col_w[0];
+            $x2 = $x1 + $this->col_w[1];
+            $x3 = $x2 + $this->col_w[2];
+            $x4 = $x3 + $this->col_w[3];
+            $x5 = $x4 + $this->col_w[4];
+            
+            // SN
+            $this->Rect($x0, $y, $this->col_w[0], $cellH);
+            $this->SetXY($x0, $y);
+            $this->Cell($this->col_w[0], $cellH, (string)$sn, 0, 0, 'C');
+            
+            // Item Description (with code)
+            $item_text = (!empty($item['product_code']) ? $item['product_code'] . " - " : "") . $item['product_name'];
+            $this->BoxText($x1, $y, $this->col_w[1], $cellH, $item_text, 'L', 'M', 1.2, 1.0, 5.4);
+            
+            // Rate (WITH GST - full price for non-GST)
+            $rate_text = 'Rs. ' . money($unit_price);
+            $this->Rect($x2, $y, $this->col_w[2], $cellH);
+            $this->SetXY($x2, $y);
+            $this->Cell($this->col_w[2], $cellH, pdf_text_simple($rate_text), 0, 0, 'R');
+            
+            // Qty
+            $qty_text = format_quantity($quantity) . ' ' . $unit;
+            $this->Rect($x3, $y, $this->col_w[3], $cellH);
+            $this->SetXY($x3, $y);
+            $this->Cell($this->col_w[3], $cellH, pdf_text_simple($qty_text), 0, 0, 'C');
+            
+            // Discount 
+            if ($discount_amount > 0) {
+                $disc_text = 'Rs. ' . money($discount_amount) . "\n(" . $discount_rate . "%)";
+            } else {
+                $disc_text = '-';
+            }
+            $this->BoxText($x4, $y, $this->col_w[4], $cellH, $disc_text, 'C', 'M', 1.0, 1.0, 5.4);
+            
+            // Total (After discount)
+            $total_text = 'Rs. ' . money($line_total_after_discount);
+            $this->Rect($x5, $y, $this->col_w[5], $cellH);
+            $this->SetXY($x5, $y);
+            $this->Cell($this->col_w[5], $cellH, pdf_text_simple($total_text), 0, 0, 'R');
         }
-        $this->BoxText($x6, $y, $this->col_w[6], $cellH, $disc_text, 'C', 'M', 1.0, 1.0, 5.4);
-        
-        // GST Amt (instead of SGST)
-        if ($total_gst_amount > 0) {
-            $gst_amt_text = 'Rs. ' . money($total_gst_amount);
-        } else {
-            $gst_amt_text = '-';
-        }
-        $this->Rect($x7, $y, $this->col_w[7], $cellH);
-        $this->SetXY($x7, $y);
-        $this->Cell($this->col_w[7], $cellH, pdf_text_simple($gst_amt_text), 0, 0, 'R');
-        
-        // Total
-        $total_text = 'Rs. ' . money($total_with_gst);
-        $this->Rect($x8, $y, $this->col_w[8], $cellH);
-        $this->SetXY($x8, $y);
-        $this->Cell($this->col_w[8], $cellH, pdf_text_simple($total_text), 0, 0, 'R');
     }
     
     function DrawAmountSummary() {
@@ -607,67 +670,95 @@ class InvoicePDF extends FPDF {
         
         $y = $startY;
         
-        // Subtotal (Sum of all item totals)
-        if (isset($t['subtotal']) && $t['subtotal'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('Subtotal'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['subtotal'])), 0, 1, 'R');
+        // Right side summary
+        $this->SetFont('Arial','',9);
+        $this->SetXY($rightX, $y);
+        
+        if ($this->is_gst_invoice) {
+            // GST INVOICE - Show taxable value and GST components
+            // Taxable Value (without GST)
+            if ($t['taxable'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Taxable Value'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($t['taxable'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // CGST
+            if ($t['cgst'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('CGST'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($t['cgst'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // SGST
+            if ($t['sgst'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('SGST'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($t['sgst'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // Add Shipping Charges if they exist
+            if ($this->shipping['charges'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Shipping Charges'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($this->shipping['charges'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // Add Overall Discount if exists
+            if (isset($t['overall_discount']) && $t['overall_discount'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Overall Discount'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('- Rs. ' . money($t['overall_discount'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // Item Discounts if any and no overall discount
+            if ($t['discount'] > 0 && $t['overall_discount'] == 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Item Discounts'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('- Rs. ' . money($t['discount'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+        } else {
+            // NON-GST INVOICE - Simple summary
+            // Subtotal (without any tax breakdown)
+            $this->SetX($rightX);
+            $this->Cell(40, 6, pdf_text_simple('Subtotal'), 0, 0, 'L');
+            $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($t['subtotal'])), 0, 1, 'R');
             $y = $this->GetY();
+            
+            // Add Shipping Charges if they exist
+            if ($this->shipping['charges'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Shipping Charges'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('Rs. ' . money($this->shipping['charges'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // Add Overall Discount if exists
+            if (isset($t['overall_discount']) && $t['overall_discount'] > 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Overall Discount'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('- Rs. ' . money($t['overall_discount'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
+            
+            // Item Discounts if any and no overall discount
+            if ($t['discount'] > 0 && $t['overall_discount'] == 0) {
+                $this->SetX($rightX);
+                $this->Cell(40, 6, pdf_text_simple('Item Discounts'), 0, 0, 'L');
+                $this->Cell(40, 6, pdf_text_simple('- Rs. ' . money($t['discount'])), 0, 1, 'R');
+                $y = $this->GetY();
+            }
         }
         
-        // Overall Discount (from invoice table)
-        if (isset($t['overall_discount']) && $t['overall_discount'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('Overall Discount'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('- Rs. ' . money($t['overall_discount'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        // Item Discounts
-        if ($t['discount'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('Item Discounts'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('- Rs. ' . money($t['discount'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        if ($t['taxable'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('Taxable Amount'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['taxable'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        if ($t['cgst'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('CGST'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['cgst'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        if ($t['sgst'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('SGST'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['sgst'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        if ($t['igst'] > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('IGST'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['igst'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
-        if (($t['cgst'] + $t['sgst'] + $t['igst']) > 0) {
-            $this->SetXY($leftX, $y);
-            $this->Cell(50, 6, pdf_text_simple('Total GST'), 0, 0, 'L');
-            $this->Cell(30, 6, pdf_text_simple('Rs. ' . money($t['cgst'] + $t['sgst'] + $t['igst'])), 0, 1, 'R');
-            $y = $this->GetY();
-        }
-        
+        // Grand Total with bold font
         $this->SetFont('Arial','B',11);
-        $this->SetXY($rightX, $startY);
+        $this->SetX($rightX);
         $this->Cell(40, 8, pdf_text_simple('GRAND TOTAL'), 0, 0, 'L');
         $this->Cell(40, 8, pdf_text_simple('Rs. ' . money($t['grand_total'])), 0, 1, 'R');
         
@@ -675,69 +766,99 @@ class InvoicePDF extends FPDF {
         $this->SetY($endY + 2);
     }
     
-    function DrawAccountDetails() {
-        $a = $this->account;
-        
-        $hasAny = false;
-        foreach (['account_name','bank_name','account_number','ifsc','branch','upi'] as $k) {
-            if (!empty($a[$k])) { $hasAny = true; break; }
-        }
-        if (!$hasAny) return;
-        
-        // Only add account details if there's space on current page
-        if ($this->GetY() + 28 > ($this->GetPageHeight() - $this->bm)) {
-            return; // Don't add new page, just skip
-        }
-        
-        $this->SetFont('Arial','B',9);
-        $this->Cell(0,6, pdf_text_simple('Account Details'), 0, 1, 'L');
-        
-        $this->SetFont('Arial','',8);
-        $lines = [];
-        if (!empty($a['account_name']))   $lines[] = 'A/C Name : '.$a['account_name'];
-        if (!empty($a['bank_name']))      $lines[] = 'Bank : '.$a['bank_name'];
-        if (!empty($a['account_number'])) $lines[] = 'A/C No : '.$a['account_number'];
-        if (!empty($a['ifsc']))           $lines[] = 'IFSC : '.$a['ifsc'];
-        if (!empty($a['branch']))         $lines[] = 'Branch : '.$a['branch'];
-        if (!empty($a['upi']))            $lines[] = 'UPI : '.$a['upi'];
-        
-        $x = $this->lm;
-        $w = $this->GetPageWidth() - ($this->lm + $this->rm);
-        $yStart = $this->GetY();
-        $h = max(18, count($lines) * 4.5 + 4);
-        
-        // Check if we have space for account details
-        if ($yStart + $h > ($this->GetPageHeight() - $this->bm)) {
-            return; // Skip if no space
-        }
-        
-        $this->Rect($x, $yStart, $w, $h);
-        $this->SetXY($x + 2, $yStart + 2);
-        
-        foreach ($lines as $ln) {
-            $this->Cell($w - 4, 4.5, pdf_text_simple($ln), 0, 1, 'L');
-        }
-        $this->Ln(2);
+function DrawAccountDetails() {
+    $a = $this->account;
+
+    $hasAny = false;
+    foreach (['account_name','bank_name','account_number','ifsc','branch','upi'] as $k) {
+        if (!empty($a[$k])) { $hasAny = true; break; }
     }
+    if (!$hasAny) return;
+
+    // Space check
+    if ($this->GetY() + 20 > ($this->GetPageHeight() - $this->bm)) {
+        return;
+    }
+
+    $this->SetFont('Arial','B',9);
+    $this->Cell(0,6,'Account Details',0,1,'L');
+
+    $this->SetFont('Arial','',9);
+
+    $startX = $this->lm;
+    $maxWidth = $this->GetPageWidth() - $this->rm;
+
+    $this->SetX($startX);
+
+    $details = [];
+
+    if (!empty($a['account_name']))   $details[] = ['A/C Name : ', $a['account_name']];
+    if (!empty($a['bank_name']))      $details[] = ['  Bank : ', $a['bank_name']];
+    if (!empty($a['account_number'])) $details[] = ['  A/C No : ', $a['account_number']];
+    if (!empty($a['ifsc']))           $details[] = ['  IFSC : ', $a['ifsc']];
+    if (!empty($a['branch']))         $details[] = ['  Branch : ', $a['branch']];
+    if (!empty($a['upi']))            $details[] = ['  UPI : ', $a['upi']];
+
+    foreach ($details as $d) {
+
+        $labelWidth = $this->GetStringWidth($d[0]);
+        $valueWidth = $this->GetStringWidth($d[1]) + 2;
+
+        $currentX = $this->GetX();
+
+        // 👉 Check overflow → move to next line
+        if (($currentX + $labelWidth + $valueWidth) > $maxWidth) {
+            $this->Ln(6);
+            $this->SetX($startX);
+        }
+
+        // Bold label
+        $this->SetFont('Arial','B',9);
+        $this->Cell($labelWidth,6,$d[0],0,0,'L');
+
+        // Normal value
+        $this->SetFont('Arial','',9);
+        $this->Cell($valueWidth,6,$d[1],0,0,'L');
+    }
+
+    $this->Ln(8);
+}
     
-    // Helper method to initialize column widths
+    // Helper method to initialize column widths based on invoice type
     function initColumnWidths() {
         $pageWidth = $this->GetPageWidth();
         $printable = $pageWidth - ($this->lm + $this->rm);
         
-        // Modified headers
-        $this->col_headers = ['SN', 'Item Description', 'HSN', 'GST(%)', 'Rate', 'Qty', 'Disc', 'GST Amt', 'Total'];
-        
-        // Calculate column widths based on proportions
-        $this->col_w = [];
-        foreach ($this->col_props as $p) {
-            $this->col_w[] = round($printable * $p);
-        }
-        
-        // Adjust if total doesn't match printable width
-        $totalWidth = array_sum($this->col_w);
-        if ($totalWidth != $printable) {
-            $this->col_w[1] += ($printable - $totalWidth);
+        if ($this->is_gst_invoice) {
+            // GST Invoice headers
+            $this->col_headers = ['SN', 'Item Description', 'HSN', 'GST(%)', 'Rate', 'Qty', 'Disc', 'GST Amt', 'Total'];
+            
+            // Calculate column widths based on proportions
+            $this->col_w = [];
+            foreach ($this->col_props_gst as $p) {
+                $this->col_w[] = round($printable * $p);
+            }
+            
+            // Adjust if total doesn't match printable width
+            $totalWidth = array_sum($this->col_w);
+            if ($totalWidth != $printable) {
+                $this->col_w[1] += ($printable - $totalWidth);
+            }
+        } else {
+            // Non-GST Invoice headers (simplified)
+            $this->col_headers = ['SN', 'Item Description', 'Rate', 'Qty', 'Disc', 'Total'];
+            
+            // Calculate column widths based on proportions
+            $this->col_w = [];
+            foreach ($this->col_props_non_gst as $p) {
+                $this->col_w[] = round($printable * $p);
+            }
+            
+            // Adjust if total doesn't match printable width
+            $totalWidth = array_sum($this->col_w);
+            if ($totalWidth != $printable) {
+                $this->col_w[1] += ($printable - $totalWidth);
+            }
         }
     }
 }
@@ -750,7 +871,10 @@ $pdf->lm = 8; $pdf->rm = 8; $pdf->tm = 8; $pdf->bm = 15;
 $pdf->SetMargins($pdf->lm, $pdf->tm, $pdf->rm);
 $pdf->SetAutoPageBreak(true, $pdf->bm);
 
-// Initialize column widths
+// Set GST invoice flag based on whether this is a tax invoice
+$pdf->is_gst_invoice = $is_tax_invoice;
+
+// Initialize column widths based on invoice type
 $pdf->initColumnWidths();
 
 // Set company info - using data from invoice_settings table
@@ -781,18 +905,14 @@ $pdf->customer = [
     'address' => $customer_address
 ];
 
-// Set site info
-$pdf->site = [
-    'name'    => $site_name,
-    'address' => $site_full_address
-];
-
-// Set engineer info
-$pdf->engineer = [
-    'name'    => $engineer_name,
-    'phone'   => $engineer_phone,
-    'email'   => $engineer_email,
-    'specialization' => $engineer_specialization
+// Set shipping info
+$pdf->shipping = [
+    'name'           => $shipping_name,
+    'contact'        => $shipping_contact,
+    'gstin'          => $shipping_gstin,
+    'address'        => $shipping_address,
+    'vehicle_number' => $shipping_vehicle_number,
+    'charges'        => $shipping_charges
 ];
 
 // Set totals - INCLUDING OVERALL DISCOUNT
@@ -914,7 +1034,30 @@ if (!empty($settings['invoice_footer'])) {
     }
 }
 
-// ========== Output PDF ==========
+// ========== Output PDF with auto-print JavaScript using HTML approach ==========
 while (ob_get_level()) ob_end_clean();
-$pdf->Output('I', 'Invoice_' . $invoice['invoice_number'] . '.pdf');
+
+// Instead of using IncludeJS (which doesn't exist), we'll output the PDF with a small HTML wrapper that auto-prints
+$pdf_content = $pdf->Output('S', 'Invoice_' . $invoice['invoice_number'] . '.pdf');
+
+// Clear buffer
+while (ob_get_level()) ob_end_clean();
+
+// Output PDF
+header('Content-Type: application/pdf');
+header('Content-Disposition: inline; filename="Invoice_' . $invoice['invoice_number'] . '.pdf"');
+header('Content-Length: ' . strlen($pdf_content));
+
+echo $pdf_content;
+
+// 🔥 Auto print + redirect
+echo "<script>
+window.onload = function() {
+    window.print();
+    setTimeout(function() {
+        window.location.href = 'pos3.php';
+    }, 1500);
+};
+</script>";
+
 exit;

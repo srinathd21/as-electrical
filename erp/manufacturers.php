@@ -3,6 +3,7 @@ date_default_timezone_set('Asia/Kolkata');
 session_start();
 require_once 'config/database.php';
 
+// 🔐 AUTH CHECK
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
@@ -13,12 +14,12 @@ if (!in_array($_SESSION['role'], ['admin', 'warehouse_manager','shop_manager']))
     exit();
 }
 
-// Get current user's business and shop info
+// 📌 USER INFO
 $user_id = $_SESSION['user_id'];
-$business_id = $_SESSION['business_id'];
-$shop_id = $_SESSION['shop_id'] ?? null;
+$business_id = $_SESSION['current_business_id'];
+$shop_id = $_SESSION['current_shop_id'] ?? null;
 
-// Get available shops for the current business
+// 🏪 GET SHOPS
 $shops_stmt = $pdo->prepare("
     SELECT id, shop_name, shop_code, is_warehouse 
     FROM shops 
@@ -28,124 +29,155 @@ $shops_stmt = $pdo->prepare("
 $shops_stmt->execute([$business_id]);
 $shops = $shops_stmt->fetchAll();
 
-// Display messages
+// 📢 FLASH MESSAGES
 $success = $_SESSION['success'] ?? '';
 $error = $_SESSION['error'] ?? '';
 $form_data = $_SESSION['form_data'] ?? [];
 unset($_SESSION['success'], $_SESSION['error'], $_SESSION['form_data']);
 
-// Search and filter parameters
+// 🔍 FILTERS
 $search = trim($_GET['search'] ?? '');
 $shop_filter = $_GET['shop_filter'] ?? '';
 $status_filter = $_GET['status'] ?? 'all';
-$outstanding_filter = $_GET['outstanding'] ?? 'all'; // New filter for outstanding status
+$outstanding_filter = $_GET['outstanding'] ?? 'all';
 
+// 🧱 BASE WHERE
 $where = "WHERE m.business_id = :business_id";
 $params = ['business_id' => $business_id];
 
-if ($search) {
-    $where .= " AND (m.name LIKE :search 
-        OR m.phone LIKE :search3 
-        OR m.gstin LIKE :search4 
-        OR m.account_number LIKE :search5 
-        OR m.ifsc_code LIKE :search6 
-        OR m.upi_id LIKE :search7
+// 🔎 SEARCH FILTER
+if ($search !== '') {
+    $where .= " AND (
+        m.name LIKE :search 
+        OR m.phone LIKE :search 
+        OR m.gstin LIKE :search 
+        OR m.account_number LIKE :search 
+        OR m.ifsc_code LIKE :search 
+        OR m.upi_id LIKE :search
         OR EXISTS (
             SELECT 1 FROM manufacturer_contacts mc 
             WHERE mc.manufacturer_id = m.id 
-            AND (mc.contact_person LIKE :search2 OR mc.phone LIKE :search2 OR mc.mobile LIKE :search2 OR mc.email LIKE :search2)
+            AND (
+                mc.contact_person LIKE :search 
+                OR mc.phone LIKE :search 
+                OR mc.mobile LIKE :search 
+                OR mc.email LIKE :search
+            )
         )
     )";
-    $like = "%$search%";
-    $params['search'] = $like;
-    $params['search2'] = $like;
-    $params['search3'] = $like;
-    $params['search4'] = $like;
-    $params['search5'] = $like;
-    $params['search6'] = $like;
-    $params['search7'] = $like;
+    $params['search'] = "%$search%";
 }
 
-if ($shop_filter) {
+// 🏪 SHOP FILTER (FIXED)
+if ($shop_filter !== '') {
     $where .= " AND m.shop_id = :shop_filter";
     $params['shop_filter'] = $shop_filter;
 }
 
+// 🔄 STATUS FILTER
 if ($status_filter !== 'all') {
     $where .= " AND m.is_active = :status";
     $params['status'] = ($status_filter === 'active') ? 1 : 0;
 }
 
-// First, get all manufacturers with their basic data
-$base_sql = "
+// 📊 MAIN QUERY (❌ REMOVED GROUP BY)
+$sql = "
     SELECT m.*, 
            s.shop_name,
            s.shop_code,
+
            (SELECT COUNT(*) FROM purchases p WHERE p.manufacturer_id = m.id) as total_purchases,
-           (SELECT COALESCE(SUM(p.total_amount), 0) FROM purchases p WHERE p.manufacturer_id = m.id) as total_purchase_amount,
-           (SELECT COALESCE(SUM(p.paid_amount), 0) FROM purchases p WHERE p.manufacturer_id = m.id) as total_paid_amount,
-           (SELECT COUNT(*) FROM manufacturer_contacts mc WHERE mc.manufacturer_id = m.id) as total_contacts,
-           (SELECT contact_person FROM manufacturer_contacts mc WHERE mc.manufacturer_id = m.id AND mc.is_primary = 1 LIMIT 1) as primary_contact,
-           (SELECT phone FROM manufacturer_contacts mc WHERE mc.manufacturer_id = m.id AND mc.is_primary = 1 LIMIT 1) as primary_phone,
-           (SELECT email FROM manufacturer_contacts mc WHERE mc.manufacturer_id = m.id AND mc.is_primary = 1 LIMIT 1) as primary_email
+
+           (SELECT COALESCE(SUM(p.total_amount), 0) 
+            FROM purchases p 
+            WHERE p.manufacturer_id = m.id) as total_purchase_amount,
+
+           (SELECT COALESCE(SUM(p.paid_amount), 0) 
+            FROM purchases p 
+            WHERE p.manufacturer_id = m.id) as total_paid_amount,
+
+           (SELECT COUNT(*) FROM manufacturer_contacts mc 
+            WHERE mc.manufacturer_id = m.id) as total_contacts,
+
+           (SELECT contact_person 
+            FROM manufacturer_contacts mc 
+            WHERE mc.manufacturer_id = m.id 
+            AND mc.is_primary = 1 LIMIT 1) as primary_contact,
+
+           (SELECT phone 
+            FROM manufacturer_contacts mc 
+            WHERE mc.manufacturer_id = m.id 
+            AND mc.is_primary = 1 LIMIT 1) as primary_phone,
+
+           (SELECT email 
+            FROM manufacturer_contacts mc 
+            WHERE mc.manufacturer_id = m.id 
+            AND mc.is_primary = 1 LIMIT 1) as primary_email
+
     FROM manufacturers m
     LEFT JOIN shops s ON m.shop_id = s.id
     $where
+    ORDER BY m.id DESC
 ";
 
-$stmt = $pdo->prepare($base_sql);
+$stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $manufacturers = $stmt->fetchAll();
 
-// Calculate financial data for each manufacturer
-foreach ($manufacturers as &$manufacturer) {
-    // Get purchase balance (pending amount from purchases)
+// 💰 CALCULATE BALANCE
+foreach ($manufacturers as &$m) {
+
+    // Purchase balance
     $balance_stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(total_amount - paid_amount), 0) as purchase_balance
+        SELECT COALESCE(SUM(total_amount - paid_amount), 0)
         FROM purchases 
         WHERE manufacturer_id = ? AND payment_status != 'paid'
     ");
-    $balance_stmt->execute([$manufacturer['id']]);
+    $balance_stmt->execute([$m['id']]);
     $purchase_balance = $balance_stmt->fetchColumn();
-    
-    $manufacturer['purchase_balance'] = $purchase_balance;
-    
-    // Calculate net outstanding (initial outstanding + purchase balance)
-    $initial_outstanding = $manufacturer['initial_outstanding_amount'] ?? 0;
-    $initial_type = $manufacturer['initial_outstanding_type'] ?? 'none';
-    
-    // Initial outstanding affects the net balance
-    if ($initial_type === 'credit') {
-        // Credit: Supplier owes us - reduces what we owe
-        $manufacturer['net_outstanding'] = $purchase_balance - $initial_outstanding;
-    } elseif ($initial_type === 'debit') {
-        // Debit: We owe supplier - increases what we owe
-        $manufacturer['net_outstanding'] = $purchase_balance + $initial_outstanding;
+
+    $m['purchase_balance'] = $purchase_balance;
+
+    // Initial outstanding
+    $initial = $m['initial_outstanding_amount'] ?? 0;
+    $type = $m['initial_outstanding_type'] ?? 'none';
+
+    if ($type === 'credit') {
+        $m['net_outstanding'] = max(0, $purchase_balance - $initial);
+    } elseif ($type === 'debit') {
+        $m['net_outstanding'] = $purchase_balance + $initial;
     } else {
-        $manufacturer['net_outstanding'] = $purchase_balance;
+        $m['net_outstanding'] = $purchase_balance;
     }
-    
-    $manufacturer['net_outstanding'] = max(0, $manufacturer['net_outstanding']); // Ensure non-negative
 }
 
-// Apply outstanding filter after calculation
+// 🔍 OUTSTANDING FILTER (AFTER CALCULATION)
 if ($outstanding_filter !== 'all') {
-    $filtered_manufacturers = [];
-    foreach ($manufacturers as $manufacturer) {
-        if ($outstanding_filter === 'has_outstanding' && $manufacturer['net_outstanding'] > 0) {
-            $filtered_manufacturers[] = $manufacturer;
-        } elseif ($outstanding_filter === 'no_outstanding' && $manufacturer['net_outstanding'] == 0) {
-            $filtered_manufacturers[] = $manufacturer;
-        } elseif ($outstanding_filter === 'credit' && $manufacturer['initial_outstanding_type'] === 'credit') {
-            $filtered_manufacturers[] = $manufacturer;
-        } elseif ($outstanding_filter === 'debit' && $manufacturer['initial_outstanding_type'] === 'debit') {
-            $filtered_manufacturers[] = $manufacturer;
+    $manufacturers = array_filter($manufacturers, function($m) use ($outstanding_filter) {
+
+        if ($outstanding_filter === 'has_outstanding') {
+            return $m['net_outstanding'] > 0;
         }
-    }
-    $manufacturers = $filtered_manufacturers;
+
+        if ($outstanding_filter === 'no_outstanding') {
+            return $m['net_outstanding'] == 0;
+        }
+
+        if ($outstanding_filter === 'credit') {
+            return $m['initial_outstanding_type'] === 'credit';
+        }
+
+        if ($outstanding_filter === 'debit') {
+            return $m['initial_outstanding_type'] === 'debit';
+        }
+
+        return true;
+    });
+
+    $manufacturers = array_values($manufacturers);
 }
 
-// Summary statistics based on current filter
+// 📈 SUMMARY
 $total_suppliers = count($manufacturers);
 $active_suppliers = 0;
 $inactive_suppliers = 0;
@@ -156,20 +188,24 @@ $total_credit = 0;
 $total_debit = 0;
 
 foreach ($manufacturers as $m) {
+
     if ($m['is_active']) $active_suppliers++;
     else $inactive_suppliers++;
-    
-    $total_purchase_amount += ($m['total_purchase_amount'] ?? 0);
-    $total_paid_amount += ($m['total_paid_amount'] ?? 0);
+
+    $total_purchase_amount += $m['total_purchase_amount'] ?? 0;
+    $total_paid_amount += $m['total_paid_amount'] ?? 0;
     $total_outstanding += $m['net_outstanding'];
-    
+
     if ($m['initial_outstanding_type'] === 'credit') {
-        $total_credit += ($m['initial_outstanding_amount'] ?? 0);
-    } elseif ($m['initial_outstanding_type'] === 'debit') {
-        $total_debit += ($m['initial_outstanding_amount'] ?? 0);
+        $total_credit += $m['initial_outstanding_amount'] ?? 0;
+    }
+
+    if ($m['initial_outstanding_type'] === 'debit') {
+        $total_debit += $m['initial_outstanding_amount'] ?? 0;
     }
 }
 
+// 📦 TOTAL PURCHASE COUNT
 $total_purchases_count = array_sum(array_column($manufacturers, 'total_purchases'));
 ?>
 <!doctype html>
@@ -438,24 +474,7 @@ $total_purchases_count = array_sum(array_column($manufacturers, 'total_purchases
                                 </thead>
                                 <tbody>
                                 <?php if (empty($manufacturers)): ?>
-                                    <tr>
-                                        <td colspan="9" class="text-center py-5">
-                                            <div class="empty-state">
-                                                <i class="bx bx-buildings fs-1 text-muted mb-3"></i>
-                                                <h5>No suppliers found</h5>
-                                                <p class="text-muted">
-                                                    <?php if ($search || $shop_filter || $status_filter !== 'all' || $outstanding_filter !== 'all'): ?>
-                                                        Try adjusting your filters or <a href="manufacturers.php">clear all filters</a>
-                                                    <?php else: ?>
-                                                        Get started by adding your first supplier
-                                                    <?php endif; ?>
-                                                </p>
-                                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addManufacturerModal">
-                                                    <i class="bx bx-plus-circle me-1"></i> Add Supplier
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    
                                 <?php else: ?>
                                     <?php foreach ($manufacturers as $m):
                                         $outstanding_amount = $m['initial_outstanding_amount'] ?? 0;

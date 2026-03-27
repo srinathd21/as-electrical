@@ -2791,11 +2791,11 @@ async function processPayment(action = 'save') {
     const bank = roundValue(parseFloat(document.getElementById('bank-payment').value) || 0);
     const credit = roundValue(parseFloat(document.getElementById('credit-payment').value) || 0);
     
-    // Get engineer selection
+    // Get engineer selection - FIXED: Get the value correctly
     const engineerSelect = document.getElementById('payment-engineer-select');
     const selectedEngineerId = engineerSelect && engineerSelect.value ? engineerSelect.value : null;
     
-    // Get site selection
+    // Get site selection - FIXED: Get the value correctly
     const siteSelect = document.getElementById('payment-site-select');
     const selectedSiteId = siteSelect && siteSelect.value ? siteSelect.value : null;
     
@@ -2812,24 +2812,14 @@ async function processPayment(action = 'save') {
         return;
     }
     
-    // Show loading state
-    Swal.fire({
-        title: 'Processing...',
-        text: 'Saving your invoice...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    
     try {
         const invoiceResult = await saveInvoice(action, {
             cash, upi, bank, credit, change,
             upi_reference: upiReference,
             bank_reference: bankReference,
             cheque_number: chequeNumber,
-            site_id: selectedSiteId,
-            engineer_id: selectedEngineerId
+            site_id: selectedSiteId,      // Pass as integer or null
+            engineer_id: selectedEngineerId // Pass as integer or null
         });
         
         printInvoiceToConsole(invoiceResult);
@@ -2845,31 +2835,30 @@ async function processPayment(action = 'save') {
         if (action === 'print') actionText = 'Saved & Printed (A4)';
         else if (action === 'thermal') actionText = 'Saved & Thermal Printed';
         
-        // Close payment modal first
-        document.getElementById('payment-modal').style.display = 'none';
-        
-        // Show success SweetAlert with longer duration
-        await Swal.fire({
+        Swal.fire({
             icon: 'success',
             title: 'Success!',
             html: `<strong>${actionText}</strong><br>Customer: ${customerName}<br>Total: ₹${totalAmount}<br>Paid: ₹${totalPaid}${change > 0 ? `<br>Change: ₹${change}` : ''}<br><br>Thank you for your business!<br><br><small>Page will refresh in 3 seconds...</small>`,
             showConfirmButton: true,
             confirmButtonText: 'OK',
-            timer: 3000,
+            timer: 1000,
             timerProgressBar: true,
-            allowOutsideClick: false
+            didOpen: () => {
+                // Timer is running
+            },
+            willClose: () => {
+                // Modal will close
+            }
+        }).then((result) => {
+            if (result.dismiss === Swal.DismissReason.timer) {
+                console.log('Auto-closed after timer');
+            }
         });
-        
-        // Complete the sale (clear cart, reset)
+
+        document.getElementById('payment-modal').style.display = 'none';
         completeSale();
         
-        // Refresh after SweetAlert is closed
-        setTimeout(() => {
-            location.reload();
-        }, 500);
-        
     } catch (error) {
-        Swal.close(); // Close loading
         showErrorToast('Payment failed: ' + error.message);
     }
 }
@@ -2899,6 +2888,11 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
         }
     }
     
+    // Debug log to see what's being sent
+    console.log('Payment Details in saveInvoice:', paymentDetails);
+    console.log('Engineer ID:', paymentDetails.engineer_id);
+    console.log('Site ID:', paymentDetails.site_id);
+    
     const invoiceData = {
         customer_id: CURRENT_CUSTOMER && CURRENT_CUSTOMER.id !== 'walk-in' ? CURRENT_CUSTOMER.id : null,
         customer_name: CURRENT_CUSTOMER ? CURRENT_CUSTOMER.name : 'Walk-in Customer',
@@ -2915,6 +2909,7 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
         gst: summary.gst,
         points_used: roundValue(POINTS_DISCOUNT / LOYALTY_RATE),
         points_discount: POINTS_DISCOUNT,
+        // Pass engineer_id and site_id explicitly
         engineer_id: paymentDetails.engineer_id ? parseInt(paymentDetails.engineer_id) : null,
         site_id: paymentDetails.site_id ? parseInt(paymentDetails.site_id) : null,
         items: CART.map(item => {
@@ -2957,9 +2952,12 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
         referral_commission: totalReferralCommission
     };
     
+    console.log('Final invoiceData being sent:', invoiceData);
+    
     let endpoint = 'save';
     if (action === 'print') endpoint = 'save_for_print';
     else if (action === 'thermal') endpoint = 'save_for_thermal';
+    else endpoint = 'save';
     
     try {
         const response = await fetch(`${API_INVOICES}?action=${endpoint}`, {
@@ -2991,17 +2989,15 @@ function completeSale() {
     CART = [];
     OVERALL_DISCOUNT = 0;
     POINTS_DISCOUNT = 0;
-    
-    const discountInput = document.getElementById('overall-discount-input');
-    if (discountInput) discountInput.value = '';
-    
+    document.getElementById('overall-discount-input').value = '';
     saveCartToSession();
     updateUI();
     
     // Reset to walk-in customer
     resetToWalkInCustomer();
     
-    // Note: Do NOT call refreshPageAfterDelay here - let the caller handle refresh
+    // Refresh page after 3 seconds
+    refreshPageAfterDelay(3000);
 }
 // ==================== REFERRAL FUNCTIONS ====================
 async function loadReferrals() {

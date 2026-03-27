@@ -2,17 +2,24 @@
 date_default_timezone_set('Asia/Kolkata');
 session_start();
 require_once 'config/database.php';
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
-$business_id = $_SESSION['business_id'] ?? 1;
+
+// FIXED: Use consistent session variable for business_id
+$business_id = $_SESSION['current_business_id'] ?? $_SESSION['business_id'] ?? 1;
 $current_shop_id = $_SESSION['current_shop_id'] ?? null;
+
 // Check if business and shop are selected
 if (!$business_id || !$current_shop_id) {
     header('Location: select_shop.php');
     exit();
 }
+
+// Store in session for consistency if needed
+$_SESSION['business_id'] = $business_id;
 
 // ==================== HANDLE FORM SUBMISSIONS ====================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -29,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         // New fields for credit management
         $credit_limit = isset($_POST['credit_limit']) && $_POST['credit_limit'] !== '' ? floatval($_POST['credit_limit']) : null;
-        $outstanding_type = $_POST['outstanding_type'] ?? 'credit'; // credit or debit
+        $outstanding_type = $_POST['outstanding_type'] ?? 'credit';
         $outstanding_amount = isset($_POST['outstanding_amount']) && $_POST['outstanding_amount'] !== '' ? floatval($_POST['outstanding_amount']) : 0;
         
         // Validate required fields
@@ -41,7 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         try {
             if ($action == 'add_customer') {
-                // Add new customer with credit fields
                 $sql = "INSERT INTO customers (business_id, name, phone, email, address, gstin, customer_type, referral_id, 
                         credit_limit, outstanding_type, outstanding_amount, created_at) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
@@ -51,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 $_SESSION['success'] = "Customer added successfully!";
             } else {
-                // Edit existing customer
                 $customer_id = (int)$_POST['id'];
                 
                 $sql = "UPDATE customers SET 
@@ -82,7 +87,71 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit();
         }
     } 
-    // Remove the delete_customer action completely
+    elseif ($action == 'delete_customer') {
+        $customer_id = (int)($_POST['id'] ?? 0);
+        
+        if (!$customer_id) {
+            $_SESSION['error'] = "Invalid customer ID!";
+            header('Location: customers.php');
+            exit();
+        }
+        
+        try {
+            $pdo->beginTransaction();
+            
+            $check_stmt = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE customer_id = ? AND business_id = ?");
+            $check_stmt->execute([$customer_id, $business_id]);
+            $invoice_count = $check_stmt->fetchColumn();
+            
+            if ($invoice_count > 0) {
+                $_SESSION['error'] = "Cannot delete customer with existing invoices. Consider marking them as inactive instead.";
+                $pdo->rollBack();
+                header('Location: customers.php');
+                exit();
+            } else {
+                // Delete related records
+                try {
+                    $delete_points = $pdo->prepare("DELETE FROM customer_points WHERE customer_id = ? AND business_id = ?");
+                    $delete_points->execute([$customer_id, $business_id]);
+                } catch (PDOException $e) {
+                    // Table might not exist, continue
+                }
+                
+                try {
+                    $delete_pt = $pdo->prepare("DELETE FROM point_transactions WHERE customer_id = ? AND business_id = ?");
+                    $delete_pt->execute([$customer_id, $business_id]);
+                } catch (PDOException $e) {
+                    // Table might not exist, continue
+                }
+                
+                try {
+                    $delete_addresses = $pdo->prepare("DELETE FROM customer_addresses WHERE customer_id = ?");
+                    $delete_addresses->execute([$customer_id]);
+                } catch (PDOException $e) {
+                    // Table might not exist, continue
+                }
+                
+                $delete_stmt = $pdo->prepare("DELETE FROM customers WHERE id = ? AND business_id = ?");
+                $delete_stmt->execute([$customer_id, $business_id]);
+                
+                if ($delete_stmt->rowCount() > 0) {
+                    $_SESSION['success'] = "Customer deleted successfully!";
+                } else {
+                    $_SESSION['error'] = "Customer not found or already deleted!";
+                }
+            }
+            
+            $pdo->commit();
+            header('Location: customers.php');
+            exit();
+            
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            $_SESSION['error'] = "Database error: " . $e->getMessage();
+            header('Location: customers.php');
+            exit();
+        }
+    }
 }
 
 // ==================== SEARCH AND FILTER ====================
@@ -90,6 +159,7 @@ $search = trim($_GET['search'] ?? '');
 $customer_type = $_GET['customer_type'] ?? '';
 $where = "WHERE c.business_id = ?";
 $params = [$business_id];
+
 if ($search) {
     $where .= " AND (c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ? OR c.gstin LIKE ? OR c.address LIKE ?)";
     $like = "%$search%";
@@ -124,9 +194,10 @@ $sql = "
             COALESCE((SELECT SUM(pending_amount) FROM invoices i WHERE i.customer_id = c.id AND i.business_id = ?), 0)
     ) DESC, c.name ASC
 ";
-$params = array_merge([$business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id], $params);
+
+$params_main = array_merge([$business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id, $business_id], $params);
 $stmt = $pdo->prepare($sql);
-$stmt->execute($params);
+$stmt->execute($params_main);
 $customers = $stmt->fetchAll();
 
 // Get referral persons for dropdown
@@ -134,40 +205,83 @@ $referrals_stmt = $pdo->prepare("SELECT id, full_name, phone FROM referral_perso
 $referrals_stmt->execute([$business_id]);
 $referrals = $referrals_stmt->fetchAll();
 
-// Total outstanding across all customers (including manual outstanding)
+// FIXED: Get detailed outstanding calculations with proper business_id
+$invoice_outstanding_stmt = $pdo->prepare("SELECT COALESCE(SUM(pending_amount), 0) FROM invoices WHERE business_id = ? AND pending_amount > 0");
+$invoice_outstanding_stmt->execute([$business_id]);
+$invoice_outstanding_total = $invoice_outstanding_stmt->fetchColumn();
+
+$manual_credit_stmt = $pdo->prepare("SELECT COALESCE(SUM(CASE WHEN outstanding_type = 'credit' THEN outstanding_amount ELSE 0 END), 0) FROM customers WHERE business_id = ?");
+$manual_credit_stmt->execute([$business_id]);
+$manual_credit_total = $manual_credit_stmt->fetchColumn();
+
+$manual_debit_stmt = $pdo->prepare("SELECT COALESCE(SUM(CASE WHEN outstanding_type = 'debit' THEN outstanding_amount ELSE 0 END), 0) FROM customers WHERE business_id = ?");
+$manual_debit_stmt->execute([$business_id]);
+$manual_debit_total = $manual_debit_stmt->fetchColumn();
+
+// Total outstanding across all customers
 $total_outstanding_stmt = $pdo->prepare("
     SELECT COALESCE(
-        SUM(CASE 
-            WHEN c.outstanding_type = 'credit' THEN c.outstanding_amount 
-            WHEN c.outstanding_type = 'debit' THEN -c.outstanding_amount 
+        (SELECT SUM(CASE 
+            WHEN outstanding_type = 'credit' THEN outstanding_amount 
+            WHEN outstanding_type = 'debit' THEN -outstanding_amount 
             ELSE 0 
-        END) + 
-        COALESCE(SUM(i.pending_amount), 0), 0
-    ) 
-    FROM customers c 
-    LEFT JOIN invoices i ON c.id = i.customer_id AND i.business_id = ?
-    WHERE c.business_id = ?
+        END) FROM customers WHERE business_id = ?),
+        0
+    ) + 
+    COALESCE(
+        (SELECT SUM(pending_amount) FROM invoices WHERE business_id = ? AND pending_amount > 0),
+        0
+    ) as total_outstanding
 ");
 $total_outstanding_stmt->execute([$business_id, $business_id]);
 $total_outstanding = $total_outstanding_stmt->fetchColumn();
 
 // Get customer type statistics
-$type_stats_stmt = $pdo->prepare("SELECT
-                                  SUM(CASE WHEN customer_type = 'retail' THEN 1 ELSE 0 END) as retail_count,
-                                  SUM(CASE WHEN customer_type = 'wholesale' THEN 1 ELSE 0 END) as wholesale_count,
-                                  SUM(CASE WHEN credit_limit IS NOT NULL AND credit_limit > 0 THEN 1 ELSE 0 END) as credit_limit_count,
-                                  SUM(CASE 
-                                      WHEN outstanding_type = 'credit' THEN outstanding_amount 
-                                      WHEN outstanding_type = 'debit' THEN -outstanding_amount 
-                                      ELSE 0 
-                                  END) as total_manual_outstanding
-                                  FROM customers WHERE business_id = ?");
+$type_stats_stmt = $pdo->prepare("
+    SELECT
+        SUM(CASE WHEN customer_type = 'retail' THEN 1 ELSE 0 END) as retail_count,
+        SUM(CASE WHEN customer_type = 'wholesale' THEN 1 ELSE 0 END) as wholesale_count,
+        SUM(CASE WHEN credit_limit IS NOT NULL AND credit_limit > 0 THEN 1 ELSE 0 END) as credit_limit_count,
+        SUM(CASE 
+            WHEN outstanding_type = 'credit' THEN outstanding_amount 
+            WHEN outstanding_type = 'debit' THEN -outstanding_amount 
+            ELSE 0 
+        END) as total_manual_outstanding
+    FROM customers WHERE business_id = ?
+");
 $type_stats_stmt->execute([$business_id]);
 $type_stats = $type_stats_stmt->fetch();
+
+// Get total revenue
+$revenue_stmt = $pdo->prepare("SELECT COALESCE(SUM(total),0) FROM invoices WHERE business_id = ?");
+$revenue_stmt->execute([$business_id]);
+$revenue = $revenue_stmt->fetchColumn();
+
+// Calculate net manual outstanding (credit - debit)
+$net_manual_outstanding = $manual_credit_total - $manual_debit_total;
 ?>
+
 <!doctype html>
 <html lang="en">
 <?php include('includes/head.php') ?>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .empty-state i { font-size: 4rem; opacity: 0.5; }
+        .avatar-sm { width: 48px; height: 48px; }
+        .table th { font-weight: 600; background-color: #f8f9fa; }
+        .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 5px 20px rgba(0,0,0,0.15) !important; }
+        .border-start { border-left-width: 4px !important; }
+        .btn-group .btn { padding: 0.375rem 0.5rem; font-size: 14px; }
+        .outstanding-card { transition: all 0.3s ease; }
+        .outstanding-card:hover { transform: translateY(-3px); }
+        @media (max-width: 768px) {
+            .btn-group { flex-wrap: wrap; gap: 3px; }
+            .btn-group .btn { flex: 1; min-width: 40px; padding: 0.375rem 0.5rem; }
+        }
+    </style>
+</head>
 <body data-sidebar="dark">
 <div id="layout-wrapper">
     <?php include('includes/topbar.php') ?>
@@ -188,7 +302,7 @@ $type_stats = $type_stats_stmt->fetch();
                                     <i class="bx bx-user me-2"></i> Customers
                                     <small class="text-muted ms-2">
                                         <i class="bx bx-buildings me-1"></i>
-                                        <?= htmlspecialchars($_SESSION['current_business_name'] ?? 'Business') ?>
+                                        <?= htmlspecialchars($_SESSION['current_business_name'] ?? $_SESSION['business_name'] ?? 'Business') ?>
                                     </small>
                                 </h4>
                                 <p class="mb-0 text-muted">
@@ -206,6 +320,7 @@ $type_stats = $type_stats_stmt->fetch();
                         </div>
                     </div>
                 </div>
+                
                 <!-- Messages -->
                 <?php if (isset($_SESSION['success'])): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -219,6 +334,7 @@ $type_stats = $type_stats_stmt->fetch();
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php unset($_SESSION['error']); endif; ?>
+                
                 <!-- Stats Cards -->
                 <div class="row mb-4">
                     <div class="col-xl-3 col-md-6">
@@ -237,8 +353,8 @@ $type_stats = $type_stats_stmt->fetch();
                                 </div>
                                 <div class="mt-2">
                                     <small class="text-muted">
-                                        Retail: <?= $type_stats['retail_count'] ?> |
-                                        Wholesale: <?= $type_stats['wholesale_count'] ?>
+                                        Retail: <?= $type_stats['retail_count'] ?? 0 ?> |
+                                        Wholesale: <?= $type_stats['wholesale_count'] ?? 0 ?>
                                     </small>
                                 </div>
                             </div>
@@ -250,7 +366,7 @@ $type_stats = $type_stats_stmt->fetch();
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6 class="text-muted mb-1">Credit Limit Enabled</h6>
-                                        <h3 class="mb-0 text-warning"><?= $type_stats['credit_limit_count'] ?></h3>
+                                        <h3 class="mb-0 text-warning"><?= $type_stats['credit_limit_count'] ?? 0 ?></h3>
                                     </div>
                                     <div class="avatar-sm">
                                         <span class="avatar-title bg-warning bg-opacity-10 rounded-circle fs-3">
@@ -268,8 +384,7 @@ $type_stats = $type_stats_stmt->fetch();
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6 class="text-muted mb-1">Total Revenue</h6>
-                                        <?php $revenue = $pdo->query("SELECT COALESCE(SUM(total),0) FROM invoices WHERE business_id = $business_id")->fetchColumn(); ?>
-                                        <h3 class="mb-0 text-info">₹<?= number_format($revenue, 0) ?></h3>
+                                        <h3 class="mb-0 text-info">₹<?= number_format($revenue, 2) ?></h3>
                                     </div>
                                     <div class="avatar-sm">
                                         <span class="avatar-title bg-info bg-opacity-10 rounded-circle fs-3">
@@ -294,11 +409,78 @@ $type_stats = $type_stats_stmt->fetch();
                                         </span>
                                     </div>
                                 </div>
-                                <small class="text-muted">Includes invoice + manual dues</small>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <span class="text-warning">Manual: ₹<?= number_format($net_manual_outstanding, 2) ?></span> | 
+                                        <span class="text-info">Invoice: ₹<?= number_format($invoice_outstanding_total, 2) ?></span>
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Detailed Outstanding Breakdown -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">
+                                    <i class="bx bx-chart me-2"></i> Outstanding Breakdown
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3 mb-md-0">
+                                        <div class="bg-light rounded p-3 outstanding-card">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <small class="text-muted d-block mb-1">Invoice Outstanding</small>
+                                                    <h4 class="mb-0 text-warning">₹<?= number_format($invoice_outstanding_total, 2) ?></h4>
+                                                    <small class="text-muted">From unpaid invoices</small>
+                                                </div>
+                                                <i class="bx bx-receipt fs-1 text-warning opacity-50"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3 mb-md-0">
+                                        <div class="bg-light rounded p-3 outstanding-card">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <small class="text-muted d-block mb-1">Manual Credit Balance</small>
+                                                    <h4 class="mb-0 text-primary">₹<?= number_format($manual_credit_total, 2) ?></h4>
+                                                    <small class="text-muted">Credit entries (customer owes)</small>
+                                                </div>
+                                                <i class="bx bx-credit-card fs-1 text-primary opacity-50"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="bg-light rounded p-3 outstanding-card">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <small class="text-muted d-block mb-1">Manual Debit Balance</small>
+                                                    <h4 class="mb-0 text-success">₹<?= number_format($manual_debit_total, 2) ?></h4>
+                                                    <small class="text-muted">Debit entries (we owe customer)</small>
+                                                </div>
+                                                <i class="bx bx-money fs-1 text-success opacity-50"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bx bx-info-circle me-2"></i>
+                                            <strong>Total Outstanding Calculation:</strong> 
+                                            Manual Credit (₹<?= number_format($manual_credit_total, 2) ?>) - Manual Debit (₹<?= number_format($manual_debit_total, 2) ?>) + Invoice Outstanding (₹<?= number_format($invoice_outstanding_total, 2) ?>) 
+                                            = <strong class="text-danger">₹<?= number_format($total_outstanding, 2) ?></strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Filter Card -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
@@ -342,6 +524,7 @@ $type_stats = $type_stats_stmt->fetch();
                         </form>
                     </div>
                 </div>
+                
                 <!-- Customers Table -->
                 <div class="card shadow-sm">
                     <div class="card-body">
@@ -360,10 +543,17 @@ $type_stats = $type_stats_stmt->fetch();
                                 </thead>
                                 <tbody>
                                     <?php if (empty($customers)): ?>
-                                    
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5">
+                                            <div class="empty-state">
+                                                <i class="bx bx-user-x display-1 text-muted"></i>
+                                                <h5 class="mt-3">No Customers Found</h5>
+                                                <p class="text-muted">Click "Add Customer" to create your first customer.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
                                     <?php else: ?>
                                     <?php foreach ($customers as $c): 
-                                        // Calculate total outstanding (manual + invoice)
                                         $manual_outstanding = ($c['outstanding_type'] == 'debit') ? -$c['outstanding_amount'] : $c['outstanding_amount'];
                                         $total_outstanding_customer = $manual_outstanding + $c['invoice_outstanding'];
                                         $credit_limit = $c['credit_limit'] ?? 0;
@@ -448,7 +638,7 @@ $type_stats = $type_stats_stmt->fetch();
                                                 <strong class="text-warning">₹<?= number_format($credit_limit, 2) ?></strong>
                                                 <small class="text-muted d-block">Credit Limit</small>
                                             </div>
-                                            <?php if ($credit_utilization > 0): ?>
+                                            <?php if ($total_outstanding_customer > 0 && $credit_utilization > 0): ?>
                                             <div class="progress" style="height: 6px;">
                                                 <div class="progress-bar bg-<?= $credit_utilization > 80 ? 'danger' : ($credit_utilization > 50 ? 'warning' : 'success') ?>" 
                                                      role="progressbar" 
@@ -465,26 +655,57 @@ $type_stats = $type_stats_stmt->fetch();
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
-                                            <?php if ($total_outstanding_customer > 0): ?>
-                                                <strong class="text-danger fs-5">₹<?= number_format($total_outstanding_customer, 2) ?></strong>
-                                                <small class="text-muted d-block">Total Due</small>
-                                                <?php if ($c['outstanding_amount'] > 0): ?>
-                                                <small class="text-info">
-                                                    <i class="bx bx-info-circle me-1"></i>
-                                                    <?= $c['outstanding_type'] == 'credit' ? 'Credit' : 'Debit' ?>: ₹<?= number_format($c['outstanding_amount'], 2) ?>
-                                                </small>
+                                            <?php if ($total_outstanding_customer > 0.01): ?>
+                                                <div class="mb-1">
+                                                    <strong class="text-danger fs-5">₹<?= number_format($total_outstanding_customer, 2) ?></strong>
+                                                    <small class="text-muted d-block">Total Due</small>
+                                                </div>
+                                                
+                                                <div class="small mt-1">
+                                                    <?php if ($c['invoice_outstanding'] > 0.01): ?>
+                                                        <div class="text-muted">
+                                                            <i class="bx bx-receipt me-1"></i> Invoices: ₹<?= number_format($c['invoice_outstanding'], 2) ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    
+                                                    <?php if ($c['outstanding_amount'] > 0.01): ?>
+                                                        <div class="text-<?= $c['outstanding_type'] == 'credit' ? 'danger' : 'success' ?>">
+                                                            <i class="bx bx-<?= $c['outstanding_type'] == 'credit' ? 'minus-circle' : 'plus-circle' ?> me-1"></i>
+                                                            Manual <?= ucfirst($c['outstanding_type']) ?>: ₹<?= number_format($c['outstanding_amount'], 2) ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                                
+                                                <?php if ($credit_limit > 0 && $credit_utilization > 80): ?>
+                                                    <div class="text-warning mt-1 small">
+                                                        <i class="bx bx-error-circle me-1"></i> Credit limit: <?= number_format($credit_utilization, 1) ?>% used
+                                                    </div>
                                                 <?php endif; ?>
+                                                
                                                 <a href="customer_credit_statement.php?customer_id=<?= $c['id'] ?>"
-                                                   class="btn btn-sm btn-outline-danger mt-1">
+                                                   class="btn btn-sm btn-outline-danger mt-2">
                                                     <i class="bx bx-receipt me-1"></i> View Statement
                                                 </a>
-                                            <?php elseif ($total_outstanding_customer < 0): ?>
-                                                <strong class="text-success fs-5">₹<?= number_format(abs($total_outstanding_customer), 2) ?></strong>
-                                                <small class="text-muted d-block">Advance/Overpayment</small>
+                                                
+                                            <?php elseif ($total_outstanding_customer < -0.01): ?>
+                                                <div class="mb-1">
+                                                    <strong class="text-success fs-5">₹<?= number_format(abs($total_outstanding_customer), 2) ?></strong>
+                                                    <small class="text-muted d-block">Advance/Overpayment</small>
+                                                </div>
+                                                <div class="small text-success">
+                                                    <i class="bx bx-check-circle me-1"></i> Customer has credit balance
+                                                </div>
+                                                <a href="customer_credit_statement.php?customer_id=<?= $c['id'] ?>"
+                                                   class="btn btn-sm btn-outline-success mt-2">
+                                                    <i class="bx bx-receipt me-1"></i> View Statement
+                                                </a>
+                                                
                                             <?php else: ?>
-                                                <span class="text-success fw-medium">
-                                                    <i class="bx bx-check-circle me-1"></i> No dues
-                                                </span>
+                                                <div class="mb-1">
+                                                    <span class="text-success fw-medium">
+                                                        <i class="bx bx-check-circle me-1"></i> No dues
+                                                    </span>
+                                                </div>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
@@ -534,7 +755,6 @@ $type_stats = $type_stats_stmt->fetch();
                                                     <i class="bx bx-plus"></i>
                                                 </a>
                                               
-                                                <!-- WhatsApp Send Button -->
                                                 <?php if ($c['last_invoice_id'] && $c['phone']):
                                                     $customer_name = $c['name'];
                                                     $invoice_number = $c['last_invoice_number'];
@@ -564,6 +784,16 @@ $type_stats = $type_stats_stmt->fetch();
                                                     <i class="bx bxl-whatsapp"></i>
                                                 </button>
                                                 <?php endif; ?>
+                                                
+                                                <button class="btn btn-outline-danger delete-customer-btn"
+                                                        data-id="<?= $c['id'] ?>"
+                                                        data-name="<?= htmlspecialchars($c['name'], ENT_QUOTES) ?>"
+                                                        data-invoice-count="<?= $c['total_invoices'] ?>"
+                                                        data-bs-toggle="tooltip" 
+                                                        title="<?= $c['total_invoices'] > 0 ? 'Cannot delete - has invoices' : 'Delete Customer' ?>"
+                                                        <?= $c['total_invoices'] > 0 ? 'disabled' : '' ?>>
+                                                    <i class="bx bx-trash"></i>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -706,14 +936,19 @@ $type_stats = $type_stats_stmt->fetch();
 <?php include('includes/rightbar.php') ?>
 <?php include('includes/scripts.php') ?>
 
+<!-- Hidden form for delete submission -->
+<form method="POST" action="customers.php" id="deleteForm" style="display: none;">
+    <input type="hidden" name="action" value="delete_customer">
+    <input type="hidden" name="id" id="deleteId" value="">
+</form>
+
 <script>
 $(document).ready(function() {
-     // Initialize DataTable
+    // Initialize DataTable
     $('#customersTable').DataTable({
         responsive: true,
-       pageLength: 25,
-ordering: false,
-
+        pageLength: 25,
+        ordering: false,
         dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
              "<'row'<'col-sm-12'tr>>" +
              "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
@@ -730,7 +965,7 @@ ordering: false,
     
     $('[data-bs-toggle="tooltip"]').tooltip();
 
-    // Edit customer button (FIXED)
+    // Edit customer button
     $(document).on('click', '.edit-customer-btn', function () {
         $('#editId').val($(this).data('id'));
         $('#custName').val($(this).data('name'));
@@ -752,15 +987,46 @@ ordering: false,
         modal.show();
     });
 
-    // View customer details (FIXED)
+    // View customer details
     $(document).on('click', '.view-customer-btn', function () {
         const customerId = $(this).data('id');
         window.location.href = 'customer_details.php?id=' + customerId;
     });
 
-    // Re-enable tooltips after table redraw
-    $('#customersTable').on('draw.dt', function () {
-        $('[data-bs-toggle="tooltip"]').tooltip();
+    // Delete customer button handler
+    $(document).on('click', '.delete-customer-btn:not(:disabled)', function (e) {
+        e.preventDefault();
+        
+        const customerId = $(this).data('id');
+        const customerName = $(this).data('name');
+        const invoiceCount = $(this).data('invoice-count');
+        
+        if (invoiceCount > 0) {
+            Swal.fire({
+                title: 'Cannot Delete',
+                text: `This customer has ${invoiceCount} invoice(s). Deletion is not allowed. Consider marking them as inactive instead.`,
+                icon: 'warning',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'OK'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Are you sure?',
+            text: `You are about to delete customer "${customerName}". This action cannot be undone!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $('#deleteId').val(customerId);
+                $('#deleteForm').submit();
+            }
+        });
     });
 
     // Reset form when add modal is closed
@@ -820,29 +1086,5 @@ ordering: false,
     }, 5000);
 });
 </script>
-
-<style>
-.empty-state i { font-size: 4rem; opacity: 0.5; }
-.avatar-sm { width: 48px; height: 48px; }
-.table th { font-weight: 600; background-color: #f8f9fa; }
-.card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-.card-hover:hover { transform: translateY(-5px); box-shadow: 0 5px 20px rgba(0,0,0,0.15) !important; }
-.border-start { border-left-width: 4px !important; }
-.btn-group .btn {
-    padding: 0.375rem 0.5rem;
-    font-size: 14px;
-}
-.credit-progress {
-    height: 6px;
-    margin-bottom: 5px;
-}
-.credit-progress .progress-bar {
-    transition: width 0.3s ease;
-}
-@media (max-width: 768px) {
-    .btn-group { flex-wrap: wrap; gap: 3px; }
-    .btn-group .btn { flex: 1; min-width: 40px; padding: 0.375rem 0.5rem; }
-}
-</style>
 </body>
 </html>

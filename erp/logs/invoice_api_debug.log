@@ -25672,3 +25672,3121 @@
 [2026-03-03 20:35:55] Points earning recorded
 [2026-03-03 20:35:55] Transaction committed successfully
 [2026-03-03 20:35:55] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 06:54:29] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 06:54:29] Generated invoice number | {
+    "invoice_number": "INV202603-0002",
+    "attempts": 0,
+    "final_seq": 2
+}
+[2026-03-27 06:54:29] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 06:54:29] Action: save
+[2026-03-27 06:54:29] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0002\",\"invoice_type\":\"gst\",\"subtotal\":220,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":220,\"gst\":0,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220}],\"payment_details\":{\"cash\":220,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 06:54:29] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0002"
+}
+[2026-03-27 06:54:29] Transaction started
+[2026-03-27 06:54:29] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 06:54:29] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 06:54:29] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 06:54:29] Customer address | {
+    "address": ""
+}
+[2026-03-27 06:54:29] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 06:54:29] HSN check | {
+    "has_hsn": false
+}
+[2026-03-27 06:54:29] Invoice type decided | {
+    "gst_status": 0,
+    "invoice_type": "retail_bill"
+}
+[2026-03-27 06:54:29] Created new customer | {
+    "customer_id": "124"
+}
+[2026-03-27 06:54:29] Created new customer points record | {
+    "customer_id": "124"
+}
+[2026-03-27 06:54:29] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 06:54:29] Using invoice number | {
+    "invoice_number": "INV202603-0002"
+}
+[2026-03-27 06:54:29] Payment details received | {
+    "cash": 220,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 06:54:29] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 06:54:29] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 06:54:29] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 06:54:29] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 06:54:29] Payment summary | {
+    "subtotal": 220,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 220,
+    "total_paid": 220,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 06:54:29] Invoice created | {
+    "invoice_id": "127",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 06:54:29] Processing item #1 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 06:54:29] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 10,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 06:54:29] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 06:54:29] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 10,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 10
+}
+[2026-03-27 06:54:29] Item #1 saved | {
+    "item_id": "168",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 06:54:29] Direct stock deduction | {
+    "qty_deducted_primary": 1,
+    "qty_deducted_secondary": 1,
+    "rows_affected": 1
+}
+[2026-03-27 06:54:29] Final stock status | {
+    "final_quantity": "9.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 06:54:29] Stock deduction completed for item #1 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "sold_quantity": "1 nos",
+    "converted_primary": "1 nos",
+    "converted_secondary": "1 ",
+    "batch_tracking_used": "No",
+    "old_stock_deducted": "N\/A",
+    "referral_commission": 0
+}
+[2026-03-27 06:54:29] No referral commission to update | {
+    "referral_id": null,
+    "total_referral_commission": 0
+}
+[2026-03-27 06:54:30] Points earned | {
+    "points_earned": 2.2
+}
+[2026-03-27 06:54:30] Points earning recorded
+[2026-03-27 06:54:30] Transaction committed successfully
+[2026-03-27 06:54:30] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 06:56:14] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 06:56:14] Generated invoice number | {
+    "invoice_number": "INV202603-0003",
+    "attempts": 0,
+    "final_seq": 3
+}
+[2026-03-27 06:56:14] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 06:56:14] Action: print
+[2026-03-27 06:56:14] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0003\",\"invoice_type\":\"gst\",\"subtotal\":50,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":50,\"gst\":8,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":10,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":50}],\"payment_details\":{\"cash\":50,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 06:56:14] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0003"
+}
+[2026-03-27 06:56:14] Transaction started
+[2026-03-27 06:56:14] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 06:56:14] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 06:56:14] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 06:56:14] Customer address | {
+    "address": ""
+}
+[2026-03-27 06:56:14] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 06:56:14] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 06:56:14] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 06:56:15] Created new customer | {
+    "customer_id": "125"
+}
+[2026-03-27 06:56:15] Created new customer points record | {
+    "customer_id": "125"
+}
+[2026-03-27 06:56:15] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 06:56:15] Using invoice number | {
+    "invoice_number": "INV202603-0003"
+}
+[2026-03-27 06:56:15] Payment details received | {
+    "cash": 50,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 06:56:15] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 06:56:15] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 06:56:15] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 06:56:15] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 06:56:15] Payment summary | {
+    "subtotal": 50,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 50,
+    "total_paid": 50,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 06:56:15] Invoice created | {
+    "invoice_id": "128",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 06:56:15] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 10,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 50
+}
+[2026-03-27 06:56:15] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 99,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 06:56:15] Primary unit calculation | {
+    "qty_requested": 10,
+    "unit_requested": "nos",
+    "quantity_in_primary": 10,
+    "quantity_in_secondary": 10
+}
+[2026-03-27 06:56:15] Stock availability check | {
+    "quantity_to_check": 10,
+    "total_available_primary": 99,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 99
+}
+[2026-03-27 06:56:15] Item #1 saved | {
+    "item_id": "169",
+    "unit": "nos",
+    "quantity_sold": 10,
+    "quantity_in_primary": 10,
+    "quantity_in_secondary": 10,
+    "profit": 20,
+    "referral_commission": 0
+}
+[2026-03-27 06:56:15] Direct stock deduction | {
+    "qty_deducted_primary": 10,
+    "qty_deducted_secondary": 10,
+    "rows_affected": 1
+}
+[2026-03-27 06:56:15] Final stock status | {
+    "final_quantity": "89.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 06:56:15] Stock deduction completed for item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "sold_quantity": "10 nos",
+    "converted_primary": "10 nos",
+    "converted_secondary": "10 ",
+    "batch_tracking_used": "No",
+    "old_stock_deducted": "N\/A",
+    "referral_commission": 0
+}
+[2026-03-27 06:56:15] No referral commission to update | {
+    "referral_id": null,
+    "total_referral_commission": 0
+}
+[2026-03-27 06:56:15] Points earned | {
+    "points_earned": 0.5
+}
+[2026-03-27 06:56:15] Points earning recorded
+[2026-03-27 06:56:15] GST summary saved
+[2026-03-27 06:56:15] Transaction committed successfully
+[2026-03-27 06:56:15] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 09:49:00] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 09:49:00] Generated invoice number | {
+    "invoice_number": "INV202603-0005",
+    "attempts": 0,
+    "final_seq": 5
+}
+[2026-03-27 09:49:00] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 09:49:00] Action: save
+[2026-03-27 09:49:00] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0005\",\"invoice_type\":\"gst\",\"subtotal\":220,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":220,\"gst\":0,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220}],\"payment_details\":{\"cash\":220,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 09:49:00] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0005"
+}
+[2026-03-27 09:49:00] Transaction started
+[2026-03-27 09:49:00] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 09:49:00] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 09:49:00] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 09:49:00] Customer address | {
+    "address": ""
+}
+[2026-03-27 09:49:01] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 09:49:01] HSN check | {
+    "has_hsn": false
+}
+[2026-03-27 09:49:01] Invoice type decided | {
+    "gst_status": 0,
+    "invoice_type": "retail_bill"
+}
+[2026-03-27 09:49:01] Created new customer | {
+    "customer_id": "127"
+}
+[2026-03-27 09:49:01] Created new customer points record | {
+    "customer_id": "127"
+}
+[2026-03-27 09:49:01] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 09:49:01] Using invoice number | {
+    "invoice_number": "INV202603-0005"
+}
+[2026-03-27 09:49:01] Payment details received | {
+    "cash": 220,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 09:49:01] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 09:49:01] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 09:49:01] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 09:49:01] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 09:49:01] Payment summary | {
+    "subtotal": 220,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 220,
+    "total_paid": 220,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 09:49:01] Invoice created | {
+    "invoice_id": "130",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 09:49:01] Processing item #1 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 09:49:02] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 8,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 09:49:02] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 09:49:02] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 8,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 8
+}
+[2026-03-27 09:49:02] Item #1 saved | {
+    "item_id": "173",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 09:49:02] Direct stock deduction | {
+    "qty_deducted_primary": 1,
+    "qty_deducted_secondary": 1,
+    "rows_affected": 1
+}
+[2026-03-27 09:49:02] Final stock status | {
+    "final_quantity": "7.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 09:49:02] Stock deduction completed for item #1 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "sold_quantity": "1 nos",
+    "converted_primary": "1 nos",
+    "converted_secondary": "1 ",
+    "batch_tracking_used": "No",
+    "old_stock_deducted": "N\/A",
+    "referral_commission": 0
+}
+[2026-03-27 09:49:02] No referral commission to update | {
+    "referral_id": null,
+    "total_referral_commission": 0
+}
+[2026-03-27 09:49:02] Points earned | {
+    "points_earned": 2.2
+}
+[2026-03-27 09:49:03] Points earning recorded
+[2026-03-27 09:49:03] Transaction committed successfully
+[2026-03-27 09:49:03] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:02:31] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:02:31] Generated invoice number | {
+    "invoice_number": "INV202603-0006",
+    "attempts": 0,
+    "final_seq": 6
+}
+[2026-03-27 10:02:32] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:02:32] Action: print
+[2026-03-27 10:02:32] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0006\",\"invoice_type\":\"gst\",\"subtotal\":370,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":370,\"gst\":23,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220},{\"product_id\":26,\"product_name\":\"20W WW T.LIGHT\",\"quantity\":1,\"price\":150,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":96,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":96,\"total\":150}],\"payment_details\":{\"cash\":370,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:02:32] Input parsed successfully | {
+    "item_count": 2,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0006"
+}
+[2026-03-27 10:02:32] Transaction started
+[2026-03-27 10:02:32] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:02:32] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:02:32] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:02:32] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:02:33] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:02:33] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:02:33] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:02:33] Created new customer | {
+    "customer_id": "128"
+}
+[2026-03-27 10:02:33] Created new customer points record | {
+    "customer_id": "128"
+}
+[2026-03-27 10:02:33] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:02:33] Using invoice number | {
+    "invoice_number": "INV202603-0006"
+}
+[2026-03-27 10:02:33] Payment details received | {
+    "cash": 370,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:02:33] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:02:33] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:02:33] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:02:33] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:02:33] Payment summary | {
+    "subtotal": 370,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 370,
+    "total_paid": 370,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:02:33] Invoice created | {
+    "invoice_id": "131",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:02:33] Processing item #1 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 10:02:33] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 7,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:02:33] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:02:33] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 7,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 7
+}
+[2026-03-27 10:02:34] Item #1 saved | {
+    "item_id": "174",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 10:02:34] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-4424",
+    "old_stock": 7,
+    "new_stock": 6,
+    "quantity_removed": 1
+}
+[2026-03-27 10:02:34] Final stock status | {
+    "final_quantity": "6.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:02:34] Processing item #2 | {
+    "product_id": 26,
+    "product_name": "20W WW T.LIGHT",
+    "quantity": 1,
+    "price": 150,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 96,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 96,
+    "total": 150
+}
+[2026-03-27 10:02:34] Product stock info | {
+    "product_name": "20W WW T.LIGHT",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 59,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:02:34] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:02:34] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 59,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 59
+}
+[2026-03-27 10:02:34] Item #2 saved | {
+    "item_id": "175",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 54,
+    "referral_commission": 0
+}
+[2026-03-27 10:02:35] Stock adjustment recorded for item #2 | {
+    "adjustment_number": "ADJ20260327-5465",
+    "old_stock": 59,
+    "new_stock": 58,
+    "quantity_removed": 1
+}
+[2026-03-27 10:02:35] Final stock status | {
+    "final_quantity": "58.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:02:35] Points earned | {
+    "points_earned": 3.7
+}
+[2026-03-27 10:02:35] Points earning recorded
+[2026-03-27 10:02:36] GST summary saved
+[2026-03-27 10:02:36] Transaction committed successfully
+[2026-03-27 10:02:36] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:09:45] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:09:46] Generated invoice number | {
+    "invoice_number": "INV202603-0007",
+    "attempts": 0,
+    "final_seq": 7
+}
+[2026-03-27 10:09:46] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:09:46] Action: save
+[2026-03-27 10:09:46] Raw input received | {
+    "raw": "{\"customer_id\":126,\"customer_name\":\"Thavasi\",\"customer_phone\":\"8956231047\",\"customer_gstin\":\"\",\"customer_address\":\"Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811\",\"invoice_number\":\"INV202603-0007\",\"invoice_type\":\"gst\",\"subtotal\":400,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":400,\"gst\":0,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":47,\"product_name\":\"1 1\/4*1 FT MIKA BOARD\",\"quantity\":1,\"price\":180,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":120,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":120,\"total\":180},{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220}],\"payment_details\":{\"cash\":400,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:09:46] Input parsed successfully | {
+    "item_count": 2,
+    "gst_type": "gst",
+    "customer_name": "Thavasi",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0007"
+}
+[2026-03-27 10:09:46] Transaction started
+[2026-03-27 10:09:46] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:09:46] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:09:46] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:09:46] Customer address | {
+    "address": "Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811"
+}
+[2026-03-27 10:09:46] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:09:46] HSN check | {
+    "has_hsn": false
+}
+[2026-03-27 10:09:46] Invoice type decided | {
+    "gst_status": 0,
+    "invoice_type": "retail_bill"
+}
+[2026-03-27 10:09:47] Updated existing customer address | {
+    "customer_id": 126
+}
+[2026-03-27 10:09:47] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:09:47] Using invoice number | {
+    "invoice_number": "INV202603-0007"
+}
+[2026-03-27 10:09:47] Payment details received | {
+    "cash": 400,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:09:47] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:09:47] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:09:47] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:09:47] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:09:47] Payment summary | {
+    "subtotal": 400,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 400,
+    "total_paid": 400,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:09:47] Invoice created | {
+    "invoice_id": "132",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:09:48] Customer address saved
+[2026-03-27 10:09:48] Processing item #1 | {
+    "product_id": 47,
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "quantity": 1,
+    "price": 180,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 120,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 120,
+    "total": 180
+}
+[2026-03-27 10:09:48] Product stock info | {
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 9,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:09:48] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:09:48] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 9,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 9
+}
+[2026-03-27 10:09:48] Item #1 saved | {
+    "item_id": "176",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 60,
+    "referral_commission": 0
+}
+[2026-03-27 10:09:48] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-1074",
+    "old_stock": 9,
+    "new_stock": 8,
+    "quantity_removed": 1
+}
+[2026-03-27 10:09:48] Final stock status | {
+    "final_quantity": "8.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:09:48] Processing item #2 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 10:09:49] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 6,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:09:49] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:09:49] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 6,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 6
+}
+[2026-03-27 10:09:49] Item #2 saved | {
+    "item_id": "177",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 10:09:49] Stock adjustment recorded for item #2 | {
+    "adjustment_number": "ADJ20260327-2713",
+    "old_stock": 6,
+    "new_stock": 5,
+    "quantity_removed": 1
+}
+[2026-03-27 10:09:49] Final stock status | {
+    "final_quantity": "5.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:09:49] Points earned | {
+    "points_earned": 4
+}
+[2026-03-27 10:09:50] Points earning recorded
+[2026-03-27 10:09:50] Transaction committed successfully
+[2026-03-27 10:09:50] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:10:14] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:10:14] Generated invoice number | {
+    "invoice_number": "INV202603-0008",
+    "attempts": 0,
+    "final_seq": 8
+}
+[2026-03-27 10:10:14] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:10:14] Action: print
+[2026-03-27 10:10:14] Raw input received | {
+    "raw": "{\"customer_id\":101,\"customer_name\":\"DIVYA\",\"customer_phone\":\"9043387534\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0008\",\"invoice_type\":\"gst\",\"subtotal\":3000,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":3000,\"gst\":0,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":19,\"product_name\":\"1SQ 2 CORE\",\"quantity\":1,\"price\":3000,\"unit\":\"coil\",\"is_secondary_unit\":false,\"sec_unit_conversion\":90,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":2275,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":2275,\"total\":3000}],\"payment_details\":{\"cash\":3000,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:10:14] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "DIVYA",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0008"
+}
+[2026-03-27 10:10:14] Transaction started
+[2026-03-27 10:10:14] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:10:15] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:10:15] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:10:15] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:10:15] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:10:15] HSN check | {
+    "has_hsn": false
+}
+[2026-03-27 10:10:15] Invoice type decided | {
+    "gst_status": 0,
+    "invoice_type": "retail_bill"
+}
+[2026-03-27 10:10:15] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:10:15] Using invoice number | {
+    "invoice_number": "INV202603-0008"
+}
+[2026-03-27 10:10:15] Payment details received | {
+    "cash": 3000,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:10:15] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:10:15] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:10:15] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:10:15] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:10:15] Payment summary | {
+    "subtotal": 3000,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 3000,
+    "total_paid": 3000,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:10:15] Invoice created | {
+    "invoice_id": "133",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:10:15] Processing item #1 | {
+    "product_id": 19,
+    "product_name": "1SQ 2 CORE",
+    "quantity": 1,
+    "price": 3000,
+    "unit": "coil",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 90,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 2275,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 2275,
+    "total": 3000
+}
+[2026-03-27 10:10:15] Product stock info | {
+    "product_name": "1SQ 2 CORE",
+    "unit_of_measure": "coil",
+    "secondary_unit": "MTR",
+    "sec_unit_conversion": 90,
+    "current_stock": 5,
+    "current_total_sec_units": 450,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:10:15] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "coil",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 90
+}
+[2026-03-27 10:10:15] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 5,
+    "total_available_secondary": 450,
+    "old_qty": 0,
+    "current_stock": 5
+}
+[2026-03-27 10:10:16] Item #1 saved | {
+    "item_id": "178",
+    "unit": "coil",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 90,
+    "profit": 725,
+    "referral_commission": 0
+}
+[2026-03-27 10:10:16] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-6919",
+    "old_stock": 5,
+    "new_stock": 4,
+    "quantity_removed": 1
+}
+[2026-03-27 10:10:16] Final stock status | {
+    "final_quantity": "4.0000",
+    "final_secondary_units": "360.0000",
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:10:16] Points earned | {
+    "points_earned": 30
+}
+[2026-03-27 10:10:17] Points earning recorded
+[2026-03-27 10:10:17] Transaction committed successfully
+[2026-03-27 10:10:17] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:31:33] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:31:33] Generated invoice number | {
+    "invoice_number": "INV202603-0009",
+    "attempts": 0,
+    "final_seq": 9
+}
+[2026-03-27 10:31:34] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:31:34] Action: thermal
+[2026-03-27 10:31:34] Raw input received | {
+    "raw": "{\"customer_id\":126,\"customer_name\":\"Thavasi\",\"customer_phone\":\"8956231047\",\"customer_gstin\":\"\",\"customer_address\":\"Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811\",\"invoice_number\":\"INV202603-0009\",\"invoice_type\":\"gst\",\"subtotal\":50,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":50,\"gst\":8,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":10,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":50}],\"payment_details\":{\"cash\":50,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:31:34] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Thavasi",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0009"
+}
+[2026-03-27 10:31:34] Transaction started
+[2026-03-27 10:31:34] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:31:34] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:31:34] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:31:34] Customer address | {
+    "address": "Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811"
+}
+[2026-03-27 10:31:34] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:31:34] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:31:34] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:31:34] Updated existing customer address | {
+    "customer_id": 126
+}
+[2026-03-27 10:31:34] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:31:34] Using invoice number | {
+    "invoice_number": "INV202603-0009"
+}
+[2026-03-27 10:31:34] Payment details received | {
+    "cash": 50,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:31:34] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:31:34] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:31:34] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:31:34] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:31:34] Payment summary | {
+    "subtotal": 50,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 50,
+    "total_paid": 50,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:31:35] Invoice created | {
+    "invoice_id": "134",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:31:35] Customer address saved
+[2026-03-27 10:31:35] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 10,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 50
+}
+[2026-03-27 10:31:35] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 89,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:31:35] Primary unit calculation | {
+    "qty_requested": 10,
+    "unit_requested": "nos",
+    "quantity_in_primary": 10,
+    "quantity_in_secondary": 10
+}
+[2026-03-27 10:31:35] Stock availability check | {
+    "quantity_to_check": 10,
+    "total_available_primary": 89,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 89
+}
+[2026-03-27 10:31:35] Item #1 saved | {
+    "item_id": "179",
+    "unit": "nos",
+    "quantity_sold": 10,
+    "quantity_in_primary": 10,
+    "quantity_in_secondary": 10,
+    "profit": 20,
+    "referral_commission": 0
+}
+[2026-03-27 10:31:36] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-0369",
+    "old_stock": 89,
+    "new_stock": 79,
+    "quantity_removed": 10
+}
+[2026-03-27 10:31:36] Final stock status | {
+    "final_quantity": "79.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:31:36] Points earned | {
+    "points_earned": 0.5
+}
+[2026-03-27 10:31:36] Points earning recorded
+[2026-03-27 10:31:36] GST summary saved
+[2026-03-27 10:31:36] Transaction committed successfully
+[2026-03-27 10:31:36] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:32:00] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:32:00] Generated invoice number | {
+    "invoice_number": "INV202603-0010",
+    "attempts": 0,
+    "final_seq": 10
+}
+[2026-03-27 10:32:01] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:32:01] Action: save
+[2026-03-27 10:32:01] Raw input received | {
+    "raw": "{\"customer_id\":101,\"customer_name\":\"DIVYA\",\"customer_phone\":\"9043387534\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0010\",\"invoice_type\":\"gst\",\"subtotal\":225,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":225,\"gst\":1,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":1,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":5},{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220}],\"payment_details\":{\"cash\":225,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:32:01] Input parsed successfully | {
+    "item_count": 2,
+    "gst_type": "gst",
+    "customer_name": "DIVYA",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0010"
+}
+[2026-03-27 10:32:01] Transaction started
+[2026-03-27 10:32:01] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:32:01] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:32:01] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:32:01] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:32:01] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:32:01] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:32:01] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:32:01] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:32:01] Using invoice number | {
+    "invoice_number": "INV202603-0010"
+}
+[2026-03-27 10:32:01] Payment details received | {
+    "cash": 225,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:32:01] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:32:01] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:32:01] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:32:01] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:32:01] Payment summary | {
+    "subtotal": 225,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 225,
+    "total_paid": 225,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:32:02] Invoice created | {
+    "invoice_id": "135",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:02] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 1,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 5
+}
+[2026-03-27 10:32:02] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 79,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:32:02] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:32:02] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 79,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 79
+}
+[2026-03-27 10:32:02] Item #1 saved | {
+    "item_id": "180",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 2,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:02] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-9897",
+    "old_stock": 79,
+    "new_stock": 78,
+    "quantity_removed": 1
+}
+[2026-03-27 10:32:02] Final stock status | {
+    "final_quantity": "78.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:32:02] Processing item #2 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 10:32:03] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 5,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:32:03] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:32:03] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 5,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 5
+}
+[2026-03-27 10:32:03] Item #2 saved | {
+    "item_id": "181",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:03] Stock adjustment recorded for item #2 | {
+    "adjustment_number": "ADJ20260327-3722",
+    "old_stock": 5,
+    "new_stock": 4,
+    "quantity_removed": 1
+}
+[2026-03-27 10:32:03] Final stock status | {
+    "final_quantity": "4.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:32:03] Points earned | {
+    "points_earned": 2.25
+}
+[2026-03-27 10:32:04] Points earning recorded
+[2026-03-27 10:32:04] GST summary saved
+[2026-03-27 10:32:04] Transaction committed successfully
+[2026-03-27 10:32:04] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:32:36] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:32:36] Generated invoice number | {
+    "invoice_number": "INV202603-0011",
+    "attempts": 0,
+    "final_seq": 11
+}
+[2026-03-27 10:32:36] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:32:36] Action: print
+[2026-03-27 10:32:36] Raw input received | {
+    "raw": "{\"customer_id\":61,\"customer_name\":\"Vignesh bangalore site 1\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0011\",\"invoice_type\":\"gst\",\"subtotal\":100,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":100,\"gst\":4,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":5,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":25},{\"product_id\":12,\"product_name\":\"1\\\" HMS BEND\",\"quantity\":5,\"price\":15,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":10,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":10,\"total\":75}],\"payment_details\":{\"cash\":100,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:32:36] Input parsed successfully | {
+    "item_count": 2,
+    "gst_type": "gst",
+    "customer_name": "Vignesh bangalore site 1",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0011"
+}
+[2026-03-27 10:32:36] Transaction started
+[2026-03-27 10:32:36] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:32:37] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:32:37] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:32:37] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:32:37] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:32:37] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:32:37] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:32:37] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:32:37] Using invoice number | {
+    "invoice_number": "INV202603-0011"
+}
+[2026-03-27 10:32:37] Payment details received | {
+    "cash": 100,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:32:37] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:32:37] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:32:37] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:32:37] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:32:37] Payment summary | {
+    "subtotal": 100,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 100,
+    "total_paid": 100,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:32:37] Invoice created | {
+    "invoice_id": "136",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:37] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 5,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 25
+}
+[2026-03-27 10:32:37] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 78,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:32:37] Primary unit calculation | {
+    "qty_requested": 5,
+    "unit_requested": "nos",
+    "quantity_in_primary": 5,
+    "quantity_in_secondary": 5
+}
+[2026-03-27 10:32:37] Stock availability check | {
+    "quantity_to_check": 5,
+    "total_available_primary": 78,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 78
+}
+[2026-03-27 10:32:38] Item #1 saved | {
+    "item_id": "182",
+    "unit": "nos",
+    "quantity_sold": 5,
+    "quantity_in_primary": 5,
+    "quantity_in_secondary": 5,
+    "profit": 10,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:38] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-0611",
+    "old_stock": 78,
+    "new_stock": 73,
+    "quantity_removed": 5
+}
+[2026-03-27 10:32:38] Final stock status | {
+    "final_quantity": "73.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:32:38] Processing item #2 | {
+    "product_id": 12,
+    "product_name": "1\" HMS BEND",
+    "quantity": 5,
+    "price": 15,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 10,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 10,
+    "total": 75
+}
+[2026-03-27 10:32:39] Product stock info | {
+    "product_name": "1\" HMS BEND",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 500,
+    "current_total_sec_units": 360,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:32:39] Primary unit calculation | {
+    "qty_requested": 5,
+    "unit_requested": "nos",
+    "quantity_in_primary": 5,
+    "quantity_in_secondary": 5
+}
+[2026-03-27 10:32:39] Stock availability check | {
+    "quantity_to_check": 5,
+    "total_available_primary": 500,
+    "total_available_secondary": 360,
+    "old_qty": 0,
+    "current_stock": 500
+}
+[2026-03-27 10:32:39] Item #2 saved | {
+    "item_id": "183",
+    "unit": "nos",
+    "quantity_sold": 5,
+    "quantity_in_primary": 5,
+    "quantity_in_secondary": 5,
+    "profit": 25,
+    "referral_commission": 0
+}
+[2026-03-27 10:32:39] Stock adjustment recorded for item #2 | {
+    "adjustment_number": "ADJ20260327-6719",
+    "old_stock": 500,
+    "new_stock": 495,
+    "quantity_removed": 5
+}
+[2026-03-27 10:32:39] Final stock status | {
+    "final_quantity": "495.0000",
+    "final_secondary_units": "355.0000",
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:32:40] Points earned | {
+    "points_earned": 1
+}
+[2026-03-27 10:32:40] Points earning recorded
+[2026-03-27 10:32:40] GST summary saved
+[2026-03-27 10:32:40] Transaction committed successfully
+[2026-03-27 10:32:40] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:33:11] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:33:11] Generated invoice number | {
+    "invoice_number": "INV202603-0012",
+    "attempts": 0,
+    "final_seq": 12
+}
+[2026-03-27 10:33:11] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:33:11] Action: print
+[2026-03-27 10:33:11] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0012\",\"invoice_type\":\"gst\",\"subtotal\":5,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":5,\"gst\":1,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":1,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":5}],\"payment_details\":{\"cash\":5,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:33:11] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0012"
+}
+[2026-03-27 10:33:11] Transaction started
+[2026-03-27 10:33:11] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:33:11] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:33:11] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:33:11] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:33:11] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:33:11] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:33:11] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:33:11] Created new customer | {
+    "customer_id": "129"
+}
+[2026-03-27 10:33:12] Created new customer points record | {
+    "customer_id": "129"
+}
+[2026-03-27 10:33:12] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:33:12] Using invoice number | {
+    "invoice_number": "INV202603-0012"
+}
+[2026-03-27 10:33:12] Payment details received | {
+    "cash": 5,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:33:12] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:33:12] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:33:12] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:33:12] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:33:12] Payment summary | {
+    "subtotal": 5,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 5,
+    "total_paid": 5,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:33:12] Invoice created | {
+    "invoice_id": "137",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:33:12] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 1,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 5
+}
+[2026-03-27 10:33:12] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 73,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:33:12] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:33:12] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 73,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 73
+}
+[2026-03-27 10:33:12] Item #1 saved | {
+    "item_id": "184",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 2,
+    "referral_commission": 0
+}
+[2026-03-27 10:33:13] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-7258",
+    "old_stock": 73,
+    "new_stock": 72,
+    "quantity_removed": 1
+}
+[2026-03-27 10:33:13] Final stock status | {
+    "final_quantity": "72.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:33:13] Points earned | {
+    "points_earned": 0.05
+}
+[2026-03-27 10:33:13] Points earning recorded
+[2026-03-27 10:33:14] GST summary saved
+[2026-03-27 10:33:14] Transaction committed successfully
+[2026-03-27 10:33:14] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:47:26] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:47:26] Generated invoice number | {
+    "invoice_number": "INV202603-0013",
+    "attempts": 0,
+    "final_seq": 13
+}
+[2026-03-27 10:47:26] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:47:26] Action: print
+[2026-03-27 10:47:26] Raw input received | {
+    "raw": "{\"customer_id\":126,\"customer_name\":\"Thavasi\",\"customer_phone\":\"8956231047\",\"customer_gstin\":\"\",\"customer_address\":\"Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811\",\"invoice_number\":\"INV202603-0013\",\"invoice_type\":\"gst\",\"subtotal\":4285,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":4285,\"gst\":1,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":72,\"product_name\":\"1 1\/2 KALAI BOLD SET\",\"quantity\":1,\"price\":5,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":3,\"hsn_code\":\"94054090\",\"cgst_rate\":9,\"sgst_rate\":9,\"igst_rate\":0,\"stock_price\":3,\"total\":5},{\"product_id\":46,\"product_name\":\"1 1\/2*1 1\/4 MIKA BOARD\",\"quantity\":1,\"price\":220,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":140,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":140,\"total\":220},{\"product_id\":47,\"product_name\":\"1 1\/4*1 FT MIKA BOARD\",\"quantity\":1,\"price\":180,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":120,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":120,\"total\":180},{\"product_id\":12,\"product_name\":\"1\\\" HMS BEND\",\"quantity\":1,\"price\":15,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":10,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":10,\"total\":15},{\"product_id\":10,\"product_name\":\"1\\\" HMS PIPE\",\"quantity\":1,\"price\":90,\"unit\":\"length\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_pri"
+}
+[2026-03-27 10:47:26] Input parsed successfully | {
+    "item_count": 11,
+    "gst_type": "gst",
+    "customer_name": "Thavasi",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0013"
+}
+[2026-03-27 10:47:26] Transaction started
+[2026-03-27 10:47:26] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:47:26] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:47:26] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:47:26] Customer address | {
+    "address": "Arakasanahalli (vill & po), Pennagaram Taluk, Dharmapuri District, 636811"
+}
+[2026-03-27 10:47:26] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:47:26] HSN check | {
+    "has_hsn": true
+}
+[2026-03-27 10:47:26] Invoice type decided | {
+    "gst_status": 1,
+    "invoice_type": "tax_invoice"
+}
+[2026-03-27 10:47:27] Updated existing customer address | {
+    "customer_id": 126
+}
+[2026-03-27 10:47:27] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:47:27] Using invoice number | {
+    "invoice_number": "INV202603-0013"
+}
+[2026-03-27 10:47:27] Payment details received | {
+    "cash": 4285,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:47:27] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:47:27] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:47:27] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:47:27] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:47:27] Payment summary | {
+    "subtotal": 4285,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 4285,
+    "total_paid": 4285,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:47:27] Invoice created | {
+    "invoice_id": "138",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:27] Customer address saved
+[2026-03-27 10:47:27] Processing item #1 | {
+    "product_id": 72,
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "quantity": 1,
+    "price": 5,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 3,
+    "hsn_code": "94054090",
+    "cgst_rate": 9,
+    "sgst_rate": 9,
+    "igst_rate": 0,
+    "stock_price": 3,
+    "total": 5
+}
+[2026-03-27 10:47:27] Product stock info | {
+    "product_name": "1 1\/2 KALAI BOLD SET",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 72,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:27] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:27] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 72,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 72
+}
+[2026-03-27 10:47:27] Item #1 saved | {
+    "item_id": "185",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 2,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:28] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-8504",
+    "old_stock": 72,
+    "new_stock": 71,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:28] Final stock status | {
+    "final_quantity": "71.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:28] Processing item #2 | {
+    "product_id": 46,
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "quantity": 1,
+    "price": 220,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 140,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 140,
+    "total": 220
+}
+[2026-03-27 10:47:28] Product stock info | {
+    "product_name": "1 1\/2*1 1\/4 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 4,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:28] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:28] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 4,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 4
+}
+[2026-03-27 10:47:28] Item #2 saved | {
+    "item_id": "186",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 80,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:29] Stock adjustment recorded for item #2 | {
+    "adjustment_number": "ADJ20260327-7548",
+    "old_stock": 4,
+    "new_stock": 3,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:29] Final stock status | {
+    "final_quantity": "3.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:29] Processing item #3 | {
+    "product_id": 47,
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "quantity": 1,
+    "price": 180,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 120,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 120,
+    "total": 180
+}
+[2026-03-27 10:47:29] Product stock info | {
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 8,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:29] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:29] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 8,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 8
+}
+[2026-03-27 10:47:29] Item #3 saved | {
+    "item_id": "187",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 60,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:29] Stock adjustment recorded for item #3 | {
+    "adjustment_number": "ADJ20260327-1800",
+    "old_stock": 8,
+    "new_stock": 7,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:30] Final stock status | {
+    "final_quantity": "7.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:30] Processing item #4 | {
+    "product_id": 12,
+    "product_name": "1\" HMS BEND",
+    "quantity": 1,
+    "price": 15,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 10,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 10,
+    "total": 15
+}
+[2026-03-27 10:47:30] Product stock info | {
+    "product_name": "1\" HMS BEND",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 495,
+    "current_total_sec_units": 355,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:30] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:30] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 495,
+    "total_available_secondary": 355,
+    "old_qty": 0,
+    "current_stock": 495
+}
+[2026-03-27 10:47:30] Item #4 saved | {
+    "item_id": "188",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 5,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:30] Stock adjustment recorded for item #4 | {
+    "adjustment_number": "ADJ20260327-2436",
+    "old_stock": 495,
+    "new_stock": 494,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:30] Final stock status | {
+    "final_quantity": "494.0000",
+    "final_secondary_units": "354.0000",
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:30] Processing item #5 | {
+    "product_id": 10,
+    "product_name": "1\" HMS PIPE",
+    "quantity": 1,
+    "price": 90,
+    "unit": "length",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 76,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 76,
+    "total": 90
+}
+[2026-03-27 10:47:31] Product stock info | {
+    "product_name": "1\" HMS PIPE",
+    "unit_of_measure": "length",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 550,
+    "current_total_sec_units": 444,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:31] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "length",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:31] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 550,
+    "total_available_secondary": 444,
+    "old_qty": 0,
+    "current_stock": 550
+}
+[2026-03-27 10:47:31] Item #5 saved | {
+    "item_id": "189",
+    "unit": "length",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 14,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:31] Stock adjustment recorded for item #5 | {
+    "adjustment_number": "ADJ20260327-5691",
+    "old_stock": 550,
+    "new_stock": 549,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:31] Final stock status | {
+    "final_quantity": "549.0000",
+    "final_secondary_units": "443.0000",
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:31] Processing item #6 | {
+    "product_id": 45,
+    "product_name": "12*8 MIKA BOARD",
+    "quantity": 1,
+    "price": 120,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 80,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 80,
+    "total": 120
+}
+[2026-03-27 10:47:31] Product stock info | {
+    "product_name": "12*8 MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 10,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:31] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:31] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 10,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 10
+}
+[2026-03-27 10:47:32] Item #6 saved | {
+    "item_id": "190",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 40,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:32] Stock adjustment recorded for item #6 | {
+    "adjustment_number": "ADJ20260327-0333",
+    "old_stock": 10,
+    "new_stock": 9,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:32] Final stock status | {
+    "final_quantity": "9.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:32] Processing item #7 | {
+    "product_id": 32,
+    "product_name": "12M METAL BOX",
+    "quantity": 1,
+    "price": 160,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 128,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 128,
+    "total": 160
+}
+[2026-03-27 10:47:33] Product stock info | {
+    "product_name": "12M METAL BOX",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 50,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:33] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:33] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 50,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 50
+}
+[2026-03-27 10:47:33] Item #7 saved | {
+    "item_id": "191",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 32,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:33] Stock adjustment recorded for item #7 | {
+    "adjustment_number": "ADJ20260327-1257",
+    "old_stock": 50,
+    "new_stock": 49,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:34] Final stock status | {
+    "final_quantity": "49.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:34] Processing item #8 | {
+    "product_id": 39,
+    "product_name": "15MTR STAY WIRE",
+    "quantity": 1,
+    "price": 75,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 53,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 53,
+    "total": 75
+}
+[2026-03-27 10:47:34] Product stock info | {
+    "product_name": "15MTR STAY WIRE",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 20,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:34] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:34] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 20,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 20
+}
+[2026-03-27 10:47:34] Item #8 saved | {
+    "item_id": "192",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 22,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:34] Stock adjustment recorded for item #8 | {
+    "adjustment_number": "ADJ20260327-1311",
+    "old_stock": 20,
+    "new_stock": 19,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:35] Final stock status | {
+    "final_quantity": "19.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:35] Processing item #9 | {
+    "product_id": 33,
+    "product_name": "16M METAL BOX",
+    "quantity": 1,
+    "price": 180,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 146,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 146,
+    "total": 180
+}
+[2026-03-27 10:47:35] Product stock info | {
+    "product_name": "16M METAL BOX",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 30,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:35] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:35] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 30,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 30
+}
+[2026-03-27 10:47:35] Item #9 saved | {
+    "item_id": "193",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 34,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:35] Stock adjustment recorded for item #9 | {
+    "adjustment_number": "ADJ20260327-4114",
+    "old_stock": 30,
+    "new_stock": 29,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:35] Final stock status | {
+    "final_quantity": "29.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:35] Processing item #10 | {
+    "product_id": 34,
+    "product_name": "18M METAL BOX",
+    "quantity": 1,
+    "price": 240,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 162,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 162,
+    "total": 240
+}
+[2026-03-27 10:47:36] Product stock info | {
+    "product_name": "18M METAL BOX",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 30,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:36] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:47:36] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 30,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 30
+}
+[2026-03-27 10:47:36] Item #10 saved | {
+    "item_id": "194",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 78,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:36] Stock adjustment recorded for item #10 | {
+    "adjustment_number": "ADJ20260327-3955",
+    "old_stock": 30,
+    "new_stock": 29,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:36] Final stock status | {
+    "final_quantity": "29.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:36] Processing item #11 | {
+    "product_id": 19,
+    "product_name": "1SQ 2 CORE",
+    "quantity": 1,
+    "price": 3000,
+    "unit": "coil",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 90,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 2275,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 2275,
+    "total": 3000
+}
+[2026-03-27 10:47:36] Product stock info | {
+    "product_name": "1SQ 2 CORE",
+    "unit_of_measure": "coil",
+    "secondary_unit": "MTR",
+    "sec_unit_conversion": 90,
+    "current_stock": 4,
+    "current_total_sec_units": 360,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:47:36] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "coil",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 90
+}
+[2026-03-27 10:47:36] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 4,
+    "total_available_secondary": 360,
+    "old_qty": 0,
+    "current_stock": 4
+}
+[2026-03-27 10:47:37] Item #11 saved | {
+    "item_id": "195",
+    "unit": "coil",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 90,
+    "profit": 725,
+    "referral_commission": 0
+}
+[2026-03-27 10:47:37] Stock adjustment recorded for item #11 | {
+    "adjustment_number": "ADJ20260327-7274",
+    "old_stock": 4,
+    "new_stock": 3,
+    "quantity_removed": 1
+}
+[2026-03-27 10:47:37] Final stock status | {
+    "final_quantity": "3.0000",
+    "final_secondary_units": "270.0000",
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:47:37] Points earned | {
+    "points_earned": 42.85
+}
+[2026-03-27 10:47:38] Points earning recorded
+[2026-03-27 10:47:38] GST summary saved
+[2026-03-27 10:47:38] Transaction committed successfully
+[2026-03-27 10:47:38] === INVOICE SAVE COMPLETED SUCCESSFULLY ===
+[2026-03-27 10:48:33] Generating next invoice number | {
+    "business_id": 2,
+    "shop_id": 2,
+    "gst_type": "gst",
+    "prefix": "INV",
+    "year_month": "202603"
+}
+[2026-03-27 10:48:34] Generated invoice number | {
+    "invoice_number": "INV202603-0014",
+    "attempts": 0,
+    "final_seq": 14
+}
+[2026-03-27 10:48:34] === NEW INVOICE SAVE REQUEST STARTED ===
+[2026-03-27 10:48:34] Action: print
+[2026-03-27 10:48:34] Raw input received | {
+    "raw": "{\"customer_id\":null,\"customer_name\":\"Walk-in Customer\",\"customer_phone\":\"\",\"customer_gstin\":\"\",\"customer_address\":\"\",\"invoice_number\":\"INV202603-0014\",\"invoice_type\":\"gst\",\"subtotal\":180,\"discount\":0,\"discount_type\":\"fixed\",\"overall_discount\":0,\"grand_total\":180,\"gst\":0,\"points_used\":0,\"points_discount\":0,\"engineer_id\":null,\"site_id\":null,\"items\":[{\"product_id\":47,\"product_name\":\"1 1\/4*1 FT MIKA BOARD\",\"quantity\":1,\"price\":180,\"unit\":\"nos\",\"is_secondary_unit\":false,\"sec_unit_conversion\":1,\"discount_type\":\"percentage\",\"discount_value\":0,\"discount_amount\":0,\"price_type\":\"retail\",\"base_price\":120,\"hsn_code\":\"\",\"cgst_rate\":0,\"sgst_rate\":0,\"igst_rate\":0,\"stock_price\":120,\"total\":180}],\"payment_details\":{\"cash\":180,\"upi\":0,\"bank\":0,\"credit\":0,\"change\":0,\"upi_reference\":\"\",\"bank_reference\":\"\",\"cheque_number\":\"\"},\"pending_amount\":0,\"referral_id\":null,\"referral_code\":\"\",\"referral_name\":\"\",\"referral_commission\":0}"
+}
+[2026-03-27 10:48:34] Input parsed successfully | {
+    "item_count": 1,
+    "gst_type": "gst",
+    "customer_name": "Walk-in Customer",
+    "points_used": 0,
+    "points_discount": 0,
+    "invoice_number": "INV202603-0014"
+}
+[2026-03-27 10:48:34] Transaction started
+[2026-03-27 10:48:34] Context loaded | {
+    "business_id": 2,
+    "shop_id": 2,
+    "seller_id": 2
+}
+[2026-03-27 10:48:34] Loyalty settings | {
+    "points_per_amount": "0.01",
+    "amount_per_point": "100.00",
+    "redeem_value_per_point": "0.20",
+    "min_points_to_redeem": 100,
+    "expiry_months": null,
+    "is_active": 1
+}
+[2026-03-27 10:48:34] GST handling | {
+    "frontend_gst_type": "gst",
+    "force_non_gst": false
+}
+[2026-03-27 10:48:34] Customer address | {
+    "address": ""
+}
+[2026-03-27 10:48:34] GST settings loaded | {
+    "is_gst_enabled": 1,
+    "is_inclusive": 1
+}
+[2026-03-27 10:48:34] HSN check | {
+    "has_hsn": false
+}
+[2026-03-27 10:48:34] Invoice type decided | {
+    "gst_status": 0,
+    "invoice_type": "retail_bill"
+}
+[2026-03-27 10:48:34] Created new customer | {
+    "customer_id": "130"
+}
+[2026-03-27 10:48:35] Created new customer points record | {
+    "customer_id": "130"
+}
+[2026-03-27 10:48:35] Referral info | {
+    "referral_id": null,
+    "referral_exists": false
+}
+[2026-03-27 10:48:35] Using invoice number | {
+    "invoice_number": "INV202603-0014"
+}
+[2026-03-27 10:48:35] Payment details received | {
+    "cash": 180,
+    "upi": 0,
+    "bank": 0,
+    "credit": 0,
+    "change": 0,
+    "upi_reference": "",
+    "bank_reference": "",
+    "cheque_number": ""
+}
+[2026-03-27 10:48:35] Engineer ID from frontend | {
+    "engineer_id": null
+}
+[2026-03-27 10:48:35] Site ID from frontend | {
+    "site_id": null
+}
+[2026-03-27 10:48:35] Engineer ID after parsing | {
+    "engineer_id": null
+}
+[2026-03-27 10:48:35] Site ID after parsing | {
+    "site_id": null
+}
+[2026-03-27 10:48:35] Payment summary | {
+    "subtotal": 180,
+    "overall_discount": 0,
+    "points_discount": 0,
+    "total": 180,
+    "total_paid": 180,
+    "change_given": 0,
+    "pending_amount": 0,
+    "payment_status": "paid",
+    "payment_method": "cash"
+}
+[2026-03-27 10:48:35] Invoice created | {
+    "invoice_id": "139",
+    "points_used": 0,
+    "points_discount": 0,
+    "referral_commission": 0
+}
+[2026-03-27 10:48:35] Processing item #1 | {
+    "product_id": 47,
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "quantity": 1,
+    "price": 180,
+    "unit": "nos",
+    "is_secondary_unit": false,
+    "sec_unit_conversion": 1,
+    "discount_type": "percentage",
+    "discount_value": 0,
+    "discount_amount": 0,
+    "price_type": "retail",
+    "base_price": 120,
+    "hsn_code": "",
+    "cgst_rate": 0,
+    "sgst_rate": 0,
+    "igst_rate": 0,
+    "stock_price": 120,
+    "total": 180
+}
+[2026-03-27 10:48:35] Product stock info | {
+    "product_name": "1 1\/4*1 FT MIKA BOARD",
+    "unit_of_measure": "nos",
+    "secondary_unit": null,
+    "sec_unit_conversion": 1,
+    "current_stock": 7,
+    "current_total_sec_units": 0,
+    "old_qty": 0,
+    "use_batch_tracking": false,
+    "batch_id": null
+}
+[2026-03-27 10:48:35] Primary unit calculation | {
+    "qty_requested": 1,
+    "unit_requested": "nos",
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1
+}
+[2026-03-27 10:48:35] Stock availability check | {
+    "quantity_to_check": 1,
+    "total_available_primary": 7,
+    "total_available_secondary": 0,
+    "old_qty": 0,
+    "current_stock": 7
+}
+[2026-03-27 10:48:35] Item #1 saved | {
+    "item_id": "196",
+    "unit": "nos",
+    "quantity_sold": 1,
+    "quantity_in_primary": 1,
+    "quantity_in_secondary": 1,
+    "profit": 60,
+    "referral_commission": 0
+}
+[2026-03-27 10:48:36] Stock adjustment recorded for item #1 | {
+    "adjustment_number": "ADJ20260327-0312",
+    "old_stock": 7,
+    "new_stock": 6,
+    "quantity_removed": 1
+}
+[2026-03-27 10:48:36] Final stock status | {
+    "final_quantity": "6.0000",
+    "final_secondary_units": 0,
+    "final_old_qty": "0.0000",
+    "final_batch_tracking": 0,
+    "final_batch_id": "NULL"
+}
+[2026-03-27 10:48:36] Points earned | {
+    "points_earned": 1.8
+}
+[2026-03-27 10:48:36] Points earning recorded
+[2026-03-27 10:48:36] Transaction committed successfully
+[2026-03-27 10:48:36] === INVOICE SAVE COMPLETED SUCCESSFULLY ===

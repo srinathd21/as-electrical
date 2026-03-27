@@ -58,15 +58,15 @@ try {
         case 'save_for_print':
             saveInvoice('print');
             break;
+        case 'save_for_thermal':
+            saveInvoice('thermal');
+            break;
         case 'check_credit_limit':
             checkCustomerCreditLimit();
             break;
         case 'list':
             listInvoices();
             break;
-        case 'save_for_thermal':
-    saveInvoice('thermal');
-    break;
         case 'get_details':
             getInvoiceDetails();
             break;
@@ -191,6 +191,7 @@ function saveInvoice($action = 'save') {
     
     // Determine if it's for print
     $is_print = ($action === 'print');
+    $is_thermal = ($action === 'thermal');
 
     if (!isset($data['items']) || !is_array($data['items'])) {
         debug_log("Missing items array");
@@ -459,7 +460,7 @@ function saveInvoice($action = 'save') {
            REFERRAL COMMISSION CALCULATION (PRODUCT-LEVEL)
         ========================= */
         $referral_id = !empty($data['referral_id']) ? (int)$data['referral_id'] : null;
-        $total_referral_commission = 0; // Will be calculated per product
+        $total_referral_commission = 0;
 
         // Only calculate if referral person is selected
         if ($referral_id) {
@@ -473,7 +474,7 @@ function saveInvoice($action = 'save') {
             
             if (!$referral_person) {
                 debug_log("Referral person not found", ['referral_id' => $referral_id]);
-                $referral_id = null; // Reset if not found
+                $referral_id = null;
             }
         }
 
@@ -537,136 +538,154 @@ function saveInvoice($action = 'save') {
         
         debug_log("Using invoice number", ['invoice_number' => $invoice_number]);
        
-       /* =========================
-   PAYMENT & TOTALS
-========================= */
-$subtotal = (float)($data['subtotal'] ?? 0);
-$overall_discount = (float)($data['overall_discount'] ?? 0);
-$total = (float)($data['grand_total'] ?? 0);
+        /* =========================
+           PAYMENT & TOTALS
+        ========================= */
+        $subtotal = (float)($data['subtotal'] ?? 0);
+        $overall_discount = (float)($data['overall_discount'] ?? 0);
+        $total = (float)($data['grand_total'] ?? 0);
 
-// Get payment details
-$payment_details = $data['payment_details'] ?? [];
-$cash_amount = (float)($payment_details['cash'] ?? 0);
-$upi_amount = (float)($payment_details['upi'] ?? 0);
-$bank_amount = (float)($payment_details['bank'] ?? 0);
-$cheque_amount = (float)($payment_details['cheque'] ?? 0);
-$credit_amount = (float)($payment_details['credit'] ?? 0);
-$total_paid = $cash_amount + $upi_amount + $bank_amount + $cheque_amount ;
-$change_given = max(0, $total_paid - $total);
-$pending_amount = max(0, $total - $total_paid);
-// Get payment details
-$payment_details = $data['payment_details'] ?? [];
+        // Get payment details
+        $payment_details = $data['payment_details'] ?? [];
+        $cash_amount = (float)($payment_details['cash'] ?? 0);
+        $upi_amount = (float)($payment_details['upi'] ?? 0);
+        $bank_amount = (float)($payment_details['bank'] ?? 0);
+        $cheque_amount = (float)($payment_details['cheque'] ?? 0);
+        $credit_amount = (float)($payment_details['credit'] ?? 0);
+        $total_paid = $cash_amount + $upi_amount + $bank_amount + $cheque_amount;
+        $change_given = max(0, $total_paid - $total);
+        $pending_amount = max(0, $total - $total_paid);
 
-// DEBUG: Log what's being received
-debug_log("Payment details received", $payment_details);
-debug_log("Engineer ID from frontend", ['engineer_id' => $data['engineer_id'] ?? null]);
-debug_log("Site ID from frontend", ['site_id' => $data['site_id'] ?? null]);
+        // Get shipping details from the request
+        $shipping_details = $data['shipping_details'] ?? [];
+        $shipping_name = trim($shipping_details['name'] ?? '');
+        $shipping_contact = trim($shipping_details['contact'] ?? '');
+        $shipping_gstin = trim($shipping_details['gstin'] ?? '');
+        $shipping_address = trim($shipping_details['address'] ?? '');
+        $shipping_vehicle_number = trim($shipping_details['vehicle_number'] ?? '');
+        $shipping_charges = (float)($shipping_details['charges'] ?? 0);
 
-// Get engineer_id and site_id from data (not from payment_details)
-$engineer_id = isset($data['engineer_id']) && $data['engineer_id'] !== '' && $data['engineer_id'] !== 'null' ? (int)$data['engineer_id'] : null;
-$site_id = isset($data['site_id']) && $data['site_id'] !== '' && $data['site_id'] !== 'null' ? (int)$data['site_id'] : null;
+        // DEBUG: Log what's being received
+        debug_log("Payment details received", $payment_details);
+        debug_log("Engineer ID from frontend", ['engineer_id' => $data['engineer_id'] ?? null]);
+        debug_log("Site ID from frontend", ['site_id' => $data['site_id'] ?? null]);
 
-debug_log("Engineer ID after parsing", ['engineer_id' => $engineer_id]);
-debug_log("Site ID after parsing", ['site_id' => $site_id]);
-$payment_status = 'pending';
-if ($pending_amount == 0) $payment_status = 'paid';
-elseif ($total_paid > 0) $payment_status = 'partial';
+        // Get engineer_id and site_id from data
+        $engineer_id = isset($data['engineer_id']) && $data['engineer_id'] !== '' && $data['engineer_id'] !== 'null' ? (int)$data['engineer_id'] : null;
+        $site_id = isset($data['site_id']) && $data['site_id'] !== '' && $data['site_id'] !== 'null' ? (int)$data['site_id'] : null;
 
-// If credit amount exists, set pending_amount to credit amount
-if ($credit_amount > 0) {
-    $pending_amount = $credit_amount;
-}
+        debug_log("Engineer ID after parsing", ['engineer_id' => $engineer_id]);
+        debug_log("Site ID after parsing", ['site_id' => $site_id]);
 
-$methods = [];
-if ($cash_amount > 0) $methods[] = 'cash';
-if ($upi_amount > 0) $methods[] = 'upi';
-if ($bank_amount > 0) $methods[] = 'bank';
-if ($cheque_amount > 0) $methods[] = 'cheque';
-if ($credit_amount > 0) $methods[] = 'credit';
-$payment_method = count($methods) > 1 ? 'split' : (count($methods) === 1 ? $methods[0] : 'cash');
+        // If credit amount exists, set pending_amount to credit amount
+        if ($credit_amount > 0) {
+            $pending_amount = $credit_amount;
+        }
 
-debug_log("Payment summary", [
-    'subtotal' => $subtotal,
-    'overall_discount' => $overall_discount,
-    'points_discount' => $points_discount,
-    'total' => $total,
-    'total_paid' => $total_paid,
-    'change_given' => $change_given,
-    'pending_amount' => $pending_amount,
-    'payment_status' => $payment_status,
-    'payment_method' => $payment_method
-]);
+        $payment_status = 'pending';
+        if ($pending_amount == 0) $payment_status = 'paid';
+        elseif ($total_paid > 0) $payment_status = 'partial';
 
-/* =========================
-   INSERT INVOICE
-========================= */
-// ==================== INSERT INVOICE ====================
+        $methods = [];
+        if ($cash_amount > 0) $methods[] = 'cash';
+        if ($upi_amount > 0) $methods[] = 'upi';
+        if ($bank_amount > 0) $methods[] = 'bank';
+        if ($cheque_amount > 0) $methods[] = 'cheque';
+        if ($credit_amount > 0) $methods[] = 'credit';
+        $payment_method = count($methods) > 1 ? 'split' : (count($methods) === 1 ? $methods[0] : 'cash');
 
+        debug_log("Payment summary", [
+            'subtotal' => $subtotal,
+            'overall_discount' => $overall_discount,
+            'points_discount' => $points_discount,
+            'total' => $total,
+            'total_paid' => $total_paid,
+            'change_given' => $change_given,
+            'pending_amount' => $pending_amount,
+            'payment_status' => $payment_status,
+            'payment_method' => $payment_method
+        ]);
 
-$stmt = $pdo->prepare("
-    INSERT INTO invoices (
-        customer_id, invoice_number, invoice_type, customer_type, gst_status,
-        subtotal, discount, discount_type, overall_discount, total,
-        cash_received, change_given, pending_amount, paid_amount, payment_status,
-        cash_amount, upi_amount, bank_amount, cheque_amount,
-        cheque_number, upi_reference, bank_reference,
-        payment_method, seller_id, shop_id, business_id,
-        referral_id, referral_commission_amount,
-        points_redeemed, points_discount_amount,
-        engineer_id, site_id, 
-        created_at, gst_type
-    ) VALUES (
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?, 
-        NOW(), ?
-    )
-");
+        // Add shipping charges to grand total if not already included
+        $total_with_shipping = $total + $shipping_charges;
+       
+        /* =========================
+           INSERT INVOICE
+        ========================= */
+        $stmt = $pdo->prepare("
+            INSERT INTO invoices (
+                customer_id, invoice_number, invoice_type, customer_type, gst_status,
+                subtotal, discount, discount_type, overall_discount, total,
+                cash_received, change_given, pending_amount, paid_amount, payment_status,
+                cash_amount, upi_amount, bank_amount, cheque_amount,
+                cheque_number, upi_reference, bank_reference,
+                payment_method, seller_id, shop_id, business_id,
+                referral_id, referral_commission_amount,
+                points_redeemed, points_discount_amount,
+                shipping_name, shipping_contact, shipping_gstin, shipping_address,
+                shipping_vehicle_number, shipping_charges,
+                engineer_id, site_id,
+                created_at, gst_type
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                NOW(), ?
+            )
+        ");
 
-$discount = $data['discount'] ?? 0;
-$discount_type = $data['discount_type'] ?? 'percent';
+        $discount = $data['discount'] ?? 0;
+        $discount_type = $data['discount_type'] ?? 'percent';
 
-$stmt->execute([
-    $customer_id,
-    $invoice_number,
-    $invoice_type,
-    $customer_type,
-    $gst_status,
-    $subtotal,
-    $discount,
-    $discount_type,
-    $overall_discount,
-    $total,
-    $total_paid,
-    $change_given,
-    $pending_amount,
-    $total_paid,
-    $payment_status,
-    $cash_amount,
-    $upi_amount,
-    $bank_amount,
-    $cheque_amount,
-    $payment_details['cheque_number'] ?? '',
-    $payment_details['upi_reference'] ?? '',
-    $payment_details['bank_reference'] ?? '',
-    $payment_method,
-    $user_id,
-    $shop_id,
-    $business_id,
-    $referral_id,
-    $total_referral_commission,
-    $points_used,
-    $points_discount,
-    $engineer_id,  // Added
-    $site_id,      // Added
-    $gst_type
-]);
+        $stmt->execute([
+            $customer_id,
+            $invoice_number,
+            $invoice_type,
+            $customer_type,
+            $gst_status,
+            $subtotal,
+            $discount,
+            $discount_type,
+            $overall_discount,
+            $total_with_shipping,
+            $total_paid,
+            $change_given,
+            $pending_amount,
+            $total_paid,
+            $payment_status,
+            $cash_amount,
+            $upi_amount,
+            $bank_amount,
+            $cheque_amount,
+            $payment_details['cheque_number'] ?? '',
+            $payment_details['upi_reference'] ?? '',
+            $payment_details['bank_reference'] ?? '',
+            $payment_method,
+            $user_id,
+            $shop_id,
+            $business_id,
+            $referral_id,
+            $total_referral_commission,
+            $points_used,
+            $points_discount,
+            $shipping_name ?: null,
+            $shipping_contact ?: null,
+            $shipping_gstin ?: null,
+            $shipping_address ?: null,
+            $shipping_vehicle_number ?: null,
+            $shipping_charges,
+            $engineer_id,
+            $site_id,
+            $gst_type
+        ]);
        
         $invoice_id = $pdo->lastInsertId();
         debug_log("Invoice created", [
@@ -749,9 +768,7 @@ $stmt->execute([
                 : $discount_value;
             $line_total = max(0, $line_total_before - $line_discount);
            
-            // ==============================================
-            // FIXED: GET PRODUCT INFORMATION WITH BATCH INFO
-            // ==============================================
+            // GET PRODUCT INFORMATION WITH BATCH INFO
             $product_info_stmt = $pdo->prepare("
                 SELECT 
                     p.id,
@@ -805,12 +822,9 @@ $stmt->execute([
                 'batch_id' => $batch_id
             ]);
            
-            // ==============================================
-            // FIXED: QUANTITY CALCULATION BASED ON UNIT TYPE
-            // ==============================================
+            // QUANTITY CALCULATION BASED ON UNIT TYPE
             if ($is_secondary && $sec_unit_conversion > 0) {
                 // Convert secondary unit quantity to primary units
-                // Always use database conversion factor
                 $quantity_in_primary_units = $qty / $sec_unit_conversion;
                 $quantity_in_sec_units = $qty;
                
@@ -835,10 +849,7 @@ $stmt->execute([
                 ]);
             }
            
-            // ==============================================
-            // FIXED: STOCK AVAILABILITY CHECK
-            // ==============================================
-            // Check against total available stock (old_qty + current stock)
+            // STOCK AVAILABILITY CHECK
             $total_available_primary_units = $current_stock;
             $total_available_secondary_units = $current_total_sec_units;
            
@@ -883,42 +894,32 @@ $stmt->execute([
                 $taxable_value = $line_total;
             }
            
-            /* =========================
-               CALCULATE REFERRAL COMMISSION PER ITEM
-            ========================= */
+            // CALCULATE REFERRAL COMMISSION PER ITEM
             $item_referral_commission = 0;
 
-if ($referral_id) {
-    // Get referral value from products table
-    $referral_value_sql = "SELECT referral_value FROM products WHERE id = ?";
-    $referral_value_stmt = $pdo->prepare($referral_value_sql);
-    $referral_value_stmt->execute([$product_id]);
-    $product_referral = $referral_value_stmt->fetch();
-    
-    if ($product_referral && !empty($product_referral['referral_value'])) {
-        $referral_percentage = (float)$product_referral['referral_value'];
-        
-        // Calculate commission as percentage of line total
-        $item_referral_commission = $line_total * ($referral_percentage / 100);
-        $item_referral_commission = round($item_referral_commission, 2);
-        
-        $total_referral_commission += $item_referral_commission;
-        
-        debug_log("Referral commission calculated for item", [
-            'product_id' => $product_id,
-            'product_name' => $product_name,
-            'referral_percentage' => $referral_percentage . '%',
-            'line_total' => $line_total,
-            'item_commission' => $item_referral_commission,
-            'total_commission_so_far' => $total_referral_commission
-        ]);
-    } else {
-        debug_log("No referral value set for product", [
-            'product_id' => $product_id,
-            'product_name' => $product_name
-        ]);
-    }
-}
+            if ($referral_id) {
+                $referral_value_sql = "SELECT referral_value FROM products WHERE id = ?";
+                $referral_value_stmt = $pdo->prepare($referral_value_sql);
+                $referral_value_stmt->execute([$product_id]);
+                $product_referral = $referral_value_stmt->fetch();
+                
+                if ($product_referral && !empty($product_referral['referral_value'])) {
+                    $referral_percentage = (float)$product_referral['referral_value'];
+                    $item_referral_commission = $line_total * ($referral_percentage / 100);
+                    $item_referral_commission = round($item_referral_commission, 2);
+                    $total_referral_commission += $item_referral_commission;
+                    
+                    debug_log("Referral commission calculated for item", [
+                        'product_id' => $product_id,
+                        'product_name' => $product_name,
+                        'referral_percentage' => $referral_percentage . '%',
+                        'line_total' => $line_total,
+                        'item_commission' => $item_referral_commission,
+                        'total_commission_so_far' => $total_referral_commission
+                    ]);
+                }
+            }
+            
             $total_taxable += $taxable_value;
             $total_cgst += $cgst_amount;
             $total_sgst += $sgst_amount;
@@ -933,15 +934,16 @@ if ($referral_id) {
                     hsn_code, cgst_rate, sgst_rate, igst_rate,
                     cgst_amount, sgst_amount, igst_amount,
                     total_with_gst, taxable_value, profit,
-                    gst_inclusive, referral_commission, unit
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    gst_inclusive, referral_commission, unit,
+                    new_batch_product_profit, new_batch_product_loss
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
             ");
            
             $stmt_item->execute([
                 $invoice_id,
                 $product_id,
                 $sale_type,
-                $qty, // Store the actual quantity sold
+                $qty,
                 $unit_price,
                 $original_price,
                 $line_total,
@@ -958,7 +960,7 @@ if ($referral_id) {
                 $taxable_value,
                 $profit,
                 $gst_status ? 1 : 0,
-                $item_referral_commission, // Store individual item commission
+                $item_referral_commission,
                 $actual_unit
             ]);
            
@@ -973,230 +975,212 @@ if ($referral_id) {
                 'referral_commission' => $item_referral_commission
             ]);
            
-            // ==============================================
-            // FIXED: BATCH TRACKING LOGIC
-            // ==============================================
+            // STORE OLD STOCK QUANTITY BEFORE DEDUCTION
+            $old_stock_quantity = $current_stock;
+           
+            // BATCH TRACKING LOGIC
             if ($use_batch_tracking && $batch_id) {
                 debug_log("Using batch tracking", [
                     'batch_id' => $batch_id,
                     'old_qty' => $old_qty,
-                    'current_stock' => $current_stock
+                    'current_stock' => $current_stock,
+                    'quantity_to_deduct' => $quantity_in_primary_units
                 ]);
-               
-                // ==============================================
+                
                 // STEP 1: GET BATCH INFORMATION
-                // ==============================================
                 $batch_info_stmt = $pdo->prepare("
                     SELECT 
                         purchase_price,
                         old_mrp,
                         new_mrp,
-                        quantity_received
+                        retail_price,
+                        wholesale_price,
+                        old_retail_price,
+                        old_wholesale_price,
+                        old_purchase_price,
+                        old_selling_price,
+                        quantity_received,
+                        is_increase,
+                        is_decrease
                     FROM purchase_batches
                     WHERE id = ? AND product_id = ? AND business_id = ?
                 ");
                 $batch_info_stmt->execute([$batch_id, $product_id, $business_id]);
                 $batch_info = $batch_info_stmt->fetch();
-               
+
                 if (!$batch_info) {
                     throw new Exception("Batch not found for product: $product_name, batch: $batch_id");
                 }
-               
+
                 $purchase_price = (float)$batch_info['purchase_price'];
+                $old_purchase_price = (float)$batch_info['old_purchase_price'];
                 $old_mrp = (float)$batch_info['old_mrp'];
                 $new_mrp = (float)$batch_info['new_mrp'];
+                $retail_price = (float)$batch_info['retail_price'];
+                $wholesale_price = (float)$batch_info['wholesale_price'];
+                $old_retail_price = (float)$batch_info['old_retail_price'];
+                $old_wholesale_price = (float)$batch_info['old_wholesale_price'];
+                $old_selling_price = (float)$batch_info['old_selling_price'];
                 $quantity_received = (float)$batch_info['quantity_received'];
-               
+                $batch_is_increase = (int)$batch_info['is_increase'];
+                $batch_is_decrease = (int)$batch_info['is_decrease'];
+
                 debug_log("Batch info", [
                     'quantity_received' => $quantity_received,
                     'purchase_price' => $purchase_price,
+                    'old_purchase_price' => $old_purchase_price,
                     'old_mrp' => $old_mrp,
                     'new_mrp' => $new_mrp,
+                    'retail_price' => $retail_price,
+                    'wholesale_price' => $wholesale_price,
+                    'old_retail_price' => $old_retail_price,
+                    'old_wholesale_price' => $old_wholesale_price,
+                    'old_selling_price' => $old_selling_price,
                     'current_stock' => $current_stock,
                     'old_qty' => $old_qty
                 ]);
-               
-                // ==============================================
-                // STEP 2: SIMULTANEOUS DEDUCTION FROM ALL THREE VALUES
-                // ==============================================
-                // We always deduct from ALL three values simultaneously:
-                // 1. quantity (total primary units)
-                // 2. old_qty (old stock tracker)
-                // 3. total_secondary_units (secondary units)
+
+                // ITERATIVE DEDUCTION - ONE BY ONE
+                $deducted_count = 0;
+                $price_updated = false;
+                $initial_old_qty = $old_qty;
+                $initial_quantity = $current_stock;
                 
-                // The deduction amount is the same for all three
-                $deduct_primary_units = $quantity_in_primary_units;
-                $deduct_secondary_units = $quantity_in_sec_units;
+                $current_selling_price = ($sale_type === 'wholesale') ? $wholesale_price : $retail_price;
                 
-                debug_log("Simultaneous deduction calculation", [
-                    'deduct_primary_units' => $deduct_primary_units,
-                    'deduct_secondary_units' => $deduct_secondary_units,
-                    'old_qty_before' => $old_qty,
-                    'quantity_before' => $current_stock,
-                    'secondary_units_before' => $current_total_sec_units
-                ]);
-                
-                // Calculate what the values will be after deduction
-                $new_old_qty_after = max(0, $old_qty - $deduct_primary_units);
-                $new_quantity_after = max(0, $current_stock - $deduct_primary_units);
-                $new_total_sec_units_after = max(0, $current_total_sec_units - $deduct_secondary_units);
-                
-                // Check if we have enough stock (check total available, not just old_qty)
-                if ($deduct_primary_units > $current_stock) {
-                    throw new Exception("Insufficient stock for $product_name. " .
-                        "Available: $current_stock $unit_of_measure, Required: $deduct_primary_units $unit_of_measure");
-                }
-               
-                // ==============================================
-                // STEP 3: UPDATE ALL THREE VALUES SIMULTANEOUSLY
-                // ==============================================
-                $deduct_stmt = $pdo->prepare("
-                    UPDATE product_stocks
-                    SET 
-                        old_qty = GREATEST(0, old_qty - ?),
-                        quantity = GREATEST(0, quantity - ?),
-                        total_secondary_units = GREATEST(0, total_secondary_units - ?),
-                        last_updated = NOW()
-                    WHERE product_id = ? 
-                      AND shop_id = ? 
-                      AND business_id = ?
-                ");
-               
-                $deduct_stmt->execute([
-                    $deduct_primary_units,  // Subtract from old_qty
-                    $deduct_primary_units,  // Subtract from quantity
-                    $deduct_secondary_units, // Subtract from total_secondary_units
-                    $product_id,
-                    $shop_id,
-                    $business_id
-                ]);
-               
-                debug_log("Simultaneous stock deduction completed", [
-                    'deducted_from_all' => $deduct_primary_units,
-                    'old_qty_before' => $old_qty,
-                    'old_qty_after' => $new_old_qty_after,
-                    'quantity_before' => $current_stock,
-                    'quantity_after' => $new_quantity_after,
-                    'secondary_units_before' => $current_total_sec_units,
-                    'secondary_units_after' => $new_total_sec_units_after
-                ]);
-               
-                // ==============================================
-                // STEP 4: BATCH COMPLETION CHECK
-                // ==============================================
-                // Check if all old stock is sold (old_qty = 0)
-                // AND remaining quantity equals the batch quantity received
-                if ($new_old_qty_after <= 0.001 && abs($new_quantity_after - $quantity_received) <= 0.001) {
-                    debug_log("All old stock sold. Checking batch completion...", [
-                        'new_old_qty' => $new_old_qty_after,
-                        'new_quantity' => $new_quantity_after,
-                        'quantity_received' => $quantity_received,
-                        'purchase_price' => $purchase_price,
-                        'new_mrp' => $new_mrp
-                    ]);
-                   
-                    // ==============================================
-                    // STEP 5: APPLY NEW PRICING & RESET BATCH TRACKING
-                    // ==============================================
-                    // Update product prices in products table
-                    $update_product_stmt = $pdo->prepare("
-                        UPDATE products
-                        SET 
-                            stock_price = ?,
-                            mrp = ?,
-                            discount_type = 'percentage',
-                            discount_value = 0.00,
-                            updated_at = NOW()
-                        WHERE id = ?
+                for ($i = 0; $i < $quantity_in_primary_units; $i++) {
+                    $deducted_count++;
+                    
+                    $current_stock_stmt = $pdo->prepare("
+                        SELECT old_qty, quantity, total_secondary_units
+                        FROM product_stocks
+                        WHERE product_id = ? AND shop_id = ? AND business_id = ?
                     ");
-                    $update_product_stmt->execute([
-                        $purchase_price,
-                        $new_mrp,
-                        $product_id
-                    ]);
-                   
-                    debug_log("Product prices updated", [
-                        'new_stock_price' => $purchase_price,
-                        'new_mrp' => $new_mrp
-                    ]);
-                   
-                    // ==============================================
-                    // STEP 6: RESET BATCH TRACKING
-                    // ==============================================
-                    $reset_batch_stmt = $pdo->prepare("
+                    $current_stock_stmt->execute([$product_id, $shop_id, $business_id]);
+                    $current_values = $current_stock_stmt->fetch();
+                    
+                    if (!$current_values) {
+                        throw new Exception("Stock record not found for product: $product_name");
+                    }
+                    
+                    $current_old_qty = (float)$current_values['old_qty'];
+                    $current_quantity = (float)$current_values['quantity'];
+                    $current_sec_units = (float)$current_values['total_secondary_units'];
+                    
+                    $single_unit_sec_deduction = $sec_unit_conversion > 0 ? $sec_unit_conversion : 0;
+                    
+                    $deduct_single_stmt = $pdo->prepare("
                         UPDATE product_stocks
                         SET 
-                            use_batch_tracking = 0,
-                            batch_id = NULL,
-                            old_qty = 0,
+                            old_qty = GREATEST(0, old_qty - 1),
+                            quantity = GREATEST(0, quantity - 1),
+                            total_secondary_units = GREATEST(0, total_secondary_units - ?),
                             last_updated = NOW()
                         WHERE product_id = ? 
                           AND shop_id = ? 
                           AND business_id = ?
                     ");
-                    $reset_batch_stmt->execute([
+                    
+                    $deduct_single_stmt->execute([
+                        $single_unit_sec_deduction,
                         $product_id,
                         $shop_id,
                         $business_id
                     ]);
-                   
-                    debug_log("Batch tracking reset", [
-                        'use_batch_tracking' => 0,
-                        'batch_id' => 'NULL',
-                        'old_qty' => 0
-                    ]);
-                }
-               
-                // ==============================================
-                // STEP 7: VERIFY SECONDARY UNIT SYNC
-                // ==============================================
-                if ($sec_unit_conversion > 0) {
-                    $verify_sync_stmt = $pdo->prepare("
-                        SELECT quantity, total_secondary_units
-                        FROM product_stocks
-                        WHERE product_id = ? 
-                          AND shop_id = ? 
-                          AND business_id = ?
-                    ");
-                    $verify_sync_stmt->execute([$product_id, $shop_id, $business_id]);
-                    $updated_stock = $verify_sync_stmt->fetch();
-                   
-                    if ($updated_stock) {
-                        $calculated_secondary = (float)$updated_stock['quantity'] * $sec_unit_conversion;
-                        $stored_secondary = (float)$updated_stock['total_secondary_units'];
-                        $difference = abs($calculated_secondary - $stored_secondary);
-                       
-                        if ($difference > 0.01) {
-                            debug_log("Secondary units out of sync, correcting...", [
-                                'calculated' => $calculated_secondary,
-                                'stored' => $stored_secondary,
-                                'difference' => $difference
+                    
+                    $old_qty = max(0, $current_old_qty - 1);
+                    $current_stock = $current_quantity - 1;
+                    
+                    if ($old_qty <= 0.001 && !$price_updated) {
+                        $updated_stock_stmt = $pdo->prepare("
+                            SELECT quantity
+                            FROM product_stocks
+                            WHERE product_id = ? AND shop_id = ? AND business_id = ?
+                        ");
+                        $updated_stock_stmt->execute([$product_id, $shop_id, $business_id]);
+                        $updated_stock = $updated_stock_stmt->fetch();
+                        $updated_quantity = (float)$updated_stock['quantity'];
+                        
+                        if (abs($updated_quantity - $quantity_received) <= 0.001) {
+                            $update_product_stmt = $pdo->prepare("
+                                UPDATE products
+                                SET 
+                                    stock_price = ?,
+                                    retail_price = ?,
+                                    wholesale_price = ?,
+                                    mrp = ?,
+                                    updated_at = NOW()
+                                WHERE id = ?
+                            ");
+                            $update_product_stmt->execute([
+                                $purchase_price,
+                                $retail_price,
+                                $wholesale_price,
+                                $new_mrp,
+                                $product_id
                             ]);
-                           
-                            $sync_sec_stmt = $pdo->prepare("
+                            
+                            $reset_batch_stmt = $pdo->prepare("
                                 UPDATE product_stocks
-                                SET total_secondary_units = quantity * ?,
+                                SET 
+                                    use_batch_tracking = 0,
+                                    batch_id = NULL,
+                                    old_qty = 0,
                                     last_updated = NOW()
                                 WHERE product_id = ? 
                                   AND shop_id = ? 
                                   AND business_id = ?
                             ");
-                            $sync_sec_stmt->execute([
-                                $sec_unit_conversion,
+                            $reset_batch_stmt->execute([
                                 $product_id,
                                 $shop_id,
                                 $business_id
                             ]);
-                           
-                            debug_log("Secondary units synchronized");
+                            
+                            $price_updated = true;
                         }
                     }
                 }
-               
+                
+                // CALCULATE PROFIT/LOSS BASED ON MARGIN CHANGE
+                $selling_price = $unit_price;
+                
+                $margin_before = 0;
+                $margin_after = 0;
+                $new_batch_product_profit = 0;
+                $new_batch_product_loss = 0;
+                
+                $current_selling_price_before = $current_selling_price;
+                
+                if ($deducted_count <= $initial_old_qty) {
+                    $margin_before = ($current_selling_price_before - $old_purchase_price) / $current_selling_price_before * 100;
+                    $margin_after = ($current_selling_price_before - $purchase_price) / $current_selling_price_before * 100;
+                } else {
+                    $margin_before = ($current_selling_price_before - $old_purchase_price) / $current_selling_price_before * 100;
+                    $margin_after = ($current_selling_price - $purchase_price) / $current_selling_price * 100;
+                }
+                
+                if ($margin_after > $margin_before) {
+                    $new_batch_product_profit = ($margin_after - $margin_before) * $selling_price / 100;
+                } elseif ($margin_after < $margin_before) {
+                    $new_batch_product_loss = ($margin_before - $margin_after) * $selling_price / 100;
+                }
+                
+                $update_item_stmt = $pdo->prepare("
+                    UPDATE invoice_items
+                    SET 
+                        new_batch_product_profit = ?,
+                        new_batch_product_loss = ?
+                    WHERE id = ?
+                ");
+                $update_item_stmt->execute([
+                    $new_batch_product_profit,
+                    $new_batch_product_loss,
+                    $item_id
+                ]);
+                
             } else {
-                // ==============================================
                 // NON-BATCH TRACKING: DIRECT STOCK DEDUCTION
-                // ==============================================
                 $deduct_stmt = $pdo->prepare("
                     UPDATE product_stocks
                     SET 
@@ -1207,7 +1191,7 @@ if ($referral_id) {
                       AND shop_id = ? 
                       AND business_id = ?
                 ");
-               
+                
                 $deduct_stmt->execute([
                     $quantity_in_primary_units,
                     $quantity_in_sec_units,
@@ -1215,21 +1199,10 @@ if ($referral_id) {
                     $shop_id,
                     $business_id
                 ]);
-               
+                
                 $rows_affected = $deduct_stmt->rowCount();
-               
-                debug_log("Direct stock deduction", [
-                    'qty_deducted_primary' => $quantity_in_primary_units,
-                    'qty_deducted_secondary' => $quantity_in_sec_units,
-                    'rows_affected' => $rows_affected
-                ]);
-               
-                // ==============================================
-                // HANDLE MISSING STOCK RECORD
-                // ==============================================
+                
                 if ($rows_affected === 0) {
-                    debug_log("No stock record found, creating/updating...");
-                   
                     $insert_stmt = $pdo->prepare("
                         INSERT INTO product_stocks
                         (product_id, shop_id, business_id, quantity, total_secondary_units, old_qty, use_batch_tracking, last_updated)
@@ -1239,7 +1212,7 @@ if ($referral_id) {
                             total_secondary_units = GREATEST(0, total_secondary_units - ?),
                             last_updated = NOW()
                     ");
-                   
+                    
                     $insert_stmt->execute([
                         $product_id,
                         $shop_id,
@@ -1247,41 +1220,95 @@ if ($referral_id) {
                         $quantity_in_primary_units,
                         $quantity_in_sec_units
                     ]);
-                   
-                    debug_log("Stock record inserted/updated");
-                }
-               
-                // ==============================================
-                // VERIFY SECONDARY UNIT SYNC FOR NON-BATCH
-                // ==============================================
-                if ($sec_unit_conversion > 0) {
-                    $sync_sec_stmt = $pdo->prepare("
-                        UPDATE product_stocks
-                        SET total_secondary_units = quantity * ?,
-                            last_updated = NOW()
-                        WHERE product_id = ? 
-                          AND shop_id = ? 
-                          AND business_id = ?
-                          AND ABS(total_secondary_units - (quantity * ?)) > 0.01
-                    ");
-                   
-                    $sync_sec_stmt->execute([
-                        $sec_unit_conversion,
-                        $product_id,
-                        $shop_id,
-                        $business_id,
-                        $sec_unit_conversion
-                    ]);
-                   
-                    if ($sync_sec_stmt->rowCount() > 0) {
-                        debug_log("Synchronized secondary units for non-batch product");
-                    }
                 }
             }
-                       
+            
             // ==============================================
+            // RECORD STOCK ADJUSTMENT IN STOCK_ADJUSTMENTS TABLE
+            // ==============================================
+            
+            // Get final stock after deduction
+            $final_stock_stmt = $pdo->prepare("
+                SELECT quantity, total_secondary_units
+                FROM product_stocks
+                WHERE product_id = ? 
+                  AND shop_id = ? 
+                  AND business_id = ?
+            ");
+            $final_stock_stmt->execute([$product_id, $shop_id, $business_id]);
+            $final_stock = $final_stock_stmt->fetch();
+            $new_stock_quantity = (float)($final_stock['quantity'] ?? 0);
+            
+            // Generate unique adjustment number
+            $date = new DateTime();
+            $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            
+            // Ensure uniqueness of adjustment number
+            $check_adj = $pdo->prepare("SELECT id FROM stock_adjustments WHERE adjustment_number = ?");
+            $check_adj->execute([$adjustment_number]);
+            while ($check_adj->fetch()) {
+                $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                $check_adj->execute([$adjustment_number]);
+            }
+            
+            // Prepare notes for adjustment
+            $adjustment_notes = "Sale from invoice #$invoice_number | ";
+            if ($is_secondary && $secondary_unit) {
+                $adjustment_notes .= "Sold: $qty $unit ($quantity_in_primary_units $unit_of_measure)";
+            } else {
+                $adjustment_notes .= "Sold: $qty $unit";
+            }
+            
+            if ($secondary_unit && $sec_unit_conversion > 0) {
+                $adjustment_notes .= " | Secondary units: $quantity_in_sec_units $secondary_unit";
+            }
+            
+            if ($use_batch_tracking) {
+                $adjustment_notes .= " | Batch tracking used, batch_id: $batch_id";
+            }
+            
+            // Record stock adjustment
+            $adj_stmt = $pdo->prepare("
+                INSERT INTO stock_adjustments (
+                    adjustment_number,
+                    product_id,
+                    shop_id,
+                    adjustment_type,
+                    quantity,
+                    old_stock,
+                    new_stock,
+                    reason,
+                    reference_id,
+                    reference_type,
+                    notes,
+                    adjusted_by,
+                    adjusted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+            
+            $adj_stmt->execute([
+                $adjustment_number,
+                $product_id,
+                $shop_id,
+                'remove',
+                $quantity_in_primary_units,
+                $old_stock_quantity,
+                $new_stock_quantity,
+                'Stock deduction for sale',
+                $invoice_id,
+                'sale',
+                $adjustment_notes,
+                $user_id
+            ]);
+            
+            debug_log("Stock adjustment recorded for item #$item_index", [
+                'adjustment_number' => $adjustment_number,
+                'old_stock' => $old_stock_quantity,
+                'new_stock' => $new_stock_quantity,
+                'quantity_removed' => $quantity_in_primary_units
+            ]);
+            
             // FINAL VERIFICATION: GET UPDATED STOCK
-            // ==============================================
             $final_check_stmt = $pdo->prepare("
                 SELECT quantity, total_secondary_units, old_qty, use_batch_tracking, batch_id
                 FROM product_stocks
@@ -1299,20 +1326,6 @@ if ($referral_id) {
                 'final_batch_tracking' => $final_stock['use_batch_tracking'] ?? 0,
                 'final_batch_id' => $final_stock['batch_id'] ?? 'NULL'
             ]);
-           
-            // ==============================================
-            // LOG SUCCESS MESSAGE
-            // ==============================================
-            debug_log("Stock deduction completed for item #$item_index", [
-                'product_id' => $product_id,
-                'product_name' => $product_name,
-                'sold_quantity' => $qty . ' ' . $unit,
-                'converted_primary' => $quantity_in_primary_units . ' ' . $unit_of_measure,
-                'converted_secondary' => $quantity_in_sec_units . ' ' . $secondary_unit,
-                'batch_tracking_used' => $use_batch_tracking ? 'Yes' : 'No',
-                'old_stock_deducted' => isset($deduct_from_old_qty) ? $deduct_from_old_qty : 'N/A',
-                'referral_commission' => $item_referral_commission
-            ]);
         }
        
         /* =========================
@@ -1320,10 +1333,15 @@ if ($referral_id) {
         ========================= */
         if ($referral_id && $total_referral_commission > 0) {
             try {
-                debug_log("Updating referral commission", [
-                    'referral_id' => $referral_id,
-                    'commission_amount' => $total_referral_commission,
-                    'total_sales' => $total
+                $update_invoice_stmt = $pdo->prepare("
+                    UPDATE invoices
+                    SET referral_commission_amount = ?
+                    WHERE id = ? AND business_id = ?
+                ");
+                $update_invoice_stmt->execute([
+                    $total_referral_commission,
+                    $invoice_id,
+                    $business_id
                 ]);
                 
                 $updateReferralStmt = $pdo->prepare("
@@ -1342,20 +1360,10 @@ if ($referral_id) {
                     $business_id
                 ]);
                 
-                debug_log("Referral updated successfully", [
-                    'rows_affected' => $updateReferralStmt->rowCount(),
-                    'referral_id' => $referral_id,
-                    'commission_added' => $total_referral_commission
-                ]);
-                
+                debug_log("Referral updated successfully");
             } catch (Exception $e) {
                 debug_log("Referral update failed", ['error' => $e->getMessage()]);
             }
-        } else {
-            debug_log("No referral commission to update", [
-                'referral_id' => $referral_id,
-                'total_referral_commission' => $total_referral_commission
-            ]);
         }
        
         /* =========================
@@ -1419,7 +1427,7 @@ if ($referral_id) {
             }
         }
        
-        // 2. Calculate and add earned points (from purchase amount)
+        // 2. Calculate and add earned points
         $points_earned = 0;
         $points_basis = $subtotal - $points_discount;
        
@@ -1576,10 +1584,10 @@ if ($referral_id) {
         ];
 
         if ($action === 'print') {
-        $response['print_url'] = "invoice_print.php?invoice_id=" . $invoice_id;
-    } elseif ($action === 'thermal') {
-        $response['thermal_url'] = "thermal_print.php?invoice_id=" . $invoice_id;
-    }
+            $response['print_url'] = "invoice_print.php?invoice_id=" . $invoice_id;
+        } elseif ($action === 'thermal') {
+            $response['thermal_url'] = "thermal_print.php?invoice_id=" . $invoice_id;
+        }
 
         echo json_encode($response);
 
@@ -1666,7 +1674,6 @@ function getProductReferralRates() {
     }
     
     try {
-        // Create placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
         
         $sql = "SELECT id, product_name, referral_value 
@@ -1765,7 +1772,6 @@ function listInvoices() {
         $stmt->execute($params);
         $invoices = $stmt->fetchAll();
         
-        // Count total for pagination
         $count_sql = "SELECT COUNT(*) as total FROM invoices i
                      LEFT JOIN customers c ON i.customer_id = c.id
                      WHERE i.business_id = ? AND i.shop_id = ?";
@@ -1807,7 +1813,6 @@ function getInvoiceDetails() {
     }
     
     try {
-        // Get invoice basic info
         $sql = "SELECT 
                     i.*,
                     c.name as customer_name,
@@ -1831,7 +1836,6 @@ function getInvoiceDetails() {
             return;
         }
         
-        // Get invoice items
         $items_sql = "SELECT 
                         ii.*,
                         p.product_name,
@@ -1846,7 +1850,6 @@ function getInvoiceDetails() {
         $items_stmt->execute([$invoice_id]);
         $items = $items_stmt->fetchAll();
         
-        // Get GST summary if exists
         $gst_sql = "SELECT * FROM invoice_gst_summary WHERE invoice_id = ?";
         $gst_stmt = $pdo->prepare($gst_sql);
         $gst_stmt->execute([$invoice_id]);
@@ -1865,7 +1868,7 @@ function getInvoiceDetails() {
 }
 
 function deleteInvoice() {
-    global $pdo, $business_id, $user_id;
+    global $pdo, $business_id, $shop_id, $user_id;
     
     $data = json_decode(file_get_contents('php://input'), true);
     $invoice_id = $data['invoice_id'] ?? 0;
@@ -1875,12 +1878,9 @@ function deleteInvoice() {
         return;
     }
     
-    // Check if user has permission (add your own permission logic here)
-    
     try {
         $pdo->beginTransaction();
         
-        // Get invoice details first for stock restoration
         $invoice_sql = "SELECT * FROM invoices WHERE id = ? AND business_id = ?";
         $invoice_stmt = $pdo->prepare($invoice_sql);
         $invoice_stmt->execute([$invoice_id, $business_id]);
@@ -1890,7 +1890,6 @@ function deleteInvoice() {
             throw new Exception("Invoice not found");
         }
         
-        // Get all items from this invoice
         $items_sql = "SELECT * FROM invoice_items WHERE invoice_id = ?";
         $items_stmt = $pdo->prepare($items_sql);
         $items_stmt->execute([$invoice_id]);
@@ -1898,17 +1897,15 @@ function deleteInvoice() {
         
         // Restore stock for each item
         foreach ($items as $item) {
-            // Get current stock info
-            $stock_sql = "SELECT * FROM product_stocks WHERE product_id = ? AND business_id = ?";
+            $stock_sql = "SELECT * FROM product_stocks WHERE product_id = ? AND shop_id = ? AND business_id = ?";
             $stock_stmt = $pdo->prepare($stock_sql);
-            $stock_stmt->execute([$item['product_id'], $business_id]);
+            $stock_stmt->execute([$item['product_id'], $shop_id, $business_id]);
             $stock = $stock_stmt->fetch();
             
             if ($stock) {
-                // Restore quantity (simplified - you might need to adjust based on your logic)
+                $old_stock_quantity = (float)$stock['quantity'];
                 $restore_qty = $item['quantity'];
                 
-                // Get conversion factor
                 $product_sql = "SELECT sec_unit_conversion FROM products WHERE id = ?";
                 $product_stmt = $pdo->prepare($product_sql);
                 $product_stmt->execute([$item['product_id']]);
@@ -1921,13 +1918,61 @@ function deleteInvoice() {
                                SET quantity = quantity + ?, 
                                    total_secondary_units = total_secondary_units + ?,
                                    last_updated = NOW()
-                               WHERE product_id = ? AND business_id = ?";
+                               WHERE product_id = ? AND shop_id = ? AND business_id = ?";
                 $update_stmt = $pdo->prepare($update_sql);
-                $update_stmt->execute([$restore_qty, $restore_sec_qty, $item['product_id'], $business_id]);
+                $update_stmt->execute([$restore_qty, $restore_sec_qty, $item['product_id'], $shop_id, $business_id]);
+                
+                $new_stock_stmt = $pdo->prepare("SELECT quantity FROM product_stocks WHERE product_id = ? AND shop_id = ? AND business_id = ?");
+                $new_stock_stmt->execute([$item['product_id'], $shop_id, $business_id]);
+                $new_stock = $new_stock_stmt->fetch();
+                $new_stock_quantity = (float)$new_stock['quantity'];
+                
+                // Generate unique adjustment number for stock restoration
+                $date = new DateTime();
+                $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                
+                $check_adj = $pdo->prepare("SELECT id FROM stock_adjustments WHERE adjustment_number = ?");
+                $check_adj->execute([$adjustment_number]);
+                while ($check_adj->fetch()) {
+                    $adjustment_number = 'ADJ' . $date->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                    $check_adj->execute([$adjustment_number]);
+                }
+                
+                $adj_stmt = $pdo->prepare("
+                    INSERT INTO stock_adjustments (
+                        adjustment_number,
+                        product_id,
+                        shop_id,
+                        adjustment_type,
+                        quantity,
+                        old_stock,
+                        new_stock,
+                        reason,
+                        reference_id,
+                        reference_type,
+                        notes,
+                        adjusted_by,
+                        adjusted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ");
+                
+                $adj_stmt->execute([
+                    $adjustment_number,
+                    $item['product_id'],
+                    $shop_id,
+                    'add',
+                    $restore_qty,
+                    $old_stock_quantity,
+                    $new_stock_quantity,
+                    'Stock restoration from deleted invoice',
+                    $invoice_id,
+                    'sale_deletion',
+                    "Restored $restore_qty units from deleted invoice #{$invoice['invoice_number']}",
+                    $user_id
+                ]);
             }
         }
         
-        // Update customer outstanding if credit sale
         if ($invoice['pending_amount'] > 0) {
             $customer_sql = "UPDATE customers 
                             SET outstanding_amount = outstanding_amount - ? 
@@ -1936,12 +1981,18 @@ function deleteInvoice() {
             $customer_stmt->execute([$invoice['pending_amount'], $invoice['customer_id'], $business_id]);
         }
         
-        // Delete invoice items
         $delete_items_sql = "DELETE FROM invoice_items WHERE invoice_id = ?";
         $delete_items_stmt = $pdo->prepare($delete_items_sql);
         $delete_items_stmt->execute([$invoice_id]);
         
-        // Delete invoice
+        try {
+            $delete_gst_sql = "DELETE FROM invoice_gst_summary WHERE invoice_id = ?";
+            $delete_gst_stmt = $pdo->prepare($delete_gst_sql);
+            $delete_gst_stmt->execute([$invoice_id]);
+        } catch (Exception $e) {
+            // Table might not exist, ignore
+        }
+        
         $delete_sql = "DELETE FROM invoices WHERE id = ? AND business_id = ?";
         $delete_stmt = $pdo->prepare($delete_sql);
         $delete_stmt->execute([$invoice_id, $business_id]);

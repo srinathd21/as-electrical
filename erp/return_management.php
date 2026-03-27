@@ -411,33 +411,24 @@ $stats_where .= " AND DATE(r.return_date) BETWEEN ? AND ?";
 $stats_params[] = $start_date;
 $stats_params[] = $end_date;
 
-// Main statistics query
 $stats_sql = "SELECT 
                 COUNT(DISTINCT r.id) as total_returns,
                 COALESCE(SUM(r.total_return_amount), 0) as total_return_amount,
                 COUNT(DISTINCT r.customer_id) as customers_affected,
-                COUNT(DISTINCT r.invoice_id) as invoices_affected
+                COUNT(DISTINCT r.invoice_id) as invoices_affected,
+                (SELECT COUNT(DISTINCT ri.product_id) FROM return_items ri 
+                 JOIN returns r2 ON ri.return_id = r2.id 
+                 WHERE r2.business_id = ? AND DATE(r2.return_date) BETWEEN ? AND ?) as products_returned
               FROM returns r
               JOIN invoices i ON r.invoice_id = i.id
               WHERE $stats_where";
 
+$stats_params_for_products = [$current_business_id, $start_date, $end_date];
+$all_stats_params = array_merge($stats_params, $stats_params_for_products);
+
 $stmt = $pdo->prepare($stats_sql);
-$stmt->execute($stats_params);
+$stmt->execute($all_stats_params);
 $stats = $stmt->fetch();
-
-// Get products returned count separately
-$products_sql = "SELECT COUNT(DISTINCT ri.product_id) as products_returned
-                 FROM return_items ri
-                 JOIN returns r ON ri.return_id = r.id
-                 JOIN invoices i ON r.invoice_id = i.id
-                 WHERE $stats_where";
-
-$stmt = $pdo->prepare($products_sql);
-$stmt->execute($stats_params);
-$products_data = $stmt->fetch();
-
-// Merge products_returned into stats
-$stats['products_returned'] = $products_data['products_returned'] ?? 0;
 
 // Get top returned products
 $top_returned_sql = "SELECT 
@@ -552,74 +543,38 @@ $reasons = $stmt->fetchAll();
                 <!-- Stats Cards -->
                 <div class="row mb-4">
                     <div class="col-xl-3 col-md-6">
-                        <div class="card card-hover border-start border-danger border-4 shadow-sm h-100">
-                            <div class="card-body d-flex flex-column justify-content-between">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="text-muted mb-1">Total Returns</h6>
-                                        <h3 class="text-danger mb-0 stats-total">₹<?= number_format($stats['total_return_amount'] ?? 0, 2) ?></h3>
-                                    </div>
-                                    <div class="avatar-sm">
-                                        <span class="avatar-title bg-danger bg-opacity-10 rounded-circle fs-3">
-                                            <i class="bx bx-undo text-danger"></i>
-                                        </span>
-                                    </div>
-                                </div>
-                                <small class="text-muted mt-2"><?= $stats['total_returns'] ?? 0 ?> return transactions</small>
+                        <div class="card card-hover border-start border-danger border-4 shadow-sm">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Total Returns</h6>
+                                <h3 class="text-danger">₹<?= number_format($stats['total_return_amount'] ?? 0, 2) ?></h3>
+                                <small class="text-muted"><?= $stats['total_returns'] ?? 0 ?> return transactions</small>
                             </div>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="card card-hover border-start border-warning border-4 shadow-sm h-100">
-                            <div class="card-body d-flex flex-column justify-content-between">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="text-muted mb-1">Invoices Affected</h6>
-                                        <h3 class="text-warning mb-0 stats-invoices"><?= number_format($stats['invoices_affected'] ?? 0) ?></h3>
-                                    </div>
-                                    <div class="avatar-sm">
-                                        <span class="avatar-title bg-warning bg-opacity-10 rounded-circle fs-3">
-                                            <i class="bx bx-file text-warning"></i>
-                                        </span>
-                                    </div>
-                                </div>
-                                <small class="text-muted mt-2">With return items</small>
+                        <div class="card card-hover border-start border-warning border-4 shadow-sm">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Invoices Affected</h6>
+                                <h3 class="text-warning"><?= $stats['invoices_affected'] ?? 0 ?></h3>
+                                <small class="text-muted">With return items</small>
                             </div>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="card card-hover border-start border-info border-4 shadow-sm h-100">
-                            <div class="card-body d-flex flex-column justify-content-between">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="text-muted mb-1">Customers</h6>
-                                        <h3 class="text-info mb-0 stats-customers"><?= number_format($stats['customers_affected'] ?? 0) ?></h3>
-                                    </div>
-                                    <div class="avatar-sm">
-                                        <span class="avatar-title bg-info bg-opacity-10 rounded-circle fs-3">
-                                            <i class="bx bx-user text-info"></i>
-                                        </span>
-                                    </div>
-                                </div>
-                                <small class="text-muted mt-2">Who returned items</small>
+                        <div class="card card-hover border-start border-info border-4 shadow-sm">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Customers</h6>
+                                <h3 class="text-info"><?= $stats['customers_affected'] ?? 0 ?></h3>
+                                <small class="text-muted">Who returned items</small>
                             </div>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
-                        <div class="card card-hover border-start border-success border-4 shadow-sm h-100">
-                            <div class="card-body d-flex flex-column justify-content-between">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="text-muted mb-1">Products Returned</h6>
-                                        <h3 class="text-success mb-0 stats-products"><?= number_format($stats['products_returned'] ?? 0) ?></h3>
-                                    </div>
-                                    <div class="avatar-sm">
-                                        <span class="avatar-title bg-success bg-opacity-10 rounded-circle fs-3">
-                                            <i class="bx bx-package text-success"></i>
-                                        </span>
-                                    </div>
-                                </div>
-                                <small class="text-muted mt-2">Different products</small>
+                        <div class="card card-hover border-start border-success border-4 shadow-sm">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Products Returned</h6>
+                                <h3 class="text-success"><?= $stats['products_returned'] ?? 0 ?></h3>
+                                <small class="text-muted">Different products</small>
                             </div>
                         </div>
                     </div>
@@ -1100,7 +1055,7 @@ function loadInvoiceItems(invoiceId) {
             $('#returnItemsSection').show();
         },
         success: function(response) {
-            $('#itemsTableBody').html(response);
+            $('#returnItemsSection').html(response);
             $('#invoiceDetails').show();
             $('#submitReturnBtn').prop('disabled', false);
             
@@ -1109,13 +1064,12 @@ function loadInvoiceItems(invoiceId) {
                 url: 'ajax/get_invoice_info.php',
                 type: 'GET',
                 data: { invoice_id: invoiceId },
-                dataType: 'json',
                 success: function(invoiceInfo) {
                     $('#customerInfo').html('<strong>Customer:</strong> ' + invoiceInfo.customer_name + 
                                           ' (' + invoiceInfo.customer_phone + ')');
                     $('#invoiceInfo').html('<strong>Invoice:</strong> ' + invoiceInfo.invoice_number + 
                                          ' - ' + invoiceInfo.created_at);
-                    $('#invoiceTotal').html('<strong>Total:</strong> ₹' + parseFloat(invoiceInfo.total).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    $('#invoiceTotal').html('<strong>Total:</strong> ₹' + parseFloat(invoiceInfo.total).toLocaleString('en-IN'));
                     
                     if (invoiceInfo.already_returned_qty > 0) {
                         $('#alreadyReturned').html('<i class="bx bx-undo"></i> Already returned: ' + 
@@ -1278,53 +1232,86 @@ function quickInvoiceSearch() {
 </script>
 
 <style>
-.empty-state {
-    text-align: center;
-    padding: 3rem 1rem;
-}
-.empty-state i {
-    font-size: 4rem;
-    opacity: 0.5;
-}
-.avatar-sm {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-}
-.badge.bg-opacity-10 {
-    opacity: 0.9;
-}
-.card-hover {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
 .card-hover:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15) !important;
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
 }
+
 .border-start {
     border-left-width: 4px !important;
 }
-.table th {
-    font-weight: 600;
-    background-color: #f8f9fa;
-    vertical-align: middle;
-}
+
 .return-qty-input {
-    max-width: 80px;
+    width: 70px !important;
     margin: 0 auto;
 }
+
+.text-line-through {
+    text-decoration: line-through;
+}
+
+.bg-danger-soft {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.bg-warning-soft {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+.bg-success-soft {
+    background-color: rgba(40, 167, 69, 0.1) !important;
+}
+
+.table th {
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.modal-lg {
+    max-width: 900px;
+}
+
+.avatar-sm {
+    width: 40px;
+    height: 40px;
+}
+
+.badge.bg-opacity-10 {
+    opacity: 0.9;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
 .progress {
     border-radius: 10px;
 }
+
 .progress-bar {
     border-radius: 10px;
 }
+
 @media (max-width: 768px) {
     .modal-lg {
         margin: 0.5rem;
     }
+    
     .table-responsive {
         font-size: 0.875rem;
+    }
+    
+    .btn-group-sm .btn {
+        margin-bottom: 2px;
     }
 }
 </style>

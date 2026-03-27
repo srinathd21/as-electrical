@@ -2,111 +2,41 @@
 date_default_timezone_set('Asia/Kolkata');
 session_start();
 require_once 'config/database.php';
-
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
-
-$user_id = $_SESSION['user_id'];
-$business_id = $_SESSION['current_business_id'] ?? $_SESSION['business_id'] ?? 1;
-$user_role = $_SESSION['role'] ?? 'seller';
-$current_shop_id = $_SESSION['current_shop_id'] ?? null;
-
-// Check shop access
-if (!$current_shop_id && $user_role !== 'admin') {
-    header('Location: select_shop.php');
-    exit();
-}
-
+$business_id = $_SESSION['business_id'] ?? 1;
 $invoice_id = (int)($_GET['invoice_id'] ?? 0);
 if (!$invoice_id) {
     header('Location: invoices.php');
     exit();
 }
 
-// Fetch invoice with site and engineer details - respecting business_id and shop_id
-$sql = "
+// Fetch invoice
+$stmt = $pdo->prepare("
     SELECT i.*,
            c.name as customer_name, c.phone as customer_phone, c.gstin as customer_gstin,
-           c.address as customer_address,
            u.full_name as seller_name,
-           s.shop_name, s.address as shop_address, s.phone as shop_phone, s.gstin as shop_gstin,
-           si.site_id, si.site_name, si.site_address, si.city as site_city, si.state as site_state,
-           si.postal_code as site_postal_code, si.project_type,
-           e.engineer_id, e.first_name as engineer_first_name, e.last_name as engineer_last_name,
-           e.phone as engineer_phone, e.email as engineer_email, e.specialization as engineer_specialization
+           s.shop_name, s.address as shop_address, s.phone as shop_phone, s.gstin as shop_gstin
     FROM invoices i
     LEFT JOIN customers c ON i.customer_id = c.id
     LEFT JOIN users u ON i.seller_id = u.id
     LEFT JOIN shops s ON i.shop_id = s.id
-    LEFT JOIN sites si ON i.site_id = si.site_id
-    LEFT JOIN engineers e ON i.engineer_id = e.engineer_id
     WHERE i.id = ? AND i.business_id = ?
-";
-
-// Add shop filter for non-admin users
-$params = [$invoice_id, $business_id];
-if ($user_role !== 'admin') {
-    $sql .= " AND i.shop_id = ?";
-    $params[] = $current_shop_id;
-}
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
+");
+$stmt->execute([$invoice_id, $business_id]);
 $invoice = $stmt->fetch();
-
 if (!$invoice) {
-    $_SESSION['error'] = "Invoice not found or you don't have permission to view it!";
+    $_SESSION['error'] = "Invoice not found!";
     header('Location: invoices.php');
     exit();
 }
 
-// Fetch all payments for this invoice to calculate total paid correctly
-$payment_stmt = $pdo->prepare("
-    SELECT 
-        p.payment_amount AS amount,
-        p.payment_method,
-        p.reference_no,
-        p.payment_date,
-        p.notes AS payment_note,
-        p.created_at AS payment_recorded_at,
-        u.full_name AS collected_by
-    FROM invoice_payments p
-    LEFT JOIN users u ON p.created_by = u.id
-    WHERE p.invoice_id = ? AND p.business_id = ?
-    ORDER BY 
-        COALESCE(p.payment_date, p.created_at) DESC
-");
-$payment_stmt->execute([$invoice_id, $business_id]);
-$payment_history = $payment_stmt->fetchAll();
-
-// Calculate total payments received from payment history
-$total_payments_from_history = array_sum(array_column($payment_history, 'amount'));
-
-// Calculate initial payment from invoice (cash + upi + bank + cheque)
-$initial_payment = ($invoice['cash_amount'] ?? 0) + 
-                   ($invoice['upi_amount'] ?? 0) + 
-                   ($invoice['bank_amount'] ?? 0) + 
-                   ($invoice['cheque_amount'] ?? 0);
-
-// Total paid = initial payment + additional payments
-$total_paid = $initial_payment + $total_payments_from_history;
-
-// Calculate pending amount correctly
-$invoice_total = $invoice['total'] ?? 0;
-$pending = $invoice_total - $total_paid;
-
-// Update invoice record if pending_amount is incorrect
-if ($pending != ($invoice['pending_amount'] ?? 0)) {
-    $update_stmt = $pdo->prepare("UPDATE invoices SET pending_amount = ? WHERE id = ?");
-    $update_stmt->execute([$pending, $invoice_id]);
-    $invoice['pending_amount'] = $pending;
-}
-
-// Payment status based on calculated pending amount
-$payment_status = $pending <= 0 ? 'paid' : ($total_paid > 0 ? 'partial' : 'unpaid');
-$status_class = ['paid' => 'success', 'partial' => 'warning', 'unpaid' => 'danger'][$payment_status];
+// Debug: First check what's in invoice_items for this invoice
+$debug_stmt = $pdo->prepare("SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id");
+$debug_stmt->execute([$invoice_id]);
+$debug_items = $debug_stmt->fetchAll();
 
 // Fetch items with product details
 $items_stmt = $pdo->prepare("
@@ -132,16 +62,15 @@ $items_stmt = $pdo->prepare("
 $items_stmt->execute([$invoice_id]);
 $items = $items_stmt->fetchAll();
 
-// Get returned quantities from returns table
+// Get returned quantities
 $returned_qty = [];
 $ret_stmt = $pdo->prepare("
     SELECT invoice_item_id, SUM(quantity) as returned_qty
-    FROM return_items ri
-    JOIN returns r ON ri.return_id = r.id
-    WHERE r.invoice_id = ? AND r.business_id = ?
+    FROM return_items
+    WHERE invoice_item_id IN (SELECT id FROM invoice_items WHERE invoice_id = ?)
     GROUP BY invoice_item_id
 ");
-$ret_stmt->execute([$invoice_id, $business_id]);
+$ret_stmt->execute([$invoice_id]);
 foreach ($ret_stmt->fetchAll() as $ret) {
     $returned_qty[$ret['invoice_item_id']] = (int)$ret['returned_qty'];
 }
@@ -149,6 +78,7 @@ foreach ($ret_stmt->fetchAll() as $ret) {
 // Calculate totals
 $subtotal = 0;
 $total_discount = 0;
+$total_profit = 0;
 $active_total = 0;
 $processed_items = [];
 
@@ -168,7 +98,7 @@ foreach ($items as &$item) {
     $subtotal += $line_total;
     $total_discount += $discount;
     
-    // Get unit - prioritize item_unit from invoice_items, fallback to product_unit from products
+    // Get unit - prioritize item_unit from invoice_items, fall back to product_unit from products
     $unit = !empty($item['item_unit']) ? $item['item_unit'] : 
             (!empty($item['product_unit']) ? $item['product_unit'] : 'PCS');
     
@@ -195,29 +125,44 @@ foreach ($items as &$item) {
     ];
 }
 
-// Format site address
-$site_full_address = $invoice['site_address'] ?? '';
-if (!empty($invoice['site_city'])) {
-    $site_full_address .= (!empty($site_full_address) ? ', ' : '') . $invoice['site_city'];
-}
-if (!empty($invoice['site_state'])) {
-    $site_full_address .= (!empty($site_full_address) ? ', ' : '') . $invoice['site_state'];
-}
-if (!empty($invoice['site_postal_code'])) {
-    $site_full_address .= (!empty($site_full_address) ? ' - ' : '') . $invoice['site_postal_code'];
-}
+// Fetch payment history
+$payment_stmt = $pdo->prepare("
+    SELECT 
+        p.payment_amount AS amount,
+        p.payment_method,
+        p.reference_no,
+        p.payment_date,
+        p.notes AS payment_note,
+        p.created_at AS payment_recorded_at,
+        u.full_name AS collected_by
+    FROM invoice_payments p
+    LEFT JOIN users u ON p.created_by = u.id
+    WHERE p.invoice_id = ?
+    ORDER BY 
+        COALESCE(p.payment_date, p.created_at) DESC
+");
+$payment_stmt->execute([$invoice_id]);
+$payment_history = $payment_stmt->fetchAll();
 
-// Format engineer name
-$engineer_full_name = '';
-if (!empty($invoice['engineer_first_name'])) {
-    $engineer_full_name = trim($invoice['engineer_first_name'] . ' ' . ($invoice['engineer_last_name'] ?? ''));
-}
+// Calculate total payments received
+$total_payments = array_sum(array_column($payment_history, 'amount'));
 
-// Get business name for display
-$business_name = $_SESSION['current_business_name'] ?? 'Business';
+// Payment status
+$pending = $invoice['pending_amount'] ?? 0;
+$paid = $invoice['total'] - $pending;
+$payment_status = $pending == 0 ? 'paid' : ($paid > 0 ? 'partial' : 'unpaid');
+$status_class = ['paid' => 'success', 'partial' => 'warning', 'unpaid' => 'danger'][$payment_status];
 
-// Debug info (can be removed in production)
-$debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_payment, Additional Payments: ₹$total_payments_from_history, Total Paid: ₹$total_paid, Pending: ₹$pending";
+// Get overall discount from invoice
+$overall_discount = $invoice['overall_discount'] ?? 0;
+
+// Get shipping details
+$shipping_name = $invoice['shipping_name'] ?? '';
+$shipping_contact = $invoice['shipping_contact'] ?? '';
+$shipping_gstin = $invoice['shipping_gstin'] ?? '';
+$shipping_address = $invoice['shipping_address'] ?? '';
+$shipping_vehicle_number = $invoice['shipping_vehicle_number'] ?? '';
+$shipping_charges = $invoice['shipping_charges'] ?? 0;
 ?>
 <!doctype html>
 <html lang="en">
@@ -233,6 +178,25 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
     <div class="main-content">
         <div class="page-content">
             <div class="container-fluid">
+                <!-- Debug Section (remove in production) -->
+                <?php if(false): /* Set to true to debug */ ?>
+                <div class="card mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">Debug Info - Raw Data</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Raw invoice_items data for invoice_id=<?= $invoice_id ?>:</h6>
+                        <pre><?php print_r($debug_items); ?></pre>
+                        
+                        <h6>Joined items with product data:</h6>
+                        <pre><?php print_r($items); ?></pre>
+                        
+                        <h6>Processed items for display:</h6>
+                        <pre><?php print_r($processed_items); ?></pre>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- Page Header -->
                 <div class="row mb-4">
                     <div class="col-12">
@@ -243,21 +207,13 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                                     Invoice #<?= htmlspecialchars($invoice['invoice_number']) ?>
                                     <small class="text-muted ms-2">
                                         <i class="bx bx-buildings me-1"></i>
-                                        <?= htmlspecialchars($business_name) ?>
-                                        <?php if ($user_role !== 'admin'): ?>
-                                        <span class="badge bg-info ms-2">
-                                            <i class="bx bx-store me-1"></i>
-                                            <?= htmlspecialchars($invoice['shop_name'] ?? 'Current Shop') ?>
-                                        </span>
-                                        <?php endif; ?>
+                                        <?= htmlspecialchars($_SESSION['current_business_name'] ?? 'Business') ?>
                                     </small>
                                 </h4>
                                 <p class="text-muted mb-0">
                                     <i class="bx bx-calendar me-1"></i>
                                     <?= date('d M Y, h:i A', strtotime($invoice['created_at'])) ?>
                                 </p>
-                                <!-- Debug info - remove in production -->
-                                <!-- <small class="text-muted d-block mt-1"><?= $debug_info ?></small> -->
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="invoice_print.php?invoice_id=<?php echo $invoice['id']; ?>" 
@@ -293,7 +249,7 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                         <div class="card card-hover border-start border-primary border-4 shadow-sm h-100">
                             <div class="card-body">
                                 <h6 class="text-muted mb-1">Invoice Total<br><small>(GST Inclusive)</small></h6>
-                                <h3 class="mb-0 text-primary">₹<?= number_format($invoice_total, 2) ?></h3>
+                                <h3 class="mb-0 text-primary">₹<?= number_format($invoice['total'], 2) ?></h3>
                             </div>
                         </div>
                     </div>
@@ -309,269 +265,129 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                         <div class="card card-hover border-start border-warning border-4 shadow-sm h-100">
                             <div class="card-body">
                                 <h6 class="text-muted mb-1">Pending Amount</h6>
-                                <h3 class="mb-0 <?= $pending > 0 ? 'text-warning' : 'text-success' ?>">
-                                    ₹<?= number_format($pending, 2) ?>
-                                </h3>
-                                <?php if($pending <= 0): ?>
-                                <small class="text-success"><i class="bx bx-check-circle"></i> Fully Paid</small>
-                                <?php endif; ?>
+                                <h3 class="mb-0 text-warning">₹<?= number_format($pending, 2) ?></h3>
                             </div>
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6">
                         <div class="card card-hover border-start border-info border-4 shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="text-muted mb-1">Payment Status</h6>
-                                <span class="badge bg-<?= $status_class ?> bg-opacity-10 text-<?= $status_class ?> px-4 py-2 fs-5">
-                                    <?= ucfirst($payment_status) ?>
-                                </span>
-                                <?php if($pending > 0): ?>
-                                <div class="mt-2">
-                                    <a href="collect_payment.php?invoice_id=<?= $invoice_id ?>" class="btn btn-sm btn-warning">
-                                        <i class="bx bx-money me-1"></i> Collect Payment
-                                    </a>
-                                </div>
+                                <h6 class="text-muted mb-1">Overall Discount</h6>
+                                <h3 class="mb-0 text-info">₹<?= number_format($overall_discount, 2) ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Summary -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Customer</h6>
+                                <strong><?= htmlspecialchars($invoice['customer_name'] ?? 'Walk-in Customer') ?></strong><br>
+                                <?php if ($invoice['customer_phone']): ?>
+                                <i class="bx bx-phone me-1"></i><?= htmlspecialchars($invoice['customer_phone']) ?><br>
+                                <?php endif; ?>
+                                <?php if ($invoice['customer_gstin']): ?>
+                                GSTIN: <?= htmlspecialchars($invoice['customer_gstin']) ?>
                                 <?php endif; ?>
                             </div>
+                            <div class="col-md-6 text-md-end">
+                                <h6 class="fw-bold mb-3">Shop & Seller</h6>
+                                <strong><?= htmlspecialchars($invoice['shop_name'] ?? 'Main Shop') ?></strong><br>
+                                Seller: <?= htmlspecialchars($invoice['seller_name'] ?? 'N/A') ?>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Payment Summary Card - Moved before Invoice Summary -->
+                <!-- Shipping Details Card -->
+                <?php if (!empty($shipping_name) || !empty($shipping_contact) || !empty($shipping_address) || !empty($shipping_vehicle_number) || $shipping_charges > 0): ?>
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><i class="bx bx-credit-card me-2"></i> Payment Summary</h5>
+                    <div class="card-header bg-info bg-opacity-10 border-bottom border-info">
+                        <h5 class="mb-0">
+                            <i class="bx bx-truck me-2 text-info"></i> 
+                            Shipping Details
+                        </h5>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6 class="mb-3">Initial Payment (at invoice time):</h6>
-                                <div class="ps-3">
-                                    <?php if($invoice['cash_amount'] > 0): ?>
-                                    <div class="d-flex justify-content-between py-1">
-                                        <span>Cash</span>
-                                        <strong class="text-success">₹<?= number_format($invoice['cash_amount'], 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <?php if($invoice['upi_amount'] > 0): ?>
-                                    <div class="d-flex justify-content-between py-1">
-                                        <span>UPI</span>
-                                        <strong class="text-primary">₹<?= number_format($invoice['upi_amount'], 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <?php if($invoice['bank_amount'] > 0): ?>
-                                    <div class="d-flex justify-content-between py-1">
-                                        <span>Bank Transfer</span>
-                                        <strong class="text-info">₹<?= number_format($invoice['bank_amount'], 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <?php if($invoice['cheque_amount'] > 0): ?>
-                                    <div class="d-flex justify-content-between py-1">
-                                        <span>Cheque</span>
-                                        <strong class="text-warning">₹<?= number_format($invoice['cheque_amount'], 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <?php if(($invoice['change_given'] ?? 0) > 0): ?>
-                                    <div class="d-flex justify-content-between py-1">
-                                        <span>Change Given</span>
-                                        <strong class="text-success">₹<?= number_format($invoice['change_given'], 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <?php if($initial_payment == 0): ?>
-                                    <div class="text-muted">No initial payment</div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <h6 class="mb-3">Payment Overview:</h6>
-                                <div class="ps-3">
-                                    <div class="d-flex justify-content-between py-2">
-                                        <span>Invoice Total:</span>
-                                        <strong>₹<?= number_format($invoice_total, 2) ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between py-2 text-primary">
-                                        <span>Initial Payment:</span>
-                                        <strong>₹<?= number_format($initial_payment, 2) ?></strong>
-                                    </div>
-                                    <?php if($total_payments_from_history > 0): ?>
-                                    <div class="d-flex justify-content-between py-2 text-success">
-                                        <span>Additional Payments:</span>
-                                        <strong>₹<?= number_format($total_payments_from_history, 2) ?></strong>
-                                    </div>
-                                    <?php endif; ?>
-                                    <hr>
-                                    <div class="d-flex justify-content-between py-2 fw-bold fs-5">
-                                        <span>Total Received:</span>
-                                        <strong class="text-primary">₹<?= number_format($total_paid, 2) ?></strong>
-                                    </div>
-                                    <?php if($pending > 0): ?>
-                                    <div class="d-flex justify-content-between py-2 text-danger fw-bold">
-                                        <span>Pending Amount:</span>
-                                        <strong>₹<?= number_format($pending, 2) ?></strong>
-                                    </div>
-                                    <?php else: ?>
-                                    <div class="d-flex justify-content-between py-2 text-success fw-bold">
-                                        <span>Status:</span>
-                                        <strong><i class="bx bx-check-circle"></i> Fully Paid</strong>
-                                    </div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                       
-                        <?php if($pending > 0): ?>
-                        <div class="alert alert-warning mt-3">
-                            <div class="d-flex align-items-center">
-                                <i class="bx bx-alarm-exclamation fs-4 me-3"></i>
-                                <div>
-                                    <strong>Pending Payment: ₹<?= number_format($pending, 2) ?></strong>
-                                    <p class="mb-0 mt-1">This invoice has pending amount. You can collect payment using the button below.</p>
-                                </div>
-                            </div>
-                            <div class="mt-3">
-                                <a href="collect_payment.php?invoice_id=<?= $invoice_id ?>" class="btn btn-warning">
-                                    <i class="bx bx-money me-1"></i> Collect Payment
-                                </a>
-                            </div>
-                        </div>
-                        <?php else: ?>
-                        <div class="alert alert-success mt-3">
-                            <div class="d-flex align-items-center">
-                                <i class="bx bx-check-circle fs-4 me-3"></i>
-                                <div>
-                                    <strong>Invoice Fully Paid</strong>
-                                    <p class="mb-0 mt-1">This invoice has been fully paid. Total received: ₹<?= number_format($total_paid, 2) ?></p>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Invoice Summary - Bill To / Ship To Section -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body">
-                        <div class="row">
-                            <!-- Bill To (Customer) -->
-                            <div class="col-md-6">
-                                <div class="bg-light p-3 rounded">
-                                    <h6 class="fw-bold mb-3">
-                                        <i class="bx bx-user me-2"></i>Bill To
-                                    </h6>
-                                    <div class="ps-2">
-                                        <strong><?= htmlspecialchars($invoice['customer_name'] ?? 'Walk-in Customer') ?></strong><br>
-                                        <?php if ($invoice['customer_phone']): ?>
-                                        <span><i class="bx bx-phone me-1 text-muted"></i><?= htmlspecialchars($invoice['customer_phone']) ?></span><br>
-                                        <?php endif; ?>
-                                        <?php if ($invoice['customer_gstin']): ?>
-                                        <span><i class="bx bx-certification me-1 text-muted"></i>GSTIN: <?= htmlspecialchars($invoice['customer_gstin']) ?></span><br>
-                                        <?php endif; ?>
-                                        <?php if ($invoice['customer_address']): ?>
-                                        <span><i class="bx bx-map me-1 text-muted"></i><?= htmlspecialchars($invoice['customer_address']) ?></span>
-                                        <?php endif; ?>
+                        <div class="row g-3">
+                            <?php if (!empty($shipping_name)): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-light rounded">
+                                    <i class="bx bx-user fs-4 text-info"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Receiver Name</small>
+                                        <strong><?= htmlspecialchars($shipping_name) ?></strong>
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
                             
-                            <!-- Ship To (Site/Engineer) -->
-                            <div class="col-md-6">
-                                <div class="bg-light p-3 rounded">
-                                    <h6 class="fw-bold mb-3">
-                                        <i class="bx bx-map-pin me-2"></i>Ship To
-                                    </h6>
-                                    <div class="ps-2">
-                                        <?php if (!empty($invoice['site_name'])): ?>
-                                            <!-- Site Information -->
-                                            <div class="mb-2">
-                                                <strong><i class="bx bx-building me-1"></i>Site: <?= htmlspecialchars($invoice['site_name']) ?></strong>
-                                            </div>
-                                            <?php if (!empty($site_full_address)): ?>
-                                            <div class="mb-1">
-                                                <i class="bx bx-map me-1 text-muted"></i><?= htmlspecialchars($site_full_address) ?>
-                                            </div>
-                                            <?php endif; ?>
-                                            
-                                            <?php if (!empty($invoice['project_type'])): ?>
-                                            <div class="mb-1">
-                                                <i class="bx bx-briefcase me-1 text-muted"></i>Project: <?= htmlspecialchars($invoice['project_type']) ?>
-                                            </div>
-                                            <?php endif; ?>
-                                            
-                                            <!-- Engineer Information -->
-                                            <?php if (!empty($engineer_full_name)): ?>
-                                            <div class="mt-2 pt-2 border-top">
-                                                <div class="mb-1">
-                                                    <strong><i class="bx bx-user-circle me-1"></i>Engineer: <?= htmlspecialchars($engineer_full_name) ?></strong>
-                                                </div>
-                                                <?php if (!empty($invoice['engineer_phone'])): ?>
-                                                <div class="mb-1">
-                                                    <i class="bx bx-phone me-1 text-muted"></i><?= htmlspecialchars($invoice['engineer_phone']) ?>
-                                                </div>
-                                                <?php endif; ?>
-                                                <?php if (!empty($invoice['engineer_email'])): ?>
-                                                <div class="mb-1">
-                                                    <i class="bx bx-envelope me-1 text-muted"></i><?= htmlspecialchars($invoice['engineer_email']) ?>
-                                                </div>
-                                                <?php endif; ?>
-                                                <?php if (!empty($invoice['engineer_specialization'])): ?>
-                                                <div class="mb-1">
-                                                    <i class="bx bx-wrench me-1 text-muted"></i><?= htmlspecialchars($invoice['engineer_specialization']) ?>
-                                                </div>
-                                                <?php endif; ?>
-                                            </div>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <!-- No site assigned - show same as Bill To -->
-                                            <div class="text-muted fst-italic">
-                                                <i class="bx bx-info-circle me-1"></i>Same as Bill To
-                                            </div>
-                                            <div class="mt-2">
-                                                <strong><?= htmlspecialchars($invoice['customer_name'] ?? 'Walk-in Customer') ?></strong><br>
-                                                <?php if ($invoice['customer_address']): ?>
-                                                <span><?= htmlspecialchars($invoice['customer_address']) ?></span>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endif; ?>
+                            <?php if (!empty($shipping_contact)): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-light rounded">
+                                    <i class="bx bx-phone fs-4 text-info"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Contact Number</small>
+                                        <strong><?= htmlspecialchars($shipping_contact) ?></strong>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Shop & Seller Info Row -->
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="bg-light p-3 rounded">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <h6 class="fw-bold mb-2">
-                                                <i class="bx bx-store me-2"></i>Shop
-                                            </h6>
-                                            <strong><?= htmlspecialchars($invoice['shop_name'] ?? 'Main Shop') ?></strong>
-                                            <?php if (!empty($invoice['shop_address'])): ?>
-                                            <br><small class="text-muted"><?= htmlspecialchars($invoice['shop_address']) ?></small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($invoice['shop_phone'])): ?>
-                                            <br><small><i class="bx bx-phone me-1"></i><?= htmlspecialchars($invoice['shop_phone']) ?></small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($invoice['shop_gstin'])): ?>
-                                            <br><small><i class="bx bx-certification me-1"></i>GST: <?= htmlspecialchars($invoice['shop_gstin']) ?></small>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h6 class="fw-bold mb-2">
-                                                <i class="bx bx-user-check me-2"></i>Seller
-                                            </h6>
-                                            <strong><?= htmlspecialchars($invoice['seller_name'] ?? 'N/A') ?></strong>
-                                            <?php if (!empty($invoice['notes'])): ?>
-                                            <br><small class="text-muted"><i class="bx bx-note me-1"></i>Note: <?= htmlspecialchars($invoice['notes']) ?></small>
-                                            <?php endif; ?>
-                                        </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($shipping_vehicle_number)): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-light rounded">
+                                    <i class="bx bx-truck fs-4 text-info"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Vehicle Number</small>
+                                        <strong><?= htmlspecialchars($shipping_vehicle_number) ?></strong>
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($shipping_gstin)): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-light rounded">
+                                    <i class="bx bx-id-card fs-4 text-info"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Shipping GSTIN</small>
+                                        <strong><?= htmlspecialchars($shipping_gstin) ?></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($shipping_address)): ?>
+                            <div class="col-md-12">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-light rounded">
+                                    <i class="bx bx-map fs-4 text-info"></i>
+                                    <div class="flex-grow-1">
+                                        <small class="text-muted d-block">Shipping Address</small>
+                                        <strong><?= nl2br(htmlspecialchars($shipping_address)) ?></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($shipping_charges > 0): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="d-flex align-items-start gap-2 p-2 bg-success bg-opacity-10 rounded border border-success">
+                                    <i class="bx bx-rupee fs-4 text-success"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Shipping Charges</small>
+                                        <strong class="text-success fs-5">₹<?= number_format($shipping_charges, 2) ?></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <!-- Payment History Card -->
                 <?php if (!empty($payment_history)): ?>
@@ -582,7 +398,7 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                             <span class="badge bg-primary ms-2"><?= count($payment_history) ?> payments</span>
                         </h5>
                         <div class="text-end">
-                            <span class="text-success fw-bold">Total Additional: ₹<?= number_format($total_payments_from_history, 2) ?></span>
+                            <span class="text-success fw-bold">Total Paid: ₹<?= number_format($total_payments, 2) ?></span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -652,6 +468,107 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                 </div>
                 <?php endif; ?>
 
+                <!-- Payment Summary Card -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bx bx-credit-card me-2"></i> Payment Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="mb-3">Initial Payment (at invoice time):</h6>
+                                <div class="ps-3">
+                                    <?php if($invoice['cash_amount'] > 0): ?>
+                                    <div class="d-flex justify-content-between py-1">
+                                        <span>Cash</span>
+                                        <strong class="text-success">₹<?= number_format($invoice['cash_amount'], 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($invoice['upi_amount'] > 0): ?>
+                                    <div class="d-flex justify-content-between py-1">
+                                        <span>UPI</span>
+                                        <strong class="text-primary">₹<?= number_format($invoice['upi_amount'], 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($invoice['bank_amount'] > 0): ?>
+                                    <div class="d-flex justify-content-between py-1">
+                                        <span>Bank Transfer</span>
+                                        <strong class="text-info">₹<?= number_format($invoice['bank_amount'], 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($invoice['cheque_amount'] > 0): ?>
+                                    <div class="d-flex justify-content-between py-1">
+                                        <span>Cheque</span>
+                                        <strong class="text-warning">₹<?= number_format($invoice['cheque_amount'], 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($shipping_charges > 0): ?>
+                                    <div class="d-flex justify-content-between py-1 border-top mt-1 pt-1">
+                                        <span>Shipping Charges</span>
+                                        <strong class="text-secondary">₹<?= number_format($shipping_charges, 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if(($invoice['change_given'] ?? 0) > 0): ?>
+                                    <div class="d-flex justify-content-between py-1">
+                                        <span>Change Given</span>
+                                        <strong class="text-success">₹<?= number_format($invoice['change_given'], 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-3">Payment Overview:</h6>
+                                <div class="ps-3">
+                                    <div class="d-flex justify-content-between py-2">
+                                        <span>Invoice Total:</span>
+                                        <strong>₹<?= number_format($invoice['total'], 2) ?></strong>
+                                    </div>
+                                    <?php if($shipping_charges > 0): ?>
+                                    <div class="d-flex justify-content-between py-2 text-secondary">
+                                        <span>Including Shipping:</span>
+                                        <strong>₹<?= number_format($invoice['total'] - $shipping_charges, 2) ?> + ₹<?= number_format($shipping_charges, 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($total_payments > 0): ?>
+                                    <div class="d-flex justify-content-between py-2 text-success">
+                                        <span>Additional Payments:</span>
+                                        <strong>₹<?= number_format($total_payments, 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if($pending > 0): ?>
+                                    <div class="d-flex justify-content-between py-2 text-danger">
+                                        <span>Pending Amount:</span>
+                                        <strong>₹<?= number_format($pending, 2) ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                    <hr>
+                                    <div class="d-flex justify-content-between py-2 fw-bold fs-5">
+                                        <span>Total Received:</span>
+                                        <strong class="text-primary">₹<?= number_format($invoice['total'] - $pending, 2) ?></strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                       
+                        <?php if($pending > 0): ?>
+                        <div class="alert alert-warning mt-3">
+                            <div class="d-flex align-items-center">
+                                <i class="bx bx-alarm-exclamation fs-4 me-3"></i>
+                                <div>
+                                    <strong>Pending Payment: ₹<?= number_format($pending, 2) ?></strong>
+                                    <p class="mb-0 mt-1">This invoice has pending amount. You can collect payment using the button below.</p>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <a href="collect_payment.php?invoice_id=<?= $invoice_id ?>" class="btn btn-warning">
+                                    <i class="bx bx-money me-1"></i> Collect Payment
+                                </a>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
                 <!-- Items Table -->
                 <div class="card shadow-sm">
                     <div class="card-header bg-light">
@@ -719,8 +636,24 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
                                     </tr>
                                     <?php endforeach; ?>
                                     <tr class="table-light fw-bold">
-                                        <td colspan="9" class="text-end">Original Total:</td>
-                                        <td class="text-end text-primary">₹<?= number_format($invoice_total, 2) ?></td>
+                                        <td colspan="9" class="text-end">Subtotal:</td>
+                                        <td class="text-end">₹<?= number_format($subtotal, 2) ?></td>
+                                    </tr>
+                                    <?php if ($overall_discount > 0): ?>
+                                    <tr class="table-danger fw-bold">
+                                        <td colspan="9" class="text-end">Overall Discount:</td>
+                                        <td class="text-end text-danger">-₹<?= number_format($overall_discount, 2) ?></td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <?php if ($shipping_charges > 0): ?>
+                                    <tr class="table-info fw-bold">
+                                        <td colspan="9" class="text-end">Shipping Charges:</td>
+                                        <td class="text-end text-info">+₹<?= number_format($shipping_charges, 2) ?></td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <tr class="table-light fw-bold">
+                                        <td colspan="9" class="text-end">Original Invoice Total:</td>
+                                        <td class="text-end text-primary">₹<?= number_format($invoice['total'], 2) ?></td>
                                     </tr>
                                     <tr class="table-success fw-bold fs-5">
                                         <td colspan="9" class="text-end">Active Total (After Returns):</td>
@@ -754,6 +687,7 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
 }
 .table-danger { background-color: rgba(248, 215, 218, 0.3) !important; }
 .table-warning { background-color: rgba(255, 243, 205, 0.3) !important; }
+.table-info { background-color: rgba(13, 202, 240, 0.1) !important; }
 .avatar-sm {
     width: 48px;
     height: 48px;
@@ -761,8 +695,19 @@ $debug_info = "Invoice Total: ₹$invoice_total, Initial Payment: ₹$initial_pa
 .badge.bg-opacity-10 {
     opacity: 0.9;
 }
-.bg-light {
-    background-color: #f8f9fa !important;
+.bg-info.bg-opacity-10 {
+    background-color: rgba(13, 202, 240, 0.1) !important;
+}
+.border-bottom.border-info {
+    border-bottom-color: #0dcaf0 !important;
+    border-bottom-width: 2px !important;
+}
+.bg-light.rounded {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.bg-light.rounded:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 </style>
 <script>
