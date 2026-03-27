@@ -25,7 +25,7 @@
           <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'contact.php' ? 'active' : ''; ?>" href="contact.php">Contact</a>
         </li>
         <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
-          <a href="bill/" class="btn btn-electric">Login <i class="fas fa-arrow-right ms-1"></i></a>
+          <a href="erp/" class="btn btn-electric">Login <i class="fas fa-arrow-right ms-1"></i></a>
         </li>
       </ul>
     </div>
