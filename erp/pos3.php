@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,7 +31,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .company-name {
@@ -298,15 +299,15 @@
         }
 
         .product-card:hover {
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transform: translateY(-1px);
         }
-        
-        .product-info{
+
+        .product-info {
             display: flex !important;
             justify-content: space-between !important;
         }
-        
+
         .product-info h4 {
             font-size: 14px;
             color: #333;
@@ -580,7 +581,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
 
@@ -597,7 +598,7 @@
             background: white;
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
             z-index: 1001;
         }
 
@@ -897,6 +898,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Toast Container (will be replaced by SweetAlert) -->
     <div id="toastContainer" style="display: none;"></div>
@@ -908,15 +910,12 @@
             AS ELECTRICALS POS
         </div>
         <div class="header-controls">
-            <input type="text" 
-                   class="barcode-input" 
-                   id="barcode-input" 
-                   placeholder="Scan barcode..."
-                   autocomplete="off">
-            
+            <input type="text" class="barcode-input" id="barcode-input" placeholder="Scan barcode..."
+                autocomplete="off">
+
             <select class="site-select" id="site-select">
                 <option value="">None</option>
-               
+
             </select>
             <div class="referral-badge" id="current-referral">
                 <i class="fas fa-user-friends"></i>
@@ -968,7 +967,7 @@
 
     <!-- Main POS Container -->
     <div class="pos-container">
-        
+
         <!-- Categories Section -->
         <section class="categories-section">
             <div class="section-title">
@@ -983,7 +982,12 @@
         <section class="products-section">
             <div class="products-header">
                 <div class="current-category" id="current-category">All Products</div>
-                <input type="text" class="search-box" id="search-box" placeholder="Search products...">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" class="search-box" id="search-box" placeholder="Search products...">
+                    <button class="btn-sm-custom" id="manual-product-btn" style="background: #FF9800; color: white;">
+                        <i class="fas fa-plus-circle"></i> Manual
+                    </button>
+                </div>
             </div>
             <div class="products-list" id="products-list">
                 <!-- Products will be loaded here -->
@@ -1008,12 +1012,8 @@
             </div>
             <div class="summary">
                 <div class="overall-discount-input-container">
-                    <input type="number" 
-                           class="overall-discount-input" 
-                           id="overall-discount-input" 
-                           placeholder="Enter overall discount" 
-                           min="0" 
-                           step="0.01">
+                    <input type="number" class="overall-discount-input" id="overall-discount-input"
+                        placeholder="Enter overall discount" min="0" step="0.01">
                     <button class="apply-discount-btn" id="apply-overall-discount">
                         <i class="fas fa-percentage"></i> Apply
                     </button>
@@ -1039,7 +1039,7 @@
                     <span id="total">₹0.00</span>
                 </div>
                 <div class="site-info">
-                    Site: <span id="current-site">Main Store</span> | 
+                    Site: <span id="current-site">Main Store</span> |
                     Type: <span id="bill-type-display">GST Bill</span>
                 </div>
                 <div class="action-buttons">
@@ -1056,11 +1056,12 @@
         <div class="quantity-modal">
             <div class="modal-title" id="modal-product-name">Add to Cart</div>
             <div class="modal-product-info" id="modal-product-info"></div>
-            
+
             <div class="modal-row">
                 <div class="modal-input-group">
                     <label>Quantity</label>
-                    <input type="number" class="modal-input" id="quantity-input" value="1" min="0.01" max="9999" step="0.01">
+                    <input type="number" class="modal-input" id="quantity-input" value="1" min="0.01" max="9999"
+                        step="0.01">
                 </div>
                 <div class="modal-input-group">
                     <label>Unit</label>
@@ -1069,7 +1070,7 @@
                     </select>
                 </div>
             </div>
-            
+
             <div class="modal-row">
                 <div class="modal-input-group">
                     <label>Price Type</label>
@@ -1083,7 +1084,7 @@
                     <input type="number" class="modal-input" id="selling-price-input" value="0" min="0" step="0.01">
                 </div>
             </div>
-            
+
             <div class="discount-row">
                 <div class="modal-input-group">
                     <label>Discount Type</label>
@@ -1094,10 +1095,11 @@
                 </div>
                 <div class="modal-input-group">
                     <label>Discount Value</label>
-                    <input type="number" class="discount-value-input" id="discount-value-input" value="0" min="0" step="0.01">
+                    <input type="number" class="discount-value-input" id="discount-value-input" value="0" min="0"
+                        step="0.01">
                 </div>
             </div>
-            
+
             <div class="price-preview" id="price-preview">
                 <div class="price-preview-row">
                     <span>Base Price:</span>
@@ -1112,7 +1114,7 @@
                     <span id="preview-final-price">₹0.00</span>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="cancel-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="add-to-cart-btn">
@@ -1128,18 +1130,20 @@
             <div class="modal-title">
                 <i class="fas fa-user-plus"></i> Add New Customer
             </div>
-            
+
             <div class="scrollable-content">
                 <div class="modal-section">
                     <div class="modal-section-title">Basic Information</div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label">Full Name *</label>
-                            <input type="text" class="form-input" id="customer-name-input" placeholder="Enter customer name">
+                            <input type="text" class="form-input" id="customer-name-input"
+                                placeholder="Enter customer name">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Phone Number *</label>
-                            <input type="tel" class="form-input" id="customer-phone-input" placeholder="Enter phone number">
+                            <input type="tel" class="form-input" id="customer-phone-input"
+                                placeholder="Enter phone number">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Email Address</label>
@@ -1154,15 +1158,16 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="modal-section">
                     <div class="modal-section-title">Address Information</div>
                     <div class="form-group full-width">
                         <label class="form-label">Complete Address</label>
-                        <textarea class="form-input" id="customer-address-input" rows="2" placeholder="Enter complete address"></textarea>
+                        <textarea class="form-input" id="customer-address-input" rows="2"
+                            placeholder="Enter complete address"></textarea>
                     </div>
                 </div>
-                
+
                 <div class="modal-section">
                     <div class="modal-section-title">Tax Information</div>
                     <div class="form-grid">
@@ -1172,12 +1177,13 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Credit Limit (₹)</label>
-                            <input type="number" class="form-input" id="customer-credit-input" value="0" min="0" step="0.01">
+                            <input type="number" class="form-input" id="customer-credit-input" value="0" min="0"
+                                step="0.01">
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="cancel-customer-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="save-customer-btn">
@@ -1196,7 +1202,7 @@
                     <i class="fas fa-magic"></i> Autofill
                 </button>
             </div>
-            
+
             <div class="scrollable-content">
                 <!-- Customer Information Section -->
                 <div class="customer-info-section">
@@ -1211,64 +1217,67 @@
                     <div class="customer-details-grid">
                         <div>
                             <label style="font-size: 11px; color: #666;">Name *</label>
-                            <input type="text" class="form-input" id="payment-customer-name" 
-                                   placeholder="Enter name" readonly>
+                            <input type="text" class="form-input" id="payment-customer-name" placeholder="Enter name"
+                                readonly>
                         </div>
                         <div>
                             <label style="font-size: 11px; color: #666;">Contact *</label>
-                            <input type="tel" class="form-input" id="payment-customer-contact" 
-                                   placeholder="Enter phone" readonly>
+                            <input type="tel" class="form-input" id="payment-customer-contact" placeholder="Enter phone"
+                                readonly>
                         </div>
                         <div>
                             <label style="font-size: 11px; color: #666;">GSTIN</label>
-                            <input type="text" class="form-input" id="payment-customer-gstin" 
-                                   placeholder="Enter GSTIN" readonly>
+                            <input type="text" class="form-input" id="payment-customer-gstin" placeholder="Enter GSTIN"
+                                readonly>
                         </div>
                         <div>
                             <label style="font-size: 11px; color: #666;">Email</label>
-                            <input type="email" class="form-input" id="payment-customer-email" 
-                                   placeholder="Enter email" readonly>
+                            <input type="email" class="form-input" id="payment-customer-email" placeholder="Enter email"
+                                readonly>
                         </div>
                         <div style="grid-column: 1 / -1;">
                             <label style="font-size: 11px; color: #666;">Address</label>
-                            <textarea class="form-input" id="payment-customer-address" 
-                                      rows="1" placeholder="Enter address" readonly></textarea>
+                            <textarea class="form-input" id="payment-customer-address" rows="1"
+                                placeholder="Enter address" readonly></textarea>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Site and Engineer Selection Section -->
                 <!-- Site and Engineer Selection Section (Optional) -->
-<div class="modal-section" style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
-    <div class="modal-section-title">Site & Engineer Details (Optional)</div>
-    <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
-        <div class="form-group">
-            <label class="form-label">Select Site</label>
-            <select class="form-input select2-site-payment" id="payment-site-select" style="width: 100%;">
-                <option value="">-- Select Site (Optional) --</option>
-                <!-- Sites will be loaded dynamically -->
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Select Engineer</label>
-            <select class="form-input select2-engineer-payment" id="payment-engineer-select" style="width: 100%;">
-                <option value="">-- Select Engineer (Optional) --</option>
-                <!-- Engineers will be loaded dynamically -->
-            </select>
-        </div>
-    </div>
-    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-        <i class="fas fa-info-circle"></i> Site and engineer information is optional
-    </div>
-</div>
-                
+                <div class="modal-section" style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
+                    <div class="modal-section-title">Site & Engineer Details (Optional)</div>
+                    <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label class="form-label">Select Site</label>
+                            <select class="form-input select2-site-payment" id="payment-site-select"
+                                style="width: 100%;">
+                                <option value="">-- Select Site (Optional) --</option>
+                                <!-- Sites will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Select Engineer</label>
+                            <select class="form-input select2-engineer-payment" id="payment-engineer-select"
+                                style="width: 100%;">
+                                <option value="">-- Select Engineer (Optional) --</option>
+                                <!-- Engineers will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <i class="fas fa-info-circle"></i> Site and engineer information is optional
+                    </div>
+                </div>
+
                 <div class="modal-product-info" id="payment-summary">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Total Amount:</span>
-                        <span style="font-size: 16px; font-weight: bold; color: #2196F3;">₹<span id="payment-total">0.00</span></span>
+                        <span style="font-size: 16px; font-weight: bold; color: #2196F3;">₹<span
+                                id="payment-total">0.00</span></span>
                     </div>
                 </div>
-                
+
                 <div class="modal-row">
                     <div class="modal-input-group">
                         <label>Cash (₹)</label>
@@ -1279,7 +1288,7 @@
                         <input type="number" class="modal-input" id="upi-payment" value="0" min="0" step="0.01">
                     </div>
                 </div>
-                
+
                 <div class="modal-row">
                     <div class="modal-input-group">
                         <label>Card/Bank (₹)</label>
@@ -1290,38 +1299,43 @@
                         <input type="number" class="modal-input" id="credit-payment" value="0" min="0" step="0.01">
                     </div>
                 </div>
-                
+
                 <div class="modal-row">
                     <div class="modal-input-group">
                         <label>Total Paid</label>
-                        <input type="number" class="modal-input" id="total-paid" value="0" readonly style="background: #f5f5f5;">
+                        <input type="number" class="modal-input" id="total-paid" value="0" readonly
+                            style="background: #f5f5f5;">
                     </div>
                     <div class="modal-input-group">
                         <label>Change</label>
-                        <input type="number" class="modal-input" id="change-amount" value="0" readonly style="background: #f5f5f5;">
+                        <input type="number" class="modal-input" id="change-amount" value="0" readonly
+                            style="background: #f5f5f5;">
                     </div>
                 </div>
-                
+
                 <!-- Payment Reference Notes -->
                 <div class="modal-section" style="margin: 10px 0;">
                     <div class="modal-section-title">Payment Reference</div>
                     <div class="modal-row">
                         <div class="modal-input-group">
                             <label>UPI Ref</label>
-                            <input type="text" class="form-input" id="payment-upi-reference" placeholder="UPI reference">
+                            <input type="text" class="form-input" id="payment-upi-reference"
+                                placeholder="UPI reference">
                         </div>
                         <div class="modal-input-group">
                             <label>Bank Ref</label>
-                            <input type="text" class="form-input" id="payment-bank-reference" placeholder="Bank reference">
+                            <input type="text" class="form-input" id="payment-bank-reference"
+                                placeholder="Bank reference">
                         </div>
                     </div>
                     <div class="modal-input-group" style="margin-top: 5px;">
                         <label>Cheque Number</label>
-                        <input type="text" class="form-input" id="payment-cheque-number" placeholder="Enter cheque number">
+                        <input type="text" class="form-input" id="payment-cheque-number"
+                            placeholder="Enter cheque number">
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-actions" style="margin-top: 15px; display: flex; gap: 8px;">
                 <button class="modal-btn cancel-btn" id="cancel-payment-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="save-invoice-btn" style="background: #4CAF50;">
@@ -1360,21 +1374,20 @@
             <div class="modal-title">
                 <i class="fas fa-pause"></i> Hold Invoice
             </div>
-            
+
             <div class="modal-section">
                 <div class="modal-section-title">Hold Information</div>
                 <div class="form-group">
                     <label class="form-label">Reference Name *</label>
-                    <input type="text" class="form-input" id="hold-reference-input" 
-                           placeholder="Enter customer name" value="Walk-in Customer">
+                    <input type="text" class="form-input" id="hold-reference-input" placeholder="Enter customer name"
+                        value="Walk-in Customer">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Hold Number</label>
-                    <input type="text" class="form-input" id="hold-number-input" 
-                           placeholder="Auto-generated" readonly>
+                    <input type="text" class="form-input" id="hold-number-input" placeholder="Auto-generated" readonly>
                 </div>
             </div>
-            
+
             <div class="modal-section">
                 <div class="modal-section-title">Cart Summary</div>
                 <div class="modal-product-info">
@@ -1392,7 +1405,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="cancel-hold-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="confirm-hold-btn" style="background: #FF9800;">
@@ -1408,11 +1421,11 @@
             <div class="modal-title">
                 <i class="fas fa-list"></i> Held Invoices
             </div>
-            
+
             <div class="modal-section">
                 <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
                     <table class="table table-striped table-hover">
-                        
+
                         <tbody id="holds-list-table">
                             <!-- Holds will be loaded here -->
                         </tbody>
@@ -1423,7 +1436,7 @@
                     <p>No held invoices found</p>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="close-holds-list-btn">Close</button>
             </div>
@@ -1436,7 +1449,7 @@
             <div class="modal-title">
                 <i class="fas fa-file-alt"></i> Create Quotation
             </div>
-            
+
             <div class="scrollable-content" style="max-height: 400px;">
                 <!-- Customer Information -->
                 <div class="customer-info-section">
@@ -1448,49 +1461,49 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label">Customer Name *</label>
-                            <input type="text" class="form-input" id="quotation-customer-name" 
-                                   placeholder="Enter name" value="Walk-in Customer">
+                            <input type="text" class="form-input" id="quotation-customer-name" placeholder="Enter name"
+                                value="Walk-in Customer">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Phone Number</label>
-                            <input type="tel" class="form-input" id="quotation-customer-phone" 
-                                   placeholder="Enter phone">
+                            <input type="tel" class="form-input" id="quotation-customer-phone"
+                                placeholder="Enter phone">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Email</label>
-                            <input type="email" class="form-input" id="quotation-customer-email" 
-                                   placeholder="Enter email">
+                            <input type="email" class="form-input" id="quotation-customer-email"
+                                placeholder="Enter email">
                         </div>
                         <div class="form-group">
                             <label class="form-label">GSTIN</label>
-                            <input type="text" class="form-input" id="quotation-customer-gstin" 
-                                   placeholder="Enter GSTIN">
+                            <input type="text" class="form-input" id="quotation-customer-gstin"
+                                placeholder="Enter GSTIN">
                         </div>
                         <div class="form-group full-width">
                             <label class="form-label">Address</label>
-                            <textarea class="form-input" id="quotation-customer-address" 
-                                      rows="1" placeholder="Enter address"></textarea>
+                            <textarea class="form-input" id="quotation-customer-address" rows="1"
+                                placeholder="Enter address"></textarea>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Quotation Details -->
                 <div class="modal-section">
                     <div class="modal-section-title">Quotation Details</div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label">Quotation Number</label>
-                            <input type="text" class="form-input" id="quotation-number-input" 
-                                   placeholder="Auto-generated" readonly>
+                            <input type="text" class="form-input" id="quotation-number-input"
+                                placeholder="Auto-generated" readonly>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Valid Until (Days)</label>
-                            <input type="number" class="form-input" id="quotation-valid-days" 
-                                   value="15" min="1" max="365">
+                            <input type="number" class="form-input" id="quotation-valid-days" value="15" min="1"
+                                max="365">
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Cart Summary -->
                 <div class="modal-section">
                     <div class="modal-section-title">Quotation Summary</div>
@@ -1509,17 +1522,16 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Notes -->
                 <div class="modal-section">
                     <div class="modal-section-title">Additional Notes</div>
                     <div class="form-group">
-                        <textarea class="form-input" id="quotation-notes" 
-                                  rows="2" placeholder="Enter notes"></textarea>
+                        <textarea class="form-input" id="quotation-notes" rows="2" placeholder="Enter notes"></textarea>
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="cancel-quotation-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="confirm-quotation-btn">
@@ -1535,11 +1547,11 @@
             <div class="modal-title">
                 <i class="fas fa-file-invoice"></i> Quotations List
             </div>
-            
+
             <div class="modal-section">
                 <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
                     <table class="table table-striped table-hover">
-                       
+
                         <tbody id="quotations-list-table">
                             <!-- Quotations will be loaded here -->
                         </tbody>
@@ -1550,7 +1562,7 @@
                     <p>No quotations found</p>
                 </div>
             </div>
-            
+
             <div class="modal-actions">
                 <button class="modal-btn cancel-btn" id="close-quotations-list-btn">Close</button>
             </div>
@@ -1568,6 +1580,127 @@
                 <button class="modal-btn cancel-btn" id="cancel-retrieve-hold-btn">Cancel</button>
                 <button class="modal-btn add-btn" id="confirm-retrieve-hold-btn">
                     <i class="fas fa-shopping-cart"></i> Load
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Product Modal for Quotations -->
+    <div class="modal-overlay" id="manual-product-modal">
+        <div class="quantity-modal" style="min-width: 450px;">
+            <div class="modal-title">
+                <i class="fas fa-plus-circle"></i> Add Manual Product
+                <small style="display: block; font-size: 11px; color: #666; margin-top: 5px;">For quotation only - no
+                    stock tracking</small>
+            </div>
+
+            <div class="modal-product-info" id="manual-product-info">
+                <i class="fas fa-info-circle"></i> Enter product details manually
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-input-group">
+                    <label>Product Name *</label>
+                    <input type="text" class="modal-input" id="manual-product-name" placeholder="Enter product name"
+                        autocomplete="off">
+                </div>
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-input-group">
+                    <label>Product Code/SKU</label>
+                    <input type="text" class="modal-input" id="manual-product-code" placeholder="Optional">
+                </div>
+                <div class="modal-input-group">
+                    <label>HSN Code</label>
+                    <input type="text" class="modal-input" id="manual-hsn-code" placeholder="Optional">
+                </div>
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-input-group">
+                    <label>Quantity *</label>
+                    <input type="number" class="modal-input" id="manual-quantity" value="1" min="0.01" step="0.01">
+                </div>
+                <div class="modal-input-group">
+                    <label>Unit</label>
+                    <select class="modal-select" id="manual-unit-select">
+                        <option value="PCS">PCS</option>
+                        <option value="MTR">MTR</option>
+                        <option value="KG">KG</option>
+                        <option value="BOX">BOX</option>
+                        <option value="SET">SET</option>
+                        <option value="NOS">NOS</option>
+                        <option value="LTR">LTR</option>
+                        <option value="M">M</option>
+                        <option value="FT">FT</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-input-group">
+                    <label>Unit Price (₹) *</label>
+                    <input type="number" class="modal-input" id="manual-unit-price" value="0" min="0" step="0.01">
+                </div>
+                <div class="modal-input-group">
+                    <label>MRP (₹)</label>
+                    <input type="number" class="modal-input" id="manual-mrp" value="0" min="0" step="0.01">
+                </div>
+            </div>
+
+            <div class="discount-row">
+                <div class="modal-input-group">
+                    <label>Discount Type</label>
+                    <select class="discount-type-select" id="manual-discount-type">
+                        <option value="percentage">%</option>
+                        <option value="fixed">₹ Fixed</option>
+                    </select>
+                </div>
+                <div class="modal-input-group">
+                    <label>Discount Value</label>
+                    <input type="number" class="discount-value-input" id="manual-discount-value" value="0" min="0"
+                        step="0.01">
+                </div>
+            </div>
+
+            <div class="price-preview" id="manual-price-preview">
+                <div class="price-preview-row">
+                    <span>Subtotal:</span>
+                    <span id="manual-preview-subtotal">₹0.00</span>
+                </div>
+                <div class="price-preview-row">
+                    <span>Discount:</span>
+                    <span id="manual-preview-discount">-₹0.00</span>
+                </div>
+                <div class="price-preview-total">
+                    <span>Final Price:</span>
+                    <span id="manual-preview-total">₹0.00</span>
+                </div>
+            </div>
+
+            <div class="modal-section" style="margin-top: 10px;">
+                <div class="modal-section-title">GST Details (Optional)</div>
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px;">CGST (%)</label>
+                        <input type="number" class="form-input" id="manual-cgst" value="0" min="0" step="0.1">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">SGST (%)</label>
+                        <input type="number" class="form-input" id="manual-sgst" value="0" min="0" step="0.1">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">IGST (%)</label>
+                        <input type="number" class="form-input" id="manual-igst" value="0" min="0" step="0.1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 15px;">
+                <button class="modal-btn cancel-btn" id="cancel-manual-btn">Cancel</button>
+                <button class="modal-btn add-btn" id="add-manual-product-btn" style="background: #FF9800;">
+                    <i class="fas fa-plus"></i> Add to Quotation
                 </button>
             </div>
         </div>
@@ -1594,7 +1727,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-    // ==================== GLOBAL STATE ====================
+// ==================== GLOBAL STATE ====================
 let CART = [];
 let PRODUCTS = [];
 let CATEGORIES = [];
@@ -1652,6 +1785,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('AS Electricals POS: Initializing...');
     init();
 });
+
 // ==================== RESET FUNCTIONS ====================
 function resetToWalkInCustomer() {
     // Reset customer selection to walk-in
@@ -1674,6 +1808,7 @@ function refreshPageAfterDelay(delay = 3000) {
         location.reload();
     }, delay);
 }
+
 async function init() {
     try {
         setupEventListeners();
@@ -1694,6 +1829,10 @@ async function init() {
         }, 100);
         
         updateUI();
+        
+        // Setup manual product event listeners
+        setupManualProductEventListeners();
+        
         showSuccessToast('System ready! Welcome to AS Electricals POS');
         
     } catch (error) {
@@ -2522,7 +2661,8 @@ function addToCart() {
             sec_unit_extra_charge: product.sec_unit_extra_charge,
             stock_price: product.stock_price,
             is_secondary_unit: isSecondaryUnit,
-            quantity_in_primary: quantityInPrimary
+            quantity_in_primary: quantityInPrimary,
+            is_manual: false
         });
         showSuccessToast(`${product.name} added to cart (${roundValue(quantity)} ${finalUnit})`);
     }
@@ -2537,6 +2677,35 @@ function updateCartItemQuantity(productId, change) {
     if (itemIndex === -1) return;
     
     const item = CART[itemIndex];
+    
+    // For manual products, no stock check needed
+    if (item.is_manual) {
+        const newQuantity = item.quantity + change;
+        if (newQuantity < 0) {
+            showWarningToast('Cannot reduce quantity below zero');
+            return;
+        }
+        
+        item.quantity = newQuantity;
+        item.quantity_in_primary = newQuantity;
+        
+        // Recalculate totals
+        const basePrice = roundValue(item.price * item.quantity);
+        let discountAmount = 0;
+        if (item.discount_type === 'percentage' && item.discount_value > 0) {
+            discountAmount = roundValue((basePrice * item.discount_value) / 100);
+        } else if (item.discount_type === 'fixed' && item.discount_value > 0) {
+            discountAmount = roundValue(item.discount_value * item.quantity);
+        }
+        item.discount_amount = discountAmount;
+        item.total = basePrice - discountAmount;
+        
+        saveCartToSession();
+        updateUI();
+        return;
+    }
+    
+    // Regular product stock check
     const product = PRODUCTS.find(p => p.id === item.product_id);
     if (!product) return;
     
@@ -2614,7 +2783,23 @@ function renderCart() {
         const displayQtyText = `${roundValue(item.quantity)} ${item.unit}${primaryConversionInfo}`;
         const perUnitPrice = roundValue(item.total / item.quantity);
         
-        html += `<div class="cart-item"><div class="cart-item-info"><h4>${item.name}</h4><div class="cart-item-code">${item.code} | ${displayQtyText}</div><div class="cart-item-price">₹${perUnitPrice} × ${roundValue(item.quantity)} = ₹${item.total}</div>${item.discount_amount > 0 ? `<div style="font-size:11px;color:#FF9800;">Discount: ₹${item.discount_amount}</div>` : ''}</div><div class="cart-item-controls"><button class="qty-btn" onclick="updateCartItemQuantity('${item.id}', -1)">-</button><div class="qty-display">${roundValue(item.quantity)}</div><button class="qty-btn" onclick="updateCartItemQuantity('${item.id}', 1)">+</button><button class="remove-btn" onclick="removeFromCart('${item.id}')">×</button></div></div>`;
+        html += `<div class="cart-item">
+            <div class="cart-item-info">
+                <h4>
+                    ${item.name}
+                    ${item.is_manual ? '<span class="manual-badge" style="display: inline-block; background: #FF9800; color: white; font-size: 9px; padding: 1px 5px; border-radius: 8px; margin-left: 5px; vertical-align: middle;">Manual</span>' : ''}
+                </h4>
+                <div class="cart-item-code">${item.code} | ${displayQtyText}</div>
+                <div class="cart-item-price">₹${perUnitPrice} × ${roundValue(item.quantity)} = ₹${item.total}</div>
+                ${item.discount_amount > 0 ? `<div style="font-size:11px;color:#FF9800;">Discount: ₹${item.discount_amount}</div>` : ''}
+            </div>
+            <div class="cart-item-controls">
+                <button class="qty-btn" onclick="updateCartItemQuantity('${item.id}', -1)">-</button>
+                <div class="qty-display">${roundValue(item.quantity)}</div>
+                <button class="qty-btn" onclick="updateCartItemQuantity('${item.id}', 1)">+</button>
+                <button class="remove-btn" onclick="removeFromCart('${item.id}')">×</button>
+            </div>
+        </div>`;
     });
     
     container.innerHTML = html;
@@ -2693,6 +2878,216 @@ function updateCartSummary() {
     const totalItems = roundValue(CART.reduce((sum, item) => sum + item.quantity, 0));
     document.getElementById('item-count').textContent = totalItems;
     document.getElementById('total-items-display').textContent = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+}
+
+// ==================== MANUAL PRODUCT FUNCTIONS ====================
+
+function openManualProductModal() {
+    const modal = document.getElementById('manual-product-modal');
+    if (!modal) return;
+    
+    // Reset form
+    document.getElementById('manual-product-name').value = '';
+    document.getElementById('manual-product-code').value = '';
+    document.getElementById('manual-hsn-code').value = '';
+    document.getElementById('manual-quantity').value = '1';
+    document.getElementById('manual-unit-price').value = '0';
+    document.getElementById('manual-mrp').value = '0';
+    document.getElementById('manual-discount-type').value = 'percentage';
+    document.getElementById('manual-discount-value').value = '0';
+    document.getElementById('manual-cgst').value = '0';
+    document.getElementById('manual-sgst').value = '0';
+    document.getElementById('manual-igst').value = '0';
+    
+    // Set default unit
+    const unitSelect = document.getElementById('manual-unit-select');
+    if (unitSelect) {
+        unitSelect.value = 'PCS';
+    }
+    
+    // Focus on product name
+    setTimeout(() => {
+        document.getElementById('manual-product-name').focus();
+    }, 100);
+    
+    // Update preview
+    updateManualProductPreview();
+    
+    modal.style.display = 'block';
+}
+
+function updateManualProductPreview() {
+    const quantity = parseFloat(document.getElementById('manual-quantity').value) || 0;
+    const unitPrice = parseFloat(document.getElementById('manual-unit-price').value) || 0;
+    const discountType = document.getElementById('manual-discount-type').value;
+    const discountValue = parseFloat(document.getElementById('manual-discount-value').value) || 0;
+    
+    const subtotal = roundValue(unitPrice * quantity);
+    let discountAmount = 0;
+    if (discountType === 'percentage' && discountValue > 0) {
+        discountAmount = roundValue((subtotal * discountValue) / 100);
+    } else if (discountType === 'fixed' && discountValue > 0) {
+        discountAmount = roundValue(discountValue * quantity);
+    }
+    const total = subtotal - discountAmount;
+    
+    document.getElementById('manual-preview-subtotal').textContent = `₹${subtotal}`;
+    document.getElementById('manual-preview-discount').textContent = `-₹${discountAmount}`;
+    document.getElementById('manual-preview-total').textContent = `₹${total}`;
+}
+
+function addManualProductToCart() {
+    // Validate required fields
+    const productName = document.getElementById('manual-product-name').value.trim();
+    if (!productName) {
+        showWarningToast('Please enter a product name');
+        document.getElementById('manual-product-name').focus();
+        return;
+    }
+    
+    const quantity = parseFloat(document.getElementById('manual-quantity').value) || 0;
+    if (quantity <= 0) {
+        showWarningToast('Please enter a valid quantity');
+        document.getElementById('manual-quantity').focus();
+        return;
+    }
+    
+    const unitPrice = parseFloat(document.getElementById('manual-unit-price').value) || 0;
+    if (unitPrice <= 0) {
+        showWarningToast('Please enter a valid unit price');
+        document.getElementById('manual-unit-price').focus();
+        return;
+    }
+    
+    // Get values
+    const productCode = document.getElementById('manual-product-code').value.trim() || `MAN-${Date.now()}`;
+    const unit = document.getElementById('manual-unit-select').value;
+    const mrp = parseFloat(document.getElementById('manual-mrp').value) || unitPrice;
+    const discountType = document.getElementById('manual-discount-type').value;
+    const discountValue = parseFloat(document.getElementById('manual-discount-value').value) || 0;
+    const cgst = parseFloat(document.getElementById('manual-cgst').value) || 0;
+    const sgst = parseFloat(document.getElementById('manual-sgst').value) || 0;
+    const igst = parseFloat(document.getElementById('manual-igst').value) || 0;
+    const hsnCode = document.getElementById('manual-hsn-code').value.trim() || '';
+    
+    // Calculate totals
+    const subtotal = roundValue(unitPrice * quantity);
+    let discountAmount = 0;
+    if (discountType === 'percentage' && discountValue > 0) {
+        discountAmount = roundValue((subtotal * discountValue) / 100);
+    } else if (discountType === 'fixed' && discountValue > 0) {
+        discountAmount = roundValue(discountValue * quantity);
+    }
+    const total = subtotal - discountAmount;
+    
+    // Create manual product object
+    const manualProductId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    
+    const manualProduct = {
+        id: manualProductId,
+        product_id: 0, // 0 indicates manual product
+        name: productName,
+        code: productCode,
+        price: unitPrice,
+        price_type: 'retail',
+        quantity: quantity,
+        unit: unit,
+        discount_type: discountType,
+        discount_value: discountValue,
+        discount_amount: discountAmount,
+        total: total,
+        mrp: mrp,
+        cgst_rate: cgst,
+        sgst_rate: sgst,
+        igst_rate: igst,
+        hsn_code: hsnCode,
+        shop_stock: 999999, // Unlimited for manual products
+        unit_of_measure: unit,
+        secondary_unit: null,
+        sec_unit_conversion: null,
+        stock_price: unitPrice,
+        is_secondary_unit: false,
+        quantity_in_primary: quantity,
+        is_manual: true // Flag to identify manual products
+    };
+    
+    // Add to cart
+    CART.push(manualProduct);
+    
+    // Save and update UI
+    saveCartToSession();
+    updateUI();
+    
+    // Close modal
+    document.getElementById('manual-product-modal').style.display = 'none';
+    
+    showSuccessToast(`Manual product "${productName}" added to quotation`);
+}
+
+function setupManualProductEventListeners() {
+    // Open modal button
+    const manualBtn = document.getElementById('manual-product-btn');
+    if (manualBtn) {
+        manualBtn.onclick = openManualProductModal;
+    }
+    
+    // Cancel button
+    const cancelManualBtn = document.getElementById('cancel-manual-btn');
+    if (cancelManualBtn) {
+        cancelManualBtn.onclick = () => {
+            document.getElementById('manual-product-modal').style.display = 'none';
+        };
+    }
+    
+    // Add button
+    const addManualBtn = document.getElementById('add-manual-product-btn');
+    if (addManualBtn) {
+        addManualBtn.onclick = addManualProductToCart;
+    }
+    
+    // Preview update listeners
+    const previewInputs = [
+        'manual-quantity', 'manual-unit-price', 'manual-discount-value',
+        'manual-discount-type', 'manual-cgst', 'manual-sgst', 'manual-igst'
+    ];
+    
+    previewInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', updateManualProductPreview);
+            if (input.tagName === 'SELECT') {
+                input.addEventListener('change', updateManualProductPreview);
+            }
+        }
+    });
+    
+    // Enter key support
+    const nameInput = document.getElementById('manual-product-name');
+    if (nameInput) {
+        nameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('manual-unit-price').focus();
+            }
+        });
+    }
+    
+    const priceInput = document.getElementById('manual-unit-price');
+    if (priceInput) {
+        priceInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addManualProductToCart();
+            }
+        });
+    }
+    
+    const quantityInput = document.getElementById('manual-quantity');
+    if (quantityInput) {
+        quantityInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('manual-unit-price').focus();
+            }
+        });
+    }
 }
 
 // ==================== PAYMENT MODAL ====================
@@ -2873,6 +3268,7 @@ async function processPayment(action = 'save') {
         showErrorToast('Payment failed: ' + error.message);
     }
 }
+
 async function saveInvoice(action = 'save', paymentDetails = {}) {
     const summary = calculateCartSummary();
     const invoiceNumber = await getNextInvoiceNumber(IS_GST_BILL ? 'gst' : 'non-gst');
@@ -2887,12 +3283,15 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
             referralName = selectedReferral.name || '';
             referralCode = selectedReferral.code || '';
             CART.forEach(item => {
-                const product = PRODUCTS.find(p => p.id == item.product_id);
-                if (product && product.referral_enabled == 1 && product.referral_value > 0) {
-                    if (product.referral_type === 'percentage') {
-                        totalReferralCommission += roundValue((item.total * product.referral_value) / 100);
-                    } else {
-                        totalReferralCommission += roundValue(product.referral_value * item.quantity);
+                // Skip manual products for referral commission
+                if (!item.is_manual) {
+                    const product = PRODUCTS.find(p => p.id == item.product_id);
+                    if (product && product.referral_enabled == 1 && product.referral_value > 0) {
+                        if (product.referral_type === 'percentage') {
+                            totalReferralCommission += roundValue((item.total * product.referral_value) / 100);
+                        } else {
+                            totalReferralCommission += roundValue(product.referral_value * item.quantity);
+                        }
                     }
                 }
             });
@@ -2918,14 +3317,14 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
         engineer_id: paymentDetails.engineer_id ? parseInt(paymentDetails.engineer_id) : null,
         site_id: paymentDetails.site_id ? parseInt(paymentDetails.site_id) : null,
         items: CART.map(item => {
-            const product = PRODUCTS.find(p => p.id == item.product_id);
+            const product = !item.is_manual ? PRODUCTS.find(p => p.id == item.product_id) : null;
             return {
                 product_id: item.product_id,
                 product_name: item.name,
                 quantity: roundValue(item.quantity),
                 price: item.price,
                 unit: item.unit,
-                is_secondary_unit: item.unit === item.secondary_unit,
+                is_secondary_unit: item.is_secondary_unit || false,
                 sec_unit_conversion: item.sec_unit_conversion || 1,
                 discount_type: item.discount_type || 'percentage',
                 discount_value: item.discount_value || 0,
@@ -2937,7 +3336,8 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
                 sgst_rate: item.sgst_rate || 0,
                 igst_rate: item.igst_rate || 0,
                 stock_price: item.stock_price || 0,
-                total: item.total
+                total: item.total,
+                is_manual: item.is_manual || false
             };
         }),
         payment_details: {
@@ -2987,6 +3387,7 @@ async function saveInvoice(action = 'save', paymentDetails = {}) {
         throw error;
     }
 }
+
 function completeSale() {
     CART = [];
     OVERALL_DISCOUNT = 0;
@@ -3000,9 +3401,8 @@ function completeSale() {
     
     // Reset to walk-in customer
     resetToWalkInCustomer();
-    
-    // Note: Do NOT call refreshPageAfterDelay here - let the caller handle refresh
 }
+
 // ==================== REFERRAL FUNCTIONS ====================
 async function loadReferrals() {
     try {
@@ -3299,7 +3699,9 @@ async function saveHold() {
             price_type: item.price_type, unit_price: item.price, item_discount: item.discount_amount,
             item_discount_type: item.discount_type, total: item.total, is_secondary_unit: item.unit === item.secondary_unit,
             secondary_unit_qty: item.unit === item.secondary_unit ? roundValue(item.quantity) : null,
-            secondary_unit: item.secondary_unit, unit: item.unit_of_measure
+            secondary_unit: item.secondary_unit, unit: item.unit_of_measure,
+            is_manual: item.is_manual || false,
+            manual_product_data: item.is_manual ? item : null
         })),
         cart_json: CART
     };
@@ -3343,13 +3745,13 @@ async function loadHoldsList() {
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${hold.hold_number}</strong></td>
-                    <td>${hold.customer_name}</td>
-                    <td>${hold.item_count || 1}</td>
-                    <td>₹${roundValue(hold.total)}</td>
-                    <td>${createdDate}</td>
+                    <td><strong>${hold.hold_number}</strong>\\
+                    <td>${hold.customer_name}\\
+                    <td>${hold.item_count || 1}\\
+                    <td>₹${roundValue(hold.total)}\\
+                    <td>${createdDate}\\
                     <td><button class="btn btn-sm btn-primary retrieve-hold-btn" data-hold-id="${hold.id}" ${isExpired ? 'disabled' : ''}><i class="fas fa-shopping-cart"></i></button>
-                    <button class="btn btn-sm btn-danger delete-hold-btn" data-hold-id="${hold.id}"><i class="fas fa-trash"></i></button></td>
+                    <button class="btn btn-sm btn-danger delete-hold-btn" data-hold-id="${hold.id}"><i class="fas fa-trash"></i></button>\\
                 `;
                 table.appendChild(row);
             });
@@ -3397,15 +3799,31 @@ function retrieveHold() {
         CART = [];
         cartJson.forEach(item => {
             CART.push({
-                id: item.id, product_id: item.product_id, name: item.name, code: item.code,
-                price: item.price, price_type: item.price_type, quantity: item.quantity,
-                unit: item.unit, discount_type: item.discount_type, discount_value: item.discount_value,
-                discount_amount: item.discount_amount, total: item.total, mrp: item.mrp,
-                cgst_rate: item.cgst_rate, sgst_rate: item.sgst_rate, igst_rate: item.igst_rate,
-                hsn_code: item.hsn_code, shop_stock: item.shop_stock, unit_of_measure: item.unit_of_measure,
-                secondary_unit: item.secondary_unit, sec_unit_conversion: item.sec_unit_conversion,
-                stock_price: item.stock_price, is_secondary_unit: item.is_secondary_unit,
-                quantity_in_primary: item.quantity_in_primary
+                id: item.id,
+                product_id: item.product_id,
+                name: item.name,
+                code: item.code,
+                price: item.price,
+                price_type: item.price_type,
+                quantity: item.quantity,
+                unit: item.unit,
+                discount_type: item.discount_type,
+                discount_value: item.discount_value,
+                discount_amount: item.discount_amount,
+                total: item.total,
+                mrp: item.mrp,
+                cgst_rate: item.cgst_rate,
+                sgst_rate: item.sgst_rate,
+                igst_rate: item.igst_rate,
+                hsn_code: item.hsn_code,
+                shop_stock: item.shop_stock,
+                unit_of_measure: item.unit_of_measure,
+                secondary_unit: item.secondary_unit,
+                sec_unit_conversion: item.sec_unit_conversion,
+                stock_price: item.stock_price,
+                is_secondary_unit: item.is_secondary_unit,
+                quantity_in_primary: item.quantity_in_primary,
+                is_manual: item.is_manual || false
             });
         });
         saveCartToSession(); updateUI();
@@ -3512,11 +3930,14 @@ async function saveQuotation() {
         subtotal: summary.subtotal, total_discount: summary.total_discount,
         total_tax: summary.gst, grand_total: summary.total, notes: notes,
         items: CART.map(item => ({
-            product_id: item.product_id, product_name: item.name, quantity: roundValue(item.quantity),
+            product_id: item.is_manual ? 0 : item.product_id,
+            product_name: item.name, quantity: roundValue(item.quantity),
             unit_price: item.price, discount_amount: item.discount_amount,
             discount_type: item.discount_type, total_price: item.total,
             hsn_code: item.hsn_code, cgst_rate: item.cgst_rate, sgst_rate: item.sgst_rate,
-            igst_rate: item.igst_rate, price_type: item.price_type
+            igst_rate: item.igst_rate, price_type: item.price_type,
+            is_manual: item.is_manual || false,
+            unit: item.unit
         }))
     };
     
@@ -3560,17 +3981,17 @@ async function loadQuotationsList() {
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${quotation.quotation_number}</strong></td>
-                    <td>${quotation.customer_name}</td>
-                    <td>${createdDate}</td>
-                    <td>${validUntil}</td>
-                    <td>₹${roundValue(quotation.grand_total)}</td>
-                    <td><span>${quotation.status || 'draft'}</span></td>
+                    <td><strong>${quotation.quotation_number}</strong>\\
+                    <td>${quotation.customer_name}\\
+                    <td>${createdDate}\\
+                    <td>${validUntil}\\
+                    <td>₹${roundValue(quotation.grand_total)}\\
+                    <td><span>${quotation.status || 'draft'}</span>\\
                     <td>
                         <button class="btn btn-sm btn-primary retrieve-quotation-btn" data-quotation-id="${quotation.id}"><i class="fas fa-shopping-cart"></i></button>
                         <button class="btn btn-sm btn-info view-quotation-btn" data-quotation-id="${quotation.id}"><i class="fas fa-print"></i></button>
                         <button class="btn btn-sm btn-danger delete-quotation-btn" data-quotation-id="${quotation.id}"><i class="fas fa-trash"></i></button>
-                    </td>
+                     \\
                 `;
                 table.appendChild(row);
             });
@@ -3588,7 +4009,7 @@ async function loadQuotationsList() {
                 btn.onclick = function() { deleteQuotation(this.getAttribute('data-quotation-id')); };
             });
         } else {
-            table.innerHTML = '<tr><td colspan="7" style="text-align: center;">No quotations found</td></tr>';
+            table.innerHTML = '|<td colspan="7" style="text-align: center;">No quotations found</td>|';
             noQuotationsMessage.style.display = 'block';
             QUOTATIONS = [];
         }
@@ -3622,21 +4043,66 @@ function retrieveQuotation() {
             if (!items || items.length === 0) throw new Error('No items found');
             CART = [];
             items.forEach(item => {
-                const product = PRODUCTS.find(p => p.id == item.product_id);
-                if (product) {
+                if (item.is_manual) {
+                    // Manual product
                     CART.push({
-                        id: `${item.product_id}-${item.unit || product.unit_of_measure}-${item.price_type || 'retail'}`,
-                        product_id: item.product_id, name: item.product_name, code: product.code,
-                        price: roundValue(parseFloat(item.unit_price)), price_type: item.price_type || 'retail',
-                        quantity: roundValue(parseFloat(item.quantity)), unit: item.unit || product.unit_of_measure,
-                        discount_type: item.discount_type, discount_value: roundValue(parseFloat(item.discount_amount) || 0),
-                        discount_amount: roundValue(parseFloat(item.discount_amount) || 0), total: roundValue(parseFloat(item.total_price)),
-                        mrp: product.mrp, cgst_rate: roundValue(parseFloat(item.cgst_rate) || 0),
-                        sgst_rate: roundValue(parseFloat(item.sgst_rate) || 0), igst_rate: roundValue(parseFloat(item.igst_rate) || 0),
-                        hsn_code: item.hsn_code, shop_stock: product.shop_stock,
-                        unit_of_measure: product.unit_of_measure, secondary_unit: product.secondary_unit,
-                        sec_unit_conversion: product.sec_unit_conversion, stock_price: product.stock_price
+                        id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                        product_id: 0,
+                        name: item.product_name,
+                        code: item.product_code || `MAN-${Date.now()}`,
+                        price: roundValue(parseFloat(item.unit_price)),
+                        price_type: item.price_type || 'retail',
+                        quantity: roundValue(parseFloat(item.quantity)),
+                        unit: item.unit || 'PCS',
+                        discount_type: item.discount_type,
+                        discount_value: roundValue(parseFloat(item.discount_amount) || 0),
+                        discount_amount: roundValue(parseFloat(item.discount_amount) || 0),
+                        total: roundValue(parseFloat(item.total_price)),
+                        mrp: roundValue(parseFloat(item.unit_price)),
+                        cgst_rate: roundValue(parseFloat(item.cgst_rate) || 0),
+                        sgst_rate: roundValue(parseFloat(item.sgst_rate) || 0),
+                        igst_rate: roundValue(parseFloat(item.igst_rate) || 0),
+                        hsn_code: item.hsn_code || '',
+                        shop_stock: 999999,
+                        unit_of_measure: item.unit || 'PCS',
+                        secondary_unit: null,
+                        sec_unit_conversion: null,
+                        stock_price: roundValue(parseFloat(item.unit_price)),
+                        is_secondary_unit: false,
+                        quantity_in_primary: roundValue(parseFloat(item.quantity)),
+                        is_manual: true
                     });
+                } else {
+                    const product = PRODUCTS.find(p => p.id == item.product_id);
+                    if (product) {
+                        CART.push({
+                            id: `${item.product_id}-${item.unit || product.unit_of_measure}-${item.price_type || 'retail'}`,
+                            product_id: item.product_id,
+                            name: item.product_name,
+                            code: product.code,
+                            price: roundValue(parseFloat(item.unit_price)),
+                            price_type: item.price_type || 'retail',
+                            quantity: roundValue(parseFloat(item.quantity)),
+                            unit: item.unit || product.unit_of_measure,
+                            discount_type: item.discount_type,
+                            discount_value: roundValue(parseFloat(item.discount_amount) || 0),
+                            discount_amount: roundValue(parseFloat(item.discount_amount) || 0),
+                            total: roundValue(parseFloat(item.total_price)),
+                            mrp: product.mrp,
+                            cgst_rate: roundValue(parseFloat(item.cgst_rate) || 0),
+                            sgst_rate: roundValue(parseFloat(item.sgst_rate) || 0),
+                            igst_rate: roundValue(parseFloat(item.igst_rate) || 0),
+                            hsn_code: item.hsn_code,
+                            shop_stock: product.shop_stock,
+                            unit_of_measure: product.unit_of_measure,
+                            secondary_unit: product.secondary_unit,
+                            sec_unit_conversion: product.sec_unit_conversion,
+                            stock_price: product.stock_price,
+                            is_secondary_unit: false,
+                            quantity_in_primary: roundValue(parseFloat(item.quantity)),
+                            is_manual: false
+                        });
+                    }
                 }
             });
             saveCartToSession(); updateUI();
@@ -3952,6 +4418,7 @@ function setupEventListeners() {
 
 window.updateCartItemQuantity = updateCartItemQuantity;
 window.removeFromCart = removeFromCart;
-    </script>
+</script>   
 </body>
+
 </html>

@@ -21,7 +21,7 @@ if (isset($_GET['id'])) {
     die("Quotation ID is required");
 }
 
-// Fetch quotation with shop details - MODIFIED: Removed JOIN with customers and users
+// Fetch quotation with shop details
 $stmt = $pdo->prepare("
     SELECT q.*,
            s.shop_name, s.address as shop_address, s.phone as shop_phone, s.gstin as shop_gstin,
@@ -112,20 +112,46 @@ if ($shop_id) {
 }
 $bank_accounts = $bank_account_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ========== Fetch quotation items ==========
+// ========== Fetch quotation items (updated to handle manual products) ==========
 $items_stmt = $pdo->prepare("
-    SELECT qi.*, 
-           p.product_name, p.product_code, p.hsn_code, p.mrp, p.gst_id,
-           g.cgst_rate, g.sgst_rate, g.igst_rate
-           
+    SELECT qi.* 
     FROM quotation_items qi
-    JOIN products p ON qi.product_id = p.id
-    LEFT JOIN gst_rates g ON p.gst_id = g.id
     WHERE qi.quotation_id = ?
     ORDER BY qi.id
 ");
 $items_stmt->execute([$quotation_id]);
 $items = $items_stmt->fetchAll();
+
+// Process items to include product details (or handle manual products)
+$processed_items = [];
+foreach ($items as $item) {
+    if ($item['product_id'] > 0) {
+        // Regular product - fetch from products table
+        $product_stmt = $pdo->prepare("
+            SELECT p.product_name, p.product_code, p.hsn_code, p.mrp, p.gst_id,
+                   g.cgst_rate, g.sgst_rate, g.igst_rate,
+                   p.unit_of_measure
+            FROM products p
+            LEFT JOIN gst_rates g ON p.gst_id = g.id
+            WHERE p.id = ?
+        ");
+        $product_stmt->execute([$item['product_id']]);
+        $product = $product_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($product) {
+            // Merge product data with item data
+            $merged_item = array_merge($item, $product);
+            $merged_item['product_unit'] = $product['unit_of_measure'] ?? $item['unit'] ?? 'PCS';
+            $processed_items[] = $merged_item;
+        } else {
+            $processed_items[] = $item;
+        }
+    } else {
+        // Manual product - use data directly from quotation_items
+        $processed_items[] = $item;
+    }
+}
+$items = $processed_items;
 
 // ========== Calculate totals ==========
 $subtotal = $total_discount = 0;
@@ -160,7 +186,7 @@ $is_tax_quotation = !empty($quotation['customer_gstin']) || ($total_cgst + $tota
 $quotation_date = date('d-m-Y', strtotime($quotation['quotation_date']));
 $valid_until = date('d-m-Y', strtotime($quotation['valid_until']));
 
-// Customer details - MODIFIED: Get directly from quotation table
+// Customer details - Get directly from quotation table
 $customer_name = $quotation['customer_name'] ?? 'Customer';
 $customer_phone = $quotation['customer_phone'] ?? '';
 $customer_email = $quotation['customer_email'] ?? '';
@@ -170,36 +196,44 @@ $customer_gstin = $quotation['customer_gstin'] ?? '';
 // Place of supply
 $place_of_supply = 'Tamil Nadu (33)';
 
-// Created by name - MODIFIED: Fetch from session or use default
+// Created by name - Fetch from session or use default
 $created_by_name = $_SESSION['full_name'] ?? 'Staff';
 
 // ========== Include FPDF library ==========
 require_once 'libs/fpdf.php';
 
-// ========== Helper functions ==========
-function money($v) { 
-    return number_format((float)$v, 2, '.', ','); 
+// ========== Helper functions (defined only once) ==========
+if (!function_exists('money')) {
+    function money($v) { 
+        return number_format((float)$v, 2, '.', ','); 
+    }
 }
 
-function money_rs($v) { 
-    return 'Rs. ' . money($v);
+if (!function_exists('money_rs')) {
+    function money_rs($v) { 
+        return 'Rs. ' . money($v);
+    }
 }
 
-function format_quantity($v) {
-    $v = (float)$v;
-    if (floor($v) == $v) return number_format($v, 0, '.', '');
-    return number_format($v, 2, '.', '');
+if (!function_exists('format_quantity')) {
+    function format_quantity($v) {
+        $v = (float)$v;
+        if (floor($v) == $v) return number_format($v, 0, '.', '');
+        return number_format($v, 2, '.', '');
+    }
 }
 
-function pdf_text_simple($s) {
-    $s = (string)$s;
-    // Replace problematic characters
-    $s = str_replace(["₹", "â‚¹", "€", "£", "¥"], ["Rs.", "Rs.", "EUR", "GBP", "JPY"], $s);
-    
-    // Remove any non-ASCII characters
-    $s = preg_replace('/[^\x00-\x7F]/', '', $s);
-    
-    return $s;
+if (!function_exists('pdf_text_simple')) {
+    function pdf_text_simple($s) {
+        $s = (string)$s;
+        // Replace problematic characters
+        $s = str_replace(["₹", "â‚¹", "€", "£", "¥"], ["Rs.", "Rs.", "EUR", "GBP", "JPY"], $s);
+        
+        // Remove any non-ASCII characters
+        $s = preg_replace('/[^\x00-\x7F]/', '', $s);
+        
+        return $s;
+    }
 }
 
 // ========== Quotation PDF Class ==========
@@ -412,7 +446,7 @@ class QuotationPDF extends FPDF {
         $unit_price = $item['unit_price'] ?? 0;
         $quantity = $item['quantity'] ?? 0;
         $discount_amount = $item['discount_amount'] ?? 0;
-        $discount_rate = $item['discount_rate'] ?? 0;
+        $discount_rate = $item['discount_value'] ?? 0;
         
         $cgst_rate = $item['cgst_rate'] ?? 0;
         $sgst_rate = $item['sgst_rate'] ?? 0;
@@ -429,7 +463,19 @@ class QuotationPDF extends FPDF {
         $igst_amount = $taxable_value * ($igst_rate / 100);
         $total_gst_amount = $cgst_amount + $sgst_amount + $igst_amount;
         $total_with_gst = $taxable_value + $total_gst_amount;
-        $unit = !empty($item['product_unit']) ? $item['product_unit'] : (empty($item['unit']) ? 'PCS' : $item['unit']);
+        
+        // Get unit - check multiple possible sources
+        $unit = !empty($item['unit']) ? $item['unit'] : 
+                (!empty($item['product_unit']) ? $item['product_unit'] : 'PCS');
+        
+        // Get product code and name
+        $product_code = $item['product_code'] ?? '';
+        $product_name = $item['product_name'] ?? '';
+        
+        // For manual products, show "(Manual)" indicator
+        if ($item['product_id'] == 0 && empty($product_code)) {
+            $product_code = '';
+        }
         
         // Set positions
         $x0 = $x;
@@ -448,13 +494,14 @@ class QuotationPDF extends FPDF {
         $this->Cell($this->col_w[0], $cellH, (string)$sn, 0, 0, 'C');
         
         // Item Description
-        $item_text = (!empty($item['product_code']) ? $item['product_code'] . " - " : "") . $item['product_name'];
+        $item_text = (!empty($product_code) ? $product_code . " - " : "") . $product_name;
         $this->BoxText($x1, $y, $this->col_w[1], $cellH, $item_text, 'L', 'M', 1.2, 1.0, 5.4);
         
         // HSN
+        $hsn = $item['hsn_code'] ?? '';
         $this->Rect($x2, $y, $this->col_w[2], $cellH);
         $this->SetXY($x2, $y);
-        $this->Cell($this->col_w[2], $cellH, pdf_text_simple($item['hsn_code'] ?? ''), 0, 0, 'C');
+        $this->Cell($this->col_w[2], $cellH, pdf_text_simple($hsn), 0, 0, 'C');
         
         // GST(%)
         $gst_text = $total_gst_rate > 0 ? number_format($total_gst_rate, 1) . '%' : '0%';
@@ -655,7 +702,7 @@ $pdf->quotation = [
     'place_of_supply' => $place_of_supply
 ];
 
-// Set customer info - MODIFIED: Use direct quotation fields
+// Set customer info - Use direct quotation fields
 $pdf->customer = [
     'name'    => $customer_name,
     'phone'   => $customer_phone,
@@ -690,7 +737,7 @@ if (!empty($bank_accounts)) {
     $pdf->account = [];
 }
 
-// Set prepared by (use session or default)
+// Set prepared by
 $pdf->verified_by = $created_by_name;
 
 // ========== Generate PDF ==========
@@ -703,9 +750,16 @@ $sn = 1;
 // Add items
 if (!empty($items)) {
     foreach ($items as $item) {
-        $name = $item['product_name'] ?? '';
-        $code = $item['product_code'] ?? '';
-        $itemText = (!empty($code) ? $code . " - " : "") . $name;
+        // Build item description
+        $product_name = $item['product_name'] ?? '';
+        $product_code = $item['product_code'] ?? '';
+        
+        // For manual products, show "(Manual)" indicator
+        if ($item['product_id'] == 0 && empty($product_code)) {
+            $product_code = 'Manual Product';
+        }
+        
+        $itemText = (!empty($product_code) ? $product_code . " - " : "") . $product_name;
         
         // Calculate required height
         $itemLines = max($minLines, $pdf->NbLines(max(1, $pdf->col_w[1] - 3), $itemText));
