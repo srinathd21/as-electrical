@@ -159,7 +159,7 @@
         <div class="mt-4">
           <div class="d-flex gap-4">
             <div><i class="fas fa-map-marker-alt text-warning"></i> <strong>Near Bus Stand, Tiruvannamalai</strong></div>
-            <div><i class="fas fa-phone-alt text-warning"></i> +91 98765 43210</div>
+            <div><i class="fas fa-phone-alt text-warning"></i> +91 86107 86637</div>
           </div>
         </div>
       </div>
@@ -214,19 +214,20 @@
           <div class="mt-4">
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-map-marker-alt fa-lg text-warning"></i></div>
-              <div><strong>Showroom Address</strong><br>#45, Car Street, Near Annamalaiyar Temple, Tiruvannamalai, Tamil Nadu - 606601</div>
+              <div><strong>Showroom Address</strong><br>S.F.NO.169/1A7A, Girivalam Road, Adiannamalai,
+Tiruvannamalai, Tamil Nadu, 606604</div>
             </div>
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-phone-alt fa-lg text-warning"></i></div>
-              <div><strong>Phone / Whatsapp</strong><br>+91 98765 43210 , +91 98765 43211</div>
+              <div><strong>Phone / Whatsapp</strong><br>+91 86107 86637</div>
             </div>
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-envelope fa-lg text-warning"></i></div>
-              <div><strong>Email</strong><br>support@aselectricals.com</div>
+              <div><strong>Email</strong><br>aselectricalshari@gmail.com</div>
             </div>
             <div class="d-flex gap-3">
               <div class="contact-icon"><i class="fas fa-clock fa-lg text-warning"></i></div>
-              <div><strong>Business Hours</strong><br>Mon - Sat: 9:00 AM – 8:30 PM | Sunday: 10:00 AM – 1:00 PM</div>
+              <div><strong>Business Hours</strong><br>Mon - Sun: 9:00 AM – 9:00 PM </div>
             </div>
           </div>
           <div class="social-icons mt-5">
@@ -269,7 +270,8 @@
     once: true,
     offset: 80
   });
-  // Smooth scrolling for anchor links
+
+  // Smooth scrolling
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function(e) {
       const target = document.querySelector(this.getAttribute('href'));
@@ -280,33 +282,69 @@
     });
   });
 
-  // Simple form feedback
+  // ✅ UPDATED FORM LOGIC (WhatsApp Integration)
   const contactForm = document.getElementById('contactForm');
   const feedbackDiv = document.getElementById('formFeedback');
+
   if(contactForm) {
     contactForm.addEventListener('submit', function(e) {
       e.preventDefault();
+
       const name = document.getElementById('nameInput')?.value || '';
-      if(name.trim() === '') {
-        feedbackDiv.innerHTML = '⚠️ Please enter your name.';
+      const phone = document.getElementById('phoneInput')?.value || '';
+      const email = document.getElementById('emailInput')?.value || '';
+      const service = document.getElementById('serviceSelect')?.value || '';
+      const message = document.getElementById('msgInput')?.value || '';
+
+      // Validation
+      if(name.trim() === '' || phone.trim() === '') {
+        feedbackDiv.innerHTML = '⚠️ Please enter your name and phone number.';
         feedbackDiv.classList.add('text-danger');
         return;
       }
-      feedbackDiv.innerHTML = '✅ Thanks! Our team will contact you shortly.';
+
+      // WhatsApp message
+      const whatsappMessage = `Hello AS Electricals 👋
+
+📌 *New Enquiry*
+
+👤 Name: ${name}
+📞 Phone: ${phone}
+📧 Email: ${email}
+🛠 Service: ${service}
+
+📝 Message:
+${message}`;
+
+      const encodedMessage = encodeURIComponent(whatsappMessage);
+      const whatsappURL = `https://wa.me/918610786637?text=${encodedMessage}`;
+
+      // Show success message
+      feedbackDiv.innerHTML = '✅ Redirecting to WhatsApp...';
       feedbackDiv.classList.remove('text-danger');
       feedbackDiv.classList.add('text-success');
+
+      // Open WhatsApp
+      setTimeout(() => {
+        window.open(whatsappURL, '_blank');
+      }, 800);
+
+      // Reset form
       contactForm.reset();
+
       setTimeout(() => { feedbackDiv.innerHTML = ''; }, 4000);
     });
   }
 
-  // Newsletter subscription mock
+  // Newsletter
   const subBtn = document.getElementById('subscribeBtn');
   const newsMsg = document.getElementById('newsMsg');
+
   if(subBtn) {
     subBtn.addEventListener('click', function() {
       const emailField = document.getElementById('newsEmail');
       const email = emailField?.value || '';
+
       if(email.includes('@') && email.includes('.')) {
         newsMsg.innerHTML = '🎉 Subscribed successfully!';
         newsMsg.classList.add('text-success');
@@ -320,11 +358,11 @@
     });
   }
 
-  // Enquire buttons alert
+  // Enquire buttons
   const enquireBtns = document.querySelectorAll('.enquire-btn');
   enquireBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      alert('📞 Thank you for your interest! Call us at +91 98765 43210 for best prices and availability.');
+      window.open('https://wa.me/918610786637?text=Hello%20AS%20Electricals,%20I%20am%20interested%20in%20your%20products', '_blank');
     });
   });
 </script>

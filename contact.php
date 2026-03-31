@@ -15,7 +15,7 @@
           <p class="text-white-50 lead">Have questions about our products or services? Need emergency electrical support? We're just a call or message away. Our team is ready to assist you.</p>
           <div class="mt-4 d-flex gap-3 flex-wrap">
             <a href="#contact-form" class="btn btn-electric px-4 py-2"><i class="fas fa-paper-plane me-2"></i>Send Message</a>
-            <a href="tel:+919876543210" class="btn btn-outline-light px-4 py-2 rounded-pill"><i class="fas fa-phone-alt me-2"></i>Call Now</a>
+            <a href="tel:+918610786637" class="btn btn-outline-light px-4 py-2 rounded-pill"><i class="fas fa-phone-alt me-2"></i>Call Now</a>
           </div>
         </div>
       </div>
@@ -39,22 +39,23 @@
           <div class="mt-4">
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-map-marker-alt fa-lg text-warning"></i></div>
-              <div><strong>Showroom Address</strong><br>#45, Car Street, Near Annamalaiyar Temple,<br>Tiruvannamalai, Tamil Nadu - 606601</div>
+              <div><strong>Showroom Address</strong><br>S.F.NO.169/1A7A, Girivalam Road, Adiannamalai,
+Tiruvannamalai, Tamil Nadu, 606604</div>
             </div>
             
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-phone-alt fa-lg text-warning"></i></div>
-              <div><strong>Phone / Whatsapp</strong><br><a href="tel:+919876543210" class="text-decoration-none text-dark">+91 98765 43210</a><br><a href="tel:+919876543211" class="text-decoration-none text-dark">+91 98765 43211</a></div>
+              <div><strong>Phone / Whatsapp</strong><br><a href="tel:+918610786637" class="text-decoration-none text-dark">+91 86107 86637</a></div>
             </div>
             
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-envelope fa-lg text-warning"></i></div>
-              <div><strong>Email</strong><br><a href="mailto:support@aselectricals.com" class="text-decoration-none">support@aselectricals.com</a><br><a href="mailto:info@aselectricals.com" class="text-decoration-none">info@aselectricals.com</a></div>
+              <div><strong>Email</strong><br><a href="mailto:aselectricalshari@gmail.com" class="text-decoration-none">aselectricalshari@gmail.com</a></div>
             </div>
             
             <div class="d-flex gap-3 mb-4 align-items-center">
               <div class="contact-icon"><i class="fas fa-clock fa-lg text-warning"></i></div>
-              <div><strong>Business Hours</strong><br>Monday - Saturday: 9:00 AM – 8:30 PM<br>Sunday: 10:00 AM – 1:00 PM<br><span class="text-success small"><i class="fas fa-bolt"></i> Emergency: 24/7 Support Available</span></div>
+              <div><strong>Business Hours</strong><br>Monday - Sunday: 9:00 AM – 9:00 PM</div>
             </div>
           </div>
           
@@ -133,9 +134,9 @@
           
           <div class="mt-4 pt-3 border-top">
             <div class="d-flex gap-3 justify-content-center flex-wrap">
-              <a href="tel:+919876543210" class="btn btn-outline-warning rounded-pill px-4"><i class="fas fa-phone-alt me-2"></i>Call Us</a>
-              <a href="https://wa.me/919876543210" target="_blank" class="btn btn-outline-success rounded-pill px-4"><i class="fab fa-whatsapp me-2"></i>WhatsApp</a>
-              <a href="mailto:support@aselectricals.com" class="btn btn-outline-danger rounded-pill px-4"><i class="fas fa-envelope me-2"></i>Email Us</a>
+              <a href="tel:+918610786637" class="btn btn-outline-warning rounded-pill px-4"><i class="fas fa-phone-alt me-2"></i>Call Us</a>
+              <a href="https://wa.me/918610786637" target="_blank" class="btn btn-outline-success rounded-pill px-4"><i class="fab fa-whatsapp me-2"></i>WhatsApp</a>
+              <a href="mailto:aselectricalshari@gmail.com" class="btn btn-outline-danger rounded-pill px-4"><i class="fas fa-envelope me-2"></i>Email Us</a>
             </div>
           </div>
         </div>
@@ -157,7 +158,7 @@
         <div class="rounded-4 overflow-hidden shadow">
           <!-- Google Maps Embed - Tiruvannamalai location -->
           <iframe 
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d31235.882125434804!2d79.058348!3d12.225277!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bac3e7c2f6b8b6b%3A0x5b7c6b8c9d8f9e7a!2sTiruvannamalai%2C%20Tamil%20Nadu!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" 
+            src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3898.9362842257488!2d79.03549497506448!3d12.252591088000603!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMTLCsDE1JzA5LjMiTiA3OcKwMDInMTcuMSJF!5e0!3m2!1sen!2sin!4v1774975070654!5m2!1sen!2sin" 
             width="100%" 
             height="400" 
             style="border:0;" 
@@ -167,7 +168,8 @@
           </iframe>
         </div>
         <div class="mt-3 text-center">
-          <p class="mb-0"><i class="fas fa-location-dot text-warning me-2"></i> #45, Car Street, Near Annamalaiyar Temple, Tiruvannamalai - 606601</p>
+          <p class="mb-0"><i class="fas fa-location-dot text-warning me-2"></i>S.F.NO.169/1A7A, Girivalam Road, Adiannamalai,
+Tiruvannamalai, Tamil Nadu, 606604</p>
           <p class="small text-secondary mt-2">📍 Easy access from the main bus stand. Ample parking available for customers.</p>
         </div>
       </div>
@@ -205,7 +207,7 @@
             <i class="fas fa-clock fa-2x text-warning"></i>
             <div>
               <h5 class="fw-bold">What are your service hours?</h5>
-              <p class="text-secondary mb-0">We're open Monday to Saturday from 9:00 AM to 8:30 PM, and Sunday from 10:00 AM to 1:00 PM. Emergency services are available 24/7.</p>
+              <p class="text-secondary mb-0">We're open Monday to Saturday from 9:00 AM to 9:00 PM. Emergency services are available 24/7.</p>
             </div>
           </div>
         </div>
@@ -253,13 +255,14 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 <script>
+  // AOS Init
   AOS.init({
     duration: 800,
     once: true,
     offset: 80
   });
-  
-  // Smooth scrolling for anchor links
+
+  // Smooth scrolling
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function(e) {
       const target = document.querySelector(this.getAttribute('href'));
@@ -270,76 +273,120 @@
     });
   });
 
-  // Contact Form Submission
+  // ✅ CONTACT FORM → WHATSAPP
   const contactForm = document.getElementById('contactForm');
   const feedbackDiv = document.getElementById('formFeedback');
-  
-  if(contactForm) {
+
+  if (contactForm) {
     contactForm.addEventListener('submit', function(e) {
       e.preventDefault();
+
       const name = document.getElementById('nameInput')?.value || '';
       const phone = document.getElementById('phoneInput')?.value || '';
+      const email = document.getElementById('emailInput')?.value || '';
+      const subject = document.getElementById('subjectSelect')?.value || '';
       const msg = document.getElementById('msgInput')?.value || '';
       const agree = document.getElementById('agreeCheck')?.checked || false;
-      
-      if(name.trim() === '') {
-        feedbackDiv.innerHTML = '⚠️ Please enter your name.';
-        feedbackDiv.classList.add('text-danger');
-        feedbackDiv.classList.remove('text-success');
+
+      // Validation
+      if (name.trim() === '') {
+        showError('⚠️ Please enter your name.');
         return;
       }
-      if(phone.trim() === '') {
-        feedbackDiv.innerHTML = '⚠️ Please enter your phone number.';
-        feedbackDiv.classList.add('text-danger');
-        feedbackDiv.classList.remove('text-success');
+
+      if (phone.trim() === '') {
+        showError('⚠️ Please enter your phone number.');
         return;
       }
-      if(msg.trim() === '') {
-        feedbackDiv.innerHTML = '⚠️ Please enter your message.';
-        feedbackDiv.classList.add('text-danger');
-        feedbackDiv.classList.remove('text-success');
+
+      if (msg.trim() === '') {
+        showError('⚠️ Please enter your message.');
         return;
       }
-      if(!agree) {
-        feedbackDiv.innerHTML = '⚠️ Please agree to the terms to proceed.';
-        feedbackDiv.classList.add('text-danger');
-        feedbackDiv.classList.remove('text-success');
+
+      if (!agree) {
+        showError('⚠️ Please agree to the terms to proceed.');
         return;
       }
-      
-      // Simulate form submission
-      feedbackDiv.innerHTML = '✅ Thank you! Your message has been sent. We will contact you within 2 hours.';
+
+      // WhatsApp message
+      const whatsappMessage = `Hello AS Electricals 👋
+
+📌 *New Contact Enquiry*
+
+👤 Name: ${name}
+📞 Phone: ${phone}
+📧 Email: ${email}
+📋 Subject: ${subject}
+
+📝 Message:
+${msg}`;
+
+      const encodedMessage = encodeURIComponent(whatsappMessage);
+      const whatsappURL = `https://wa.me/918610786637?text=${encodedMessage}`;
+
+      // Success message
+      feedbackDiv.innerHTML = '✅ Redirecting to WhatsApp...';
       feedbackDiv.classList.remove('text-danger');
       feedbackDiv.classList.add('text-success');
-      
+
+      // Open WhatsApp
+      setTimeout(() => {
+        window.open(whatsappURL, '_blank');
+      }, 800);
+
       // Reset form
       contactForm.reset();
-      
-      setTimeout(() => { 
+
+      setTimeout(() => {
         feedbackDiv.innerHTML = '';
-      }, 5000);
+      }, 4000);
     });
   }
 
-  // Newsletter subscription (if elements exist in footer)
+  // Helper function
+  function showError(message) {
+    feedbackDiv.innerHTML = message;
+    feedbackDiv.classList.add('text-danger');
+    feedbackDiv.classList.remove('text-success');
+  }
+
+  // ✅ NEWSLETTER
   const subBtn = document.getElementById('subscribeBtn');
   const newsMsg = document.getElementById('newsMsg');
-  if(subBtn) {
+
+  if (subBtn) {
     subBtn.addEventListener('click', function() {
       const emailField = document.getElementById('newsEmail');
       const email = emailField?.value || '';
-      if(email.includes('@') && email.includes('.')) {
+
+      if (email.includes('@') && email.includes('.')) {
         newsMsg.innerHTML = '🎉 Subscribed successfully!';
+        newsMsg.classList.remove('text-danger');
         newsMsg.classList.add('text-success');
         emailField.value = '';
-        setTimeout(() => { newsMsg.innerHTML = ''; }, 3000);
+
+        setTimeout(() => {
+          newsMsg.innerHTML = '';
+        }, 3000);
       } else {
         newsMsg.innerHTML = '❌ Please enter a valid email.';
+        newsMsg.classList.remove('text-success');
         newsMsg.classList.add('text-danger');
-        setTimeout(() => { newsMsg.innerHTML = ''; }, 2500);
+
+        setTimeout(() => {
+          newsMsg.innerHTML = '';
+        }, 2500);
       }
     });
   }
+
+  // ✅ OPTIONAL: Make WhatsApp button smarter (if used anywhere)
+  document.querySelectorAll('a[href*="wa.me"]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      console.log('WhatsApp clicked');
+    });
+  });
 </script>
 </body>
 </html>

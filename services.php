@@ -187,7 +187,7 @@
   <div class="container py-4 text-center">
     <h2 class="text-white mb-3" data-aos="fade-up">Need an Expert Electrician?</h2>
     <p class="text-white-50 mb-4" data-aos="fade-up">Get professional service at your doorstep. Same-day service available!</p>
-    <a href="contact.php" class="btn btn-electric btn-lg px-5 py-3" data-aos="zoom-in"><i class="fas fa-phone-alt me-2"></i>Call Now: +91 98765 43210</a>
+    <a href="contact.php" class="btn btn-electric btn-lg px-5 py-3" data-aos="zoom-in"><i class="fas fa-phone-alt me-2"></i>Call Now: +91 86107 86637</a>
   </div>
 </section>
 
