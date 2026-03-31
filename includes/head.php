@@ -32,8 +32,7 @@
       color: #1e293b;
     }
   section{
-    overflow-x: hidden;
-    
+    overflow-x: hidden; 
   }
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
@@ -242,9 +241,8 @@
       box-shadow: 0 15px 30px rgba(0,0,0,0.05);
     }
     .contact-icon {
-      width: 50px;
-      height: 50px;
-      background: rgba(249,115,22,0.12);
+     
+     
       border-radius: 30px;
       display: flex;
       align-items: center;
