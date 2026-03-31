@@ -61,11 +61,9 @@ Tiruvannamalai, Tamil Nadu, 606604</div>
           
           <div class="social-icons mt-4">
             <h6 class="mb-3">Connect With Us</h6>
-            <a href="#" class="me-3"><i class="fab fa-facebook-f fa-lg"></i></a>
-            <a href="#" class="me-3"><i class="fab fa-instagram fa-lg"></i></a>
-            <a href="#" class="me-3"><i class="fab fa-whatsapp fa-lg"></i></a>
-            <a href="#" class="me-3"><i class="fab fa-google fa-lg"></i></a>
-            <a href="#"><i class="fab fa-youtube fa-lg"></i></a>
+            <a href="https://www.facebook.com/share/14UXcQVhJPa/" class="me-3"><i class="fab fa-facebook-f fa-lg"></i></a>
+            <a href="https://www.instagram.com/tvm25electricals?utm_source=qr&igsh=MWxxb3ZyeWY1MzNjaw==" class="me-3"><i class="fab fa-instagram fa-lg"></i></a>
+            
           </div>
           
           <!-- Quick Response Badge -->
