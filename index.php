@@ -2,7 +2,9 @@
 <html lang="en">
 <?php include('includes/head.php');?>
 <body>
-
+<style>
+  
+</style>
 <!-- Navigation Bar -->
 <?php include('includes/nav.php');?>
 

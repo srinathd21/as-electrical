@@ -27,11 +27,14 @@
 
     body {
       font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
+      overflow-x: hidden !important;
       background: #fefefe;
       color: #1e293b;
     }
-
+  section{
+    overflow-x: hidden;
+    
+  }
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 8px;
